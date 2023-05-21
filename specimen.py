@@ -32,7 +32,7 @@ class Specimen:
         properties_text += f"Dim (L W t): \n{self.length:.2f} x {self.width:.2f} x {self.weight:.2f}(mm)\n"
         properties_text += f"Weight: {self.weight:.4f} g\n"
         properties_text += f"Density: {self.density:.4f} (g/cc)\n"
-        properties_text += f"Cross-sectional: {self.cross_sectional_area:.2f} (mm^2)\n"
+        properties_text += f"Cross-sectional: {self.cross_sectional_area} (mm^2)\n"
         properties_text += f"Original Length: {self.original_length:.2f} (mm)"
         label.config(text=properties_text)
 
@@ -222,7 +222,6 @@ class SpecimenGraphManager:
 
         stress_diff = np.diff(stress)
         strain_diff = np.diff(strain)
-        # print(f"Stress diff: {stress_diff} and strain diff:{strain_diff}")
 
         # Test
         strain_diff_masked = np.ma.masked_where(strain_diff == 0, strain_diff)
@@ -401,7 +400,6 @@ class SpecimenGraphManager:
         # Initialize the GraphManager with the data loaded from the CSV files
         manager = cls(specimen)
         for attr, csv_file in data.items():
-            print(csv_file)
             if isinstance(csv_file, str) and csv_file.endswith('_data.csv'):
                 file_path = os.path.join(
                     temp_dir, csv_file) if temp_dir else csv_file
@@ -491,7 +489,6 @@ class SpecimenDataManager:
         manager = cls(specimen, None,
                       data['cross_sectional_area'], data['original_length'])
         for attr, csv_file in data.items():
-            print(csv_file)
             if isinstance(csv_file, str) and csv_file.endswith('_data.csv'):
                 file_path = os.path.join(
                     temp_dir, csv_file) if temp_dir else csv_file

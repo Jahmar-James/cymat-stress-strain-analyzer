@@ -73,7 +73,6 @@ class DataHandler:
             find_IYS_align_thread.join()
             if len(self.app.variables.specimens) > 1:
                 self.button_actions.plot_all_specimens()
-        
 
     def get_specimen_properties(self):
         name = self.widget_manager.name_entry.get()
@@ -146,17 +145,14 @@ class DataHandler:
         "strain": average_strain,
         "stress": average_stress
     })
-    
-    def export_data(self):
-        for specimen in self.app.variables.specimens:
-            specimen.data_manager.export_to_excel(f"{specimen.name} cleaned data.xlsx")
-        tk.messagebox.showinfo("Data Export", "Data has been exported to Excel successfully!")
 
-    def export_average_to_excel(self):
+    def export_average_to_excel(self,selected_indices, file_path):
         print("Starting export thread")
-        export_thread = threading.Thread(target=self.excel_exporter.export_average_to_excel)
+        export_thread = threading.Thread(target=self.excel_exporter.export_data_to_excel(selected_indices, file_path))
         # export_thread = threading.Thread(target=self.excel_exporter.profile_export_average_to_excel)
         export_thread.start()
+        self.app.variables.export_in_progress = True
+
 
     def save_specimen_data(self, specimen, output_directory):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -230,35 +226,3 @@ class SpecimenDataEncoder(json.JSONEncoder):
             else:
                 encoded_dict[attr] = value
         return encoded_dict
-
-# class SpecimenDataEncoder(json.JSONEncoder):
-#     def default(self, obj):
-#         try:
-#             return super().default(obj)
-#         except TypeError:
-#             if isinstance(obj, dict):
-#                 return self.encode_dict(obj)
-#             elif hasattr(obj, '__dict__'):
-#                 return self.encode_dict(obj.__dict__)
-#             else:
-#                 raise
-
-#     def encode_dict(self, obj_dict):
-#         encoded_dict = {}
-#         for attr, value in obj_dict.items():
-#             if attr == "raw_data" or attr == "specimen":
-#                 continue  # Skip raw_data and specimen
-#             elif isinstance(value, dict):
-#                 encoded_dict[attr] = self.encode_dict(value)  # recursively handle nested dictionaries
-#             elif isinstance(value, np.int64):
-#                 encoded_dict[attr] = int(value)  # Convert np.int64 to int
-#             elif isinstance(value, (pd.DataFrame, np.ndarray)):
-#                 csv_filename = f'exported_data/{attr}_data.csv'
-#                 if isinstance(value, pd.DataFrame):
-#                     value.to_csv(csv_filename, index=False)
-#                 else:
-#                     np.savetxt(csv_filename, value, delimiter=",")
-#                 encoded_dict[attr] = csv_filename
-#             else:
-#                 encoded_dict[attr] = value
-#         return encoded_dict

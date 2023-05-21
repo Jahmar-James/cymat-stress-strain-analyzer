@@ -30,7 +30,28 @@ class ButtonActions:
         self.data_handler.export_data()
 
     def export_average_to_excel(self) -> None:
-        self.data_handler.export_average_to_excel()
+        if self.app.variables.export_in_progress:
+            tk.messagebox.showerror("Error", "Export is already in progress, ignore the button click.")
+            return
+        selected_indices = self.app.widget_manager.specimen_listbox.curselection()
+        if not selected_indices:
+            tk.messagebox.showerror("Error", "No specimens selected for averaging.")
+            return
+        self.app.data_handler.average_of_selected_specimens(selected_indices)
+        if self.app.variables.average_of_specimens is None:
+            tk.messagebox.showerror("Error", "No average curve available.")
+            return
+        
+        print("export_average_to_excel")
+
+        file_path = self.widget_manager.get_save_file_path()
+        if not file_path:
+            return
+        
+        self.data_handler.export_average_to_excel(selected_indices, file_path)     
+        tk.messagebox.showinfo("Data Export", "Data has been exported to Excel successfully!")
+
+       
 
     def submit(self) -> None:
         #enter work on submit
@@ -70,7 +91,6 @@ class ButtonActions:
             filename = Path(file_path).name
             try:
                 self.data_handler.load_specimen_data(file_path)
-                tk.messagebox.showinfo("Import Successful", f"Imported data from {filename}")
             except Exception as e:
                 tk.messagebox.showerror("Import Error", f"Failed to import data from {filename}\n\nError: {e}")
 
