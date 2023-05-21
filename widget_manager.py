@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
-
+from tkinter import filedialog
+import datetime
 
 # widget_manager.py
 class WidgetManager:
@@ -16,57 +17,94 @@ class WidgetManager:
         self.button_actions = button_actions
         self.create_widgets()
 
-    def create_label_entry(self, parent, row, label_text):
-        label = ttk.Label(parent, text=label_text)
-        label.grid(row=row, column=0, padx=15, pady=10, sticky='w')
+    # Widget flow control
+    def create_widgets(self):
+        labels_texts = ["Specimen Name:", "Length:", "Width:", "Thickness:", "Weight:"]
+        self.label_group = LabelGroup(self.app.master, labels_texts)
+        self.label_group.grid(row=0, column=0, rowspan=5, sticky='ns')
+        
+        self.entry_group = EntryGroup(self.app.master, labels_texts)
+        self.entry_group.grid(row=0, column=1, rowspan=5, sticky='ns')
+        self.name_entry, self.length_entry,self.width_entry,self.thickness_entry, self.weight_entry = self.entry_group.entries
 
-        entry = ttk.Entry(parent)
-        entry.grid(row=row, column=1, padx=15, pady=10, sticky='e')
+        self.properties_group = PropertiesGroup(self.app.master,width=400)
+        self.properties_group.grid(row=0, column=2, rowspan=5, sticky='ns')
+        self.specimen_properties_label =  self.properties_group.specimen_properties_label
+        self.file_name_label =  self.properties_group.file_name_label
 
-        return label, entry
-
-    def create_buttons(self):
         button_names = ["Submit", "Plot Current Specimen",
                         "Plot Average", "Save Specimen", "Export Average to Excel"]
         button_functions = [self.button_actions.submit, self.button_actions.plot_current_specimen, self.button_actions.plot_average,
                             self.button_actions.save_selected_specimens, self.button_actions.export_average_to_excel]
+        button_specs = list(zip(button_names, button_functions, ['disabled' if i != 0 else 'normal' for i in range(len(button_names))]))
+        
+        self.button_group = ButtonGroup(self.app.master, button_specs)
+        self.button_group.grid(row=0, column=3, rowspan=5, sticky='ns')
+        self.buttons = self.button_group.buttons
 
-        for i in range(len(button_names)):
-            button = tk.Button(
-                self.app.master, text=button_names[i], command=button_functions[i], state='disabled' if i != 0 else 'normal')
-            self.buttons.append(button)
+        self.list_box_group = ListBoxGroup(self.app.master, "Select specimens:",width=300)
+        self.list_box_group.grid(row=0, column=4, rowspan=5, sticky='ns')
+        self.specimen_listbox = self.list_box_group.specimen_listbox
+      
+        self.create_buttons()
 
-        self.reset_button = tk.Button(
-            self.app.master, text="Reset Strain Shift", command=self.reset_sliders)
-        self.reset_button.grid(row=5, column=2, padx=10, pady=2, sticky='e')
-        # self.buttons.append(self.reset_button)
+        self.create_toggle_button()
 
-        self.import_button = tk.Button(
-            self.app.master, text="Import Specimen", command=self.button_actions.import_data)
-        self.import_button.grid(row=5, column=3, padx=10, pady=2, sticky='e')
+        self.create_notebook()
+        self.app.master.grid_columnconfigure(4, weight=1)
+        self.app.master.grid_rowconfigure(5, weight=1)
 
-        # self.buttons.append(self.import_button)
-    
-    def enable_buttons(self):
-        for button in self.buttons:
-            button['state'] = 'normal'
+        self.create_select_mode_toggle_button()
 
-    def update_ui_elements(self,filename, specimen):
-            specimen.display_properties_in_label(self.specimen_properties_label)
-            self.file_name_label.config(text=filename)
-            self.update_specimen_listbox(specimen.name)
-            tk.messagebox.showinfo("Data Import", f"Data has been imported successfully from {filename}!")
+    # Creation
+    def create_label_entry(self, parent, row, label_text):
+        label = ttk.Label(parent, text=label_text)
+        label.grid(row=row, column=0, padx=15, pady=10, sticky='e')
+        entry = ttk.Entry(parent)
+        entry.grid(row=row, column=1, padx=15, pady=10, sticky='e')
+        return label, entry
 
-    def create_specimen_listbox(self):
-        self.specimen_listbox_label = tk.Label(
-            self.app.master, text="Select specimens for averaging:")
-        self.specimen_listbox_label.grid(
-            row=0, column=4, padx=10, pady=10, sticky='w')
+    def create_buttons(self):
+        self.reset_button = tk.Button( self.app.master, text="Reset Strain Shift", command=self.reset_sliders)
+        self.reset_button.grid(row=5, column=2, padx=10, pady=5, sticky='en')
 
-        self.specimen_listbox = tk.Listbox(
-            self.app.master, selectmode=tk.MULTIPLE)
-        self.specimen_listbox.grid(
-            row=1, column=4, rowspan=4, padx=10, pady=10, sticky='we')
+        self.import_button = tk.Button( self.app.master, text="Import Specimen", command=self.button_actions.import_data)
+        self.import_button.grid(row=5, column=3, padx=10, pady=5, sticky='en')
+
+    def create_toggle_button(self):
+        self.slider_enabled.trace('w', self.toggle_slider)
+        self.toggle_button = tk.Checkbutton(self.app.master, text="Enable strain shift", variable=self.slider_enabled)
+        self.toggle_button.grid(row=5, column=0, padx=10, pady=10, sticky='n')
+
+    def create_select_mode_toggle_button(self):
+        self.select_mode_enabled.trace('w', self.toggle_select_mode)
+        self.select_mode_toggle_button = tk.Checkbutton(self.app.master, text="Enable Select Mode", variable=self.select_mode_enabled)
+        self.select_mode_toggle_button.grid(
+            row=5, column=1, padx=10, pady=4, sticky='n')
+
+    def create_notebook(self):
+        self.notebook = ttk.Notebook(self.app.master)
+        self.notebook.bind("<<NotebookTabChanged>>",
+                           self.update_specimen_properties_label)
+        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
+        self.notebook.grid(row=7, column=0, columnspan=6, sticky='nsew')
+        return self.notebook
+
+    def create_new_tab(self, name):
+        self.reset_toggle_button()
+        tab = tk.Frame(self.notebook)
+        self.notebook.add(tab, text=name)
+        self.notebook.select(tab)
+        tab_id = self.notebook.select()
+        return tab_id
+   
+    # State change
+    def update_ui_elements(self, filename, specimen):
+        specimen.display_properties_in_label(self.specimen_properties_label)
+        self.file_name_label.config(text=f"File:\n{filename}")
+        self.update_specimen_listbox(specimen.name)
+        tk.messagebox.showinfo(
+            "Data Import", f"Data has been imported successfully from {filename}!")
 
     def update_specimen_properties_label(self, event=None):
         selected_tab_index = self.notebook.index(self.notebook.select())
@@ -80,74 +118,34 @@ class WidgetManager:
     def update_specimen_listbox(self, specimen_name):
         self.specimen_listbox.insert(tk.END, specimen_name)
 
-    def create_widgets(self):
-        # Create the input fields
-        self.name_label, self.name_entry = self.create_label_entry(
-            self.app.master, 0, "Specimen Name:")
-        self.length_label, self.length_entry = self.create_label_entry(
-            self.app.master, 1, "Length:")
-        self.width_label, self.width_entry = self.create_label_entry(
-            self.app.master, 2, "Width:")
-        self.thickness_label, self.thickness_entry = self.create_label_entry(
-            self.app.master, 3, "Thickness:")
-        self.weight_label, self.weight_entry = self.create_label_entry(
-            self.app.master, 4, "Weight:")
-
-        self.create_buttons()
-        for i, button in enumerate(self.buttons):
-            button.grid(row=i, column=3, padx=10, pady=2, sticky='e')
-        self.create_toggle_button()
-
-        self.specimen_properties_label = tk.Label(
-            self.app.master, text="Specimen Properties", justify='left', anchor='n')
-        self.specimen_properties_label.grid(
-            row=0, rowspan=5, column=2, padx=10, pady=10, sticky='n')
-
-        self.create_notebook()
-        self.app.master.grid_columnconfigure(4, weight=1)
-        self.app.master.grid_rowconfigure(5, weight=1)
-
-        self.file_name_label = tk.Label(self.app.master, text="file name")
-        self.file_name_label.grid(
-            row=0, column=3, padx=10, pady=10, sticky='w')
-
-        self.create_specimen_listbox()
-        self.create_select_mode_toggle_button()
-
-    def create_notebook(self):
-        self.notebook = ttk.Notebook(self.app.master)
-        self.notebook.bind("<<NotebookTabChanged>>",
-                           self.update_specimen_properties_label)
-        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
-        self.notebook.grid(row=7, column=0, columnspan=6, sticky='sw')
-        return self.notebook
-
-    def create_new_tab(self, name):
-        self.reset_toggle_button()
-        tab = tk.Frame(self.notebook)
-        self.notebook.add(tab, text=name)
-        self.notebook.select(tab)
-        tab_id = self.notebook.select()
-        return tab_id
+    def enable_buttons(self):
+        for button in self.buttons:
+            button['state'] = 'normal'
 
     def on_tab_change(self, event):
+        # updates the variables,bresets the toggle button and the slider
         self.reset_toggle_button()
 
         current_tab_name = self.notebook.tab(self.notebook.select(), "text")
 
-        # Select the new tab in the app variables
         self.app.variables.select_tab(current_tab_name)
+        
+        if len(self.app.variables.specimens) > 1:
+                self.button_actions.plot_all_specimens()
 
         # Update the slider for the current tab
         current_slider_manager = self.app.variables.current_slider_manager
         if current_slider_manager is not None:
             current_slider_manager.reset_slider()
 
-    def create_toggle_button(self):
-        self.slider_enabled.trace('w', self.toggle_slider)
-        self.toggle_button = tk.Checkbutton(self.app.master, text="Enable strain shift",
-                                            variable=self.slider_enabled)
-        self.toggle_button.grid(row=5, column=0, padx=10, pady=2, sticky='e')
+    def toggle_select_mode(self, *args):
+        if self.select_mode_enabled.get():  # if toggle button is checked
+            self.app.plot_manager.enable_click_event = True
+        else:
+            # Disable the click event on plot
+            self.app.plot_manager.enable_click_event = False
+            # Reset the selected points list when exiting select mode
+            self.app.plot_manager.selected_points = []
 
     def toggle_slider(self, *args):
         for slider_manager in [self.app.plot_manager.slider_managers['left'], self.app.plot_manager.slider_managers['middle']]:
@@ -172,22 +170,62 @@ class WidgetManager:
 
     def reset_toggle_button(self):
         self.slider_enabled.set(False)
+    
+    def get_save_file_path(self):
+        today = datetime.date.today().strftime('%Y_%m_%d')
+        default_file_name = "_".join(self.app.variables.selected_specimen_names)
+        return filedialog.asksaveasfilename(title="Save the average curve to an Excel file",
+                                            filetypes=(("Excel files", "*.xlsx"), ("All files", "*.*")),
+                                            defaultextension=".xlsx",
+                                            initialfile=f"{today}_{default_file_name}_Selected_Specimens.xlsx")
 
-    def create_select_mode_toggle_button(self):
-        self.select_mode_enabled.trace('w', self.toggle_select_mode)
-        self.select_mode_toggle_button = tk.Checkbutton(self.app.master, text="Enable Select Mode",
-                                                        variable=self.select_mode_enabled)
-        self.select_mode_toggle_button.grid(
-            row=5, column=1, padx=10, pady=2, sticky='e')
+class LabelGroup(tk.Frame):
+    def __init__(self, master=None, labels=None, **kwargs):
+        super().__init__(master, **kwargs)
+        self.labels = labels or []
+        self.entries = []
 
-    def toggle_select_mode(self, *args):
-        if self.select_mode_enabled.get():  # if toggle button is checked
-            self.app.plot_manager.enable_click_event = True
-        else:
-            # Disable the click event on plot
-            self.app.plot_manager.enable_click_event = False
-            # Reset the selected points list when exiting select mode
-            self.app.plot_manager.selected_points = []
+        for i, text in enumerate(self.labels):
+            label = ttk.Label(self, text=text,  justify='right')
+            label.grid(row=i, column=0, padx=15, pady=8, sticky='w')
+
+class EntryGroup(tk.Frame):
+    def __init__(self, master=None, labels=None, **kwargs):
+        super().__init__(master, **kwargs)
+        self.labels = labels or []
+        self.entries = []
+
+        for i, _ in enumerate(self.labels):
+            entry = ttk.Entry(self)
+            entry.grid(row=i, column=1, padx=15, pady=8, sticky='e')
+            self.entries.append(entry)
+
+class PropertiesGroup(tk.Frame):
+    def __init__(self, master=None,width=None, **kwargs):
+        super().__init__(master, width=width, **kwargs)
+        self.specimen_properties_label = tk.Label(self, text="Specimen Properties", justify='left', anchor='n')
+        self.specimen_properties_label.grid(row=0, rowspan=3, column=2, padx=10, pady=5, sticky='n')
+        self.file_name_label = tk.Label(self, text="file name", justify='left')
+        self.file_name_label.grid(row=4, column=2, padx=10, pady=10, sticky='es')
+
+class ButtonGroup(tk.Frame):
+    def __init__(self, master=None, button_specs=None, **kwargs):
+        super().__init__(master, **kwargs)
+        self.button_specs = button_specs or []
+        self.buttons  = []
+
+        for i, (text, action, state) in enumerate(self.button_specs):
+            button = tk.Button(self, text=text, command=action, state=state)
+            button.grid(row=i, column=0, padx=10, pady=5, sticky='we')
+            self.buttons.append(button)
+
+class ListBoxGroup(tk.Frame):
+    def __init__(self, master=None, label_text=None,width=None, **kwargs):
+        super().__init__(master,  width=width,**kwargs)
+        self.specimen_listbox_label = tk.Label(self, text=label_text)
+        self.specimen_listbox_label.grid(row=0, column=4, padx=10, pady=10)
+        self.specimen_listbox = tk.Listbox(self, selectmode=tk.MULTIPLE)
+        self.specimen_listbox.grid(row=1, column=4, rowspan=4, padx=10, pady=2, sticky='ns')
 
 
 class SliderManager(WidgetManager):

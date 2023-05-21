@@ -73,7 +73,6 @@ class DataHandler:
             find_IYS_align_thread.join()
             if len(self.app.variables.specimens) > 1:
                 self.button_actions.plot_all_specimens()
-        
 
     def get_specimen_properties(self):
         name = self.widget_manager.name_entry.get()
@@ -146,17 +145,14 @@ class DataHandler:
         "strain": average_strain,
         "stress": average_stress
     })
-    
-    def export_data(self):
-        for specimen in self.app.variables.specimens:
-            specimen.data_manager.export_to_excel(f"{specimen.name} cleaned data.xlsx")
-        tk.messagebox.showinfo("Data Export", "Data has been exported to Excel successfully!")
 
-    def export_average_to_excel(self):
+    def export_average_to_excel(self,selected_indices, file_path):
         print("Starting export thread")
-        export_thread = threading.Thread(target=self.excel_exporter.export_average_to_excel)
+        export_thread = threading.Thread(target=self.excel_exporter.export_data_to_excel(selected_indices, file_path))
         # export_thread = threading.Thread(target=self.excel_exporter.profile_export_average_to_excel)
         export_thread.start()
+        self.app.variables.export_in_progress = True
+
 
     def save_specimen_data(self, specimen, output_directory):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -230,5 +226,3 @@ class SpecimenDataEncoder(json.JSONEncoder):
             else:
                 encoded_dict[attr] = value
         return encoded_dict
-
-

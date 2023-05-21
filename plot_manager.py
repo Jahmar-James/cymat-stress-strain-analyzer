@@ -31,8 +31,7 @@ class PlotManager:
             self.app.widget_manager.notebook.select())
         frame = tk.Frame(tab)
         self.frames[position] = frame
-        frame.grid(row=7, column=2 *
-                   self.position_dictionary[position], columnspan=2)
+        frame.grid(row=7, column=2 * self.position_dictionary[position], columnspan=2)
 
         canvas = FigureCanvasTkAgg(fig, frame)
         canvas.draw()
@@ -51,8 +50,8 @@ class PlotManager:
                 current_tab_id, slider_manager)
             slider_manager.create_slider(frame)
 
-        canvas.get_tk_widget().grid(row=0, column=0, sticky='sw')
-        toolbar_frame.grid(row=1, column=0, sticky='w')
+        canvas.get_tk_widget().grid(row=0, column=0, sticky='n')
+        toolbar_frame.grid(row=1, column=0, sticky='we')
 
         self.plots[position] = canvas
         self.toolbars[position] = toolbar

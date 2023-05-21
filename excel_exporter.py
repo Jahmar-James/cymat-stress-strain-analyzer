@@ -24,37 +24,7 @@ class ExcelExporter:
     def profile_export_average_to_excel(self):
         cProfile.runctx('self.export_average_to_excel()', globals(), locals(), 'export_average_to_excel.profile')
 
-    def export_average_to_excel(self):
-        if self.export_in_progress:
-            # Export is already in progress, ignore the button click
-            return
-        selected_indices = self.app.widget_manager.specimen_listbox.curselection()
-        if not selected_indices:
-            tk.messagebox.showerror("Error", "No specimens selected for averaging.")
-            return
-        self.app.data_handler.average_of_selected_specimens(selected_indices)
-        if self.app.variables.average_of_specimens is None:
-            tk.messagebox.showerror("Error", "No average curve available.")
-            return
-        
-        self.export_in_progress = True
-        print("export_average_to_excel")
-
-        file_path = self.get_save_file_path()
-        if not file_path:
-            return
-        self.export_data_to_excel(selected_indices, file_path)
-        tk.messagebox.showinfo("Data Export", "Data has been exported to Excel successfully!")
-        self.export_in_progress = False
-
-    def get_save_file_path(self):
-        today = datetime.date.today().strftime('%Y_%m_%d')
-        default_file_name = "_".join(self.app.variables.selected_specimen_names)
-        return filedialog.asksaveasfilename(title="Save the average curve to an Excel file",
-                                            filetypes=(("Excel files", "*.xlsx"), ("All files", "*.*")),
-                                            defaultextension=".xlsx",
-                                            initialfile=f"{today}_{default_file_name}_Selected_Specimens.xlsx")
-
+    # Main control flow function 
     def export_data_to_excel(self, selected_indices, file_path):
         print("export_data_to_exce")
         def create_charts(writer, data_dfs, average_df):
@@ -196,10 +166,13 @@ class ExcelExporter:
                     ws.freeze_panes = ws.cell(row=5 if sheet_name == 'Selected Specimens' else 2, column=1)
                 add_summary_sheet(writer)
                 create_charts(writer, data_dfs, self.app.variables.average_of_specimens)
+                tk.messagebox.showinfo("Data Export", "Data has been exported to Excel successfully!")
+                self.app.variables.export_in_progress = False
 
         except Exception as e:
             tk.messagebox.showerror("Error", f"An error occurred while exporting the data: {e}")
 
+    # Procoessing and creation functions
     def prepare_data(self, selected_indices):
         properties_dfs = []
         data_dfs = []

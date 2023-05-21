@@ -38,7 +38,7 @@ class AppConfiguration:
     def configure_master(self):
         # Your existing code for configuring the master window
         self.master.title("Cymat Stress-Strain Analyzer")
-        self.master.geometry("750x500")
+        self.master.geometry("800x500")
         self.master.minsize(750, 500)
         self.style = ttk.Style()
         self.style.theme_use('clam')
@@ -55,6 +55,7 @@ class AppVariables:
         self.current_slider_manager = None
         # Map tab identifiers to tuples (specimen, slider_manager)
         self.notebook_to_data = {}
+        self.export_in_progress = False
 
     def add_specimen(self, tab_id, specimen):
         self.specimens.append(specimen)
