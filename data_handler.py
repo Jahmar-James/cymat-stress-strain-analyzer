@@ -231,34 +231,4 @@ class SpecimenDataEncoder(json.JSONEncoder):
                 encoded_dict[attr] = value
         return encoded_dict
 
-# class SpecimenDataEncoder(json.JSONEncoder):
-#     def default(self, obj):
-#         try:
-#             return super().default(obj)
-#         except TypeError:
-#             if isinstance(obj, dict):
-#                 return self.encode_dict(obj)
-#             elif hasattr(obj, '__dict__'):
-#                 return self.encode_dict(obj.__dict__)
-#             else:
-#                 raise
 
-#     def encode_dict(self, obj_dict):
-#         encoded_dict = {}
-#         for attr, value in obj_dict.items():
-#             if attr == "raw_data" or attr == "specimen":
-#                 continue  # Skip raw_data and specimen
-#             elif isinstance(value, dict):
-#                 encoded_dict[attr] = self.encode_dict(value)  # recursively handle nested dictionaries
-#             elif isinstance(value, np.int64):
-#                 encoded_dict[attr] = int(value)  # Convert np.int64 to int
-#             elif isinstance(value, (pd.DataFrame, np.ndarray)):
-#                 csv_filename = f'exported_data/{attr}_data.csv'
-#                 if isinstance(value, pd.DataFrame):
-#                     value.to_csv(csv_filename, index=False)
-#                 else:
-#                     np.savetxt(csv_filename, value, delimiter=",")
-#                 encoded_dict[attr] = csv_filename
-#             else:
-#                 encoded_dict[attr] = value
-#         return encoded_dict
