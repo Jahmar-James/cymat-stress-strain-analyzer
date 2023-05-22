@@ -3,6 +3,10 @@ from tkinter import ttk
 from tkinter import filedialog
 import datetime
 
+# To Do
+# toolbox or round toggle for checkbuttons
+# float button for export data to excel
+
 # widget_manager.py
 class WidgetManager:
     def __init__(self, app):
@@ -16,6 +20,14 @@ class WidgetManager:
     def set_button_actions(self, button_actions):
         self.button_actions = button_actions
         self.create_widgets()
+        
+    def get_slider(self, position):
+        return self.app.plot_manager.slider_managers.get(position)
+
+    def update_slider(self, position, value):
+        slider = self.get_slider(position)
+        if slider is not None:
+            slider.set_value(value)
 
     # Widget flow control
     def create_widgets(self):
@@ -41,6 +53,7 @@ class WidgetManager:
         self.button_group = ButtonGroup(self.app.master, button_specs)
         self.button_group.grid(row=0, column=3, rowspan=5, sticky='ns')
         self.buttons = self.button_group.buttons
+        self.buttons[0].bind("<Return>", self.button_actions.submit)
 
         self.list_box_group = ListBoxGroup(self.app.master, "Select specimens:",width=300)
         self.list_box_group.grid(row=0, column=4, rowspan=5, sticky='ns')
@@ -132,7 +145,12 @@ class WidgetManager:
         
         if len(self.app.variables.specimens) > 1:
                 self.button_actions.plot_all_specimens()
+                
+       ###################### Temp fix for slider only workin on currnely plot ###########################################
+        self.button_actions.plot_current_specimen()
 
+    ####################################################################################################################
+        
         # Update the slider for the current tab
         current_slider_manager = self.app.variables.current_slider_manager
         if current_slider_manager is not None:
@@ -178,59 +196,10 @@ class WidgetManager:
                                             filetypes=(("Excel files", "*.xlsx"), ("All files", "*.*")),
                                             defaultextension=".xlsx",
                                             initialfile=f"{today}_{default_file_name}_Selected_Specimens.xlsx")
-
-class LabelGroup(tk.Frame):
-    def __init__(self, master=None, labels=None, **kwargs):
-        super().__init__(master, **kwargs)
-        self.labels = labels or []
-        self.entries = []
-
-        for i, text in enumerate(self.labels):
-            label = ttk.Label(self, text=text,  justify='right')
-            label.grid(row=i, column=0, padx=15, pady=8, sticky='w')
-
-class EntryGroup(tk.Frame):
-    def __init__(self, master=None, labels=None, **kwargs):
-        super().__init__(master, **kwargs)
-        self.labels = labels or []
-        self.entries = []
-
-        for i, _ in enumerate(self.labels):
-            entry = ttk.Entry(self)
-            entry.grid(row=i, column=1, padx=15, pady=8, sticky='e')
-            self.entries.append(entry)
-
-class PropertiesGroup(tk.Frame):
-    def __init__(self, master=None,width=None, **kwargs):
-        super().__init__(master, width=width, **kwargs)
-        self.specimen_properties_label = tk.Label(self, text="Specimen Properties", justify='left', anchor='n')
-        self.specimen_properties_label.grid(row=0, rowspan=3, column=2, padx=10, pady=5, sticky='n')
-        self.file_name_label = tk.Label(self, text="file name", justify='left')
-        self.file_name_label.grid(row=4, column=2, padx=10, pady=10, sticky='es')
-
-class ButtonGroup(tk.Frame):
-    def __init__(self, master=None, button_specs=None, **kwargs):
-        super().__init__(master, **kwargs)
-        self.button_specs = button_specs or []
-        self.buttons  = []
-
-        for i, (text, action, state) in enumerate(self.button_specs):
-            button = tk.Button(self, text=text, command=action, state=state)
-            button.grid(row=i, column=0, padx=10, pady=5, sticky='we')
-            self.buttons.append(button)
-
-class ListBoxGroup(tk.Frame):
-    def __init__(self, master=None, label_text=None,width=None, **kwargs):
-        super().__init__(master,  width=width,**kwargs)
-        self.specimen_listbox_label = tk.Label(self, text=label_text)
-        self.specimen_listbox_label.grid(row=0, column=4, padx=10, pady=10)
-        self.specimen_listbox = tk.Listbox(self, selectmode=tk.MULTIPLE)
-        self.specimen_listbox.grid(row=1, column=4, rowspan=4, padx=10, pady=2, sticky='ns')
-
-
-class SliderManager(WidgetManager):
+        
+class SliderManager(tk.Frame):
     def __init__(self, master, shared_var, app, callback=None):
-        super().__init__(app)
+        super().__init__(master)
         self.master = master
         self.slider = None
         self.shared_var = shared_var
@@ -257,3 +226,77 @@ class SliderManager(WidgetManager):
         if self.slider:
             self.slider.set(0)
             self.shared_var.set(0)
+
+
+class LabelGroup(tk.Frame):
+    def __init__(self, master=None, labels=None, **kwargs):
+        super().__init__(master, **kwargs)
+        self.labels = labels or []
+        self.entries = []
+
+        for i, text in enumerate(self.labels):
+            label = ttk.Label(self, text=text,  justify='right')
+            label.grid(row=i, column=0, padx=15, pady=8, sticky='w')
+
+
+class PlaceholderEntry(ttk.Entry):
+    def __init__(self, parent=None, placeholder="", **kwargs):
+        super().__init__(parent, **kwargs)
+        self.placeholder = placeholder
+        self.style = ttk.Style()
+        self.style.configure("Placeholder.TEntry", foreground="grey")
+        
+        self.configure(style="Placeholder.TEntry")
+        self.insert(0, self.placeholder)
+        
+        self.bind('<FocusIn>', self.on_entry_click)
+        self.bind('<FocusOut>', self.on_focusout)
+        
+    def on_entry_click(self, event):
+        if self.get() == self.placeholder:
+            self.delete(0, 'end')
+            self.configure(style="TEntry")
+    
+    def on_focusout(self, event):
+        if self.get() == '':
+            self.insert(0, self.placeholder)
+            self.configure(style="Placeholder.TEntry")
+
+class EntryGroup(tk.Frame):
+    def __init__(self, master=None, labels=None, **kwargs):
+        super().__init__(master, **kwargs)
+        self.labels = labels or []
+        self.entries = [PlaceholderEntry(self, label) for label in self.labels]
+        
+        for i, entry in enumerate(self.entries):
+            entry.grid(row=i, column=1, padx=15, pady=8, sticky='e')
+
+
+
+class PropertiesGroup(tk.Frame):
+    def __init__(self, master=None,width=None, **kwargs):
+        super().__init__(master, width=width, **kwargs)
+        self.specimen_properties_label = tk.Label(self, text="Specimen Properties", justify='left', anchor='n')
+        self.specimen_properties_label.grid(row=0, rowspan=3, column=2, padx=10, pady=5, sticky='n')
+        self.file_name_label = tk.Label(self, text="file name", justify='left')
+        self.file_name_label.grid(row=4, column=2, padx=10, pady=10, sticky='es')
+
+class ButtonGroup(tk.Frame):
+    def __init__(self, master=None, button_specs=None, **kwargs):
+        super().__init__(master, **kwargs)
+        self.button_specs = button_specs or []
+        self.buttons  = []
+
+        for i, (text, action, state) in enumerate(self.button_specs):
+            button = tk.Button(self, text=text, command=action, state=state)
+            button.grid(row=i, column=0, padx=10, pady=5, sticky='we')
+            self.buttons.append(button)
+        
+
+class ListBoxGroup(tk.Frame):
+    def __init__(self, master=None, label_text=None,width=None, **kwargs):
+        super().__init__(master,  width=width,**kwargs)
+        self.specimen_listbox_label = tk.Label(self, text=label_text)
+        self.specimen_listbox_label.grid(row=0, column=4, padx=10, pady=10)
+        self.specimen_listbox = tk.Listbox(self, selectmode=tk.MULTIPLE)
+        self.specimen_listbox.grid(row=1, column=4, rowspan=4, padx=10, pady=2, sticky='ns')

@@ -1,9 +1,9 @@
 import glob
 import json
 import os
+import string
 import tempfile
 import threading
-import tkinter as tk
 import zipfile
 from pathlib import Path
 from tkinter import filedialog
@@ -18,6 +18,10 @@ from specimen import Specimen
 
 def is_float(value: str) -> bool:
     return value.replace('.', '', 1).isdigit()
+
+#TO DO
+# Need to make suree Specimen name is sutiable file name in save
+
 
 # data_handler.py
 class DataHandler:
@@ -153,6 +157,13 @@ class DataHandler:
         export_thread.start()
         self.app.variables.export_in_progress = True
 
+    def format_specimen_name_for_file(self, specimen_name):
+        valid_chars = "-_.() %s%s" % (string.ascii_letters, string.digits)
+        filename = ''.join(c for c in specimen_name if c in valid_chars)
+        specimen_filename  = filename.replace(' ', '_')  # replace spaces with underscore
+        if len(filename) > 50:  # check if filename is too long
+            specimen_filename = filename[:50]
+        return specimen_filename 
 
     def save_specimen_data(self, specimen, output_directory):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -162,7 +173,8 @@ class DataHandler:
                 json.dump(properties_dict, json_file, cls=SpecimenDataEncoder, export_dir=temp_dir)
 
             # Zip all generated files
-            zip_file_path = os.path.join(output_directory, f'{specimen.name}_analyzer_data.zip')
+            specimen_file_name =  self.format_specimen_name_for_file(specimen.name)
+            zip_file_path = os.path.join(output_directory, f'{specimen_file_name}_analyzer_data.zip')
             with zipfile.ZipFile(zip_file_path, 'w') as zip_file:
                 for file in glob.glob(os.path.join(temp_dir, '*')):
                     zip_file.write(file, os.path.basename(file))
