@@ -16,7 +16,7 @@ class Specimen:
         self.weight = float(weight)
         self.calculate_properties()
         self.data_manager = SpecimenDataManager(
-            self, data, self.cross_sectional_area, self.original_length)
+        self, data, self.cross_sectional_area, self.original_length)
         self.graph_manager = SpecimenGraphManager(self)
         self.manual_strain_shift = 0
 
@@ -30,9 +30,9 @@ class Specimen:
         properties_text = f"Specimen Properties\n\n"
         properties_text += f"Name: {self.name}\n"
         properties_text += f"Dim (L W t): \n{self.length:.2f} x {self.width:.2f} x {self.weight:.2f}(mm)\n"
-        properties_text += f"Weight: {self.weight:.4f} g\n"
+        properties_text += f"Weight: {self.weight:.3f} g\n"
         properties_text += f"Density: {self.density:.4f} (g/cc)\n"
-        properties_text += f"Cross-sectional: {self.cross_sectional_area} (mm^2)\n"
+        properties_text += f"Cross-sectional: {self.cross_sectional_area:.1f} (mm^2)\n"
         properties_text += f"Original Length: {self.original_length:.2f} (mm)"
         label.config(text=properties_text)
 
@@ -304,8 +304,33 @@ class SpecimenGraphManager:
                         break
 
                 if valid_intersection is not None:
-                    x_int, y_int = valid_intersection.coords[0]
-                    return (x_int, y_int)
+                    print(valid_intersection.geom_type)
+                    # shapely migration from 1.8 to 2.0
+                    try:
+                        if valid_intersection.geom_type == 'MultiPoint':
+                            x_int = [point.x for point in valid_intersection]
+                            y_int = [point.y for point in valid_intersection]
+                        elif valid_intersection.geom_type == 'MultiLineString':  # new clause
+                            x_int, y_int = [], []
+                            for line in valid_intersection.geoms:
+                                x_line, y_line = line.xy
+                                x_int.extend(x_line)
+                                y_int.extend(y_line)
+                        elif valid_intersection.geom_type == 'GeometryCollection':  # new clause
+                            x_int, y_int = [], []
+                            for geom in valid_intersection.geoms:
+                                if geom.geom_type == 'Point':
+                                    x_int.append(geom.x)
+                                    y_int.append(geom.y)
+                                elif geom.geom_type == 'LineString':
+                                    x_line, y_line = geom.xy
+                                    x_int.extend(x_line)
+                                    y_int.extend(y_line)
+                        else:
+                            x_int, y_int = valid_intersection.xy
+                    except NotImplementedError:
+                        x_int, y_int = valid_intersection.coords[0]
+                    return (x_int[0], y_int[0])
                 else:
                     # Shift line2 and try again
                     line2 = LineString([(x, y + shift_step)
@@ -376,15 +401,12 @@ class SpecimenGraphManager:
             ax = plt.gca()
         ax.axhline(0, color='black', linestyle='--')
         ax.axvline(0, color='black', linestyle='--')
-        ax.plot(self.strain_shifted, self.stress,
-                label="Shifted Stress-Strain Curve")
+        ax.plot(self.strain_shifted, self.stress,  label="Shifted Stress-Strain Curve")
         ax.plot(self.strain_offset, self.offset_line,
                 label=f"{OFFSET*100}% Offset Stress-Strain Curve")
         if debugging:
-            ax.plot(self.strain, self.stress, linestyle=':',
-                    label="Original Stress-Strain Curve")
-            ax.axvline(self.strain_shifted[self.first_increase_index],
-                       color='r', linestyle='--', label='First Significant Increase')
+            ax.plot(self.strain, self.stress, linestyle=':', label="Original Stress-Strain Curve")
+            ax.axvline(self.strain_shifted[self.first_increase_index], color='r', linestyle='--', label='First Significant Increase')
             if self.next_decrease_index is not None:
                 ax.axvline(self.strain_shifted[self.next_decrease_index],
                            color='g', linestyle='--', label='Next Significant Decrease')

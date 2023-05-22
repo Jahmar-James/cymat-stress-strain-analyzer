@@ -52,8 +52,8 @@ class ButtonActions:
         tk.messagebox.showinfo("Data Export", "Data has been exported to Excel successfully!")
 
        
-
-    def submit(self) -> None:
+    # Work with enter press
+    def submit(self, event=None) -> None:
         #enter work on submit
         validation_errors = self.data_handler.validate_and_import_data()
     
@@ -78,8 +78,11 @@ class ButtonActions:
                 break
             tk.messagebox.showerror("Invalid Directory", "Please select a directory other than 'exported_data'")
         try:
-            for specimen in selected_specimens:
-                self.data_handler.save_specimen_data(specimen, zip_dir)
+            if  len(selected_specimens) == 1:
+                self.data_handler.save_specimen_data(selected_specimens[0], zip_dir)
+            else:    
+                for specimen in selected_specimens:
+                    self.data_handler.save_specimen_data(specimen, zip_dir)
             tk.messagebox.showinfo("Save Successful", f"Saved selected specimens.")
         except Exception as e:
             tk.messagebox.showerror("Save Error", f"Failed to save selected specimens.\n\nError: {e}")

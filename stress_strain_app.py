@@ -2,11 +2,15 @@
 import tkinter as tk
 from tkinter import ttk
 
+import ttkbootstrap as tb
+
 from button_actions import ButtonActions
 from data_handler import DataHandler
 from plot_manager import PlotManager
 from widget_manager import WidgetManager
 
+# To Do
+# add cymat icon 
 
 # Main App
 class StressStrainApp:
@@ -75,6 +79,6 @@ class AppVariables:
 
 # Run Application
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = tb.Window( themename= 'darkly')
     app = StressStrainApp(root)
     root.mainloop()

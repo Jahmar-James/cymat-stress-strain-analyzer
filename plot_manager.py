@@ -1,11 +1,17 @@
 import tkinter as tk
-
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
                                                NavigationToolbar2Tk)
 
 from widget_manager import SliderManager
+
+
+LEFT = 'left'
+MIDDLE = 'middle'
+RIGHT = 'right'
+# Line manger class
 
 
 class PlotManager:
@@ -82,7 +88,7 @@ class PlotManager:
         ax.set_title(title)
         ax.set_xlabel("Strain")
         ax.set_ylabel("Stress (MPa)")
-        legend = ax.legend(loc="upper right")
+        legend = ax.legend(loc="upper right",framealpha=0.5)
         # bbox_to_anchor=(0.5, 1.6)
 
         self.ax = ax
@@ -108,6 +114,67 @@ class PlotManager:
         # Create a line for each specimen
         for line in self.ax.get_lines():
             self.lines["middle"][line.get_label()] = line
+                  
+    def update_lines_with_selected_points(self, ax):
+        self.selected_points.sort()
+        _, specimen = self.app.button_actions.get_current_tab()
+
+        # Set the indices
+        specimen.graph_manager.first_increase_index = self.selected_points[0]
+        specimen.graph_manager.next_decrease_index = self.selected_points[1]
+
+        # Recalculate
+        specimen.graph_manager.youngs_modulus = None
+        specimen.graph_manager.calculate_youngs_modulus(specimen.stress)
+        specimen.graph_manager.calculate_offset_line(OFFSET=0.0002)
+        specimen.graph_manager.calculate_iys(specimen.stress)
+        iys_strain, iys_stress = specimen.IYS
+
+        # Update the lines
+        strain_shifted = specimen.graph_manager.strain_shifted
+        strain_offset = specimen.graph_manager.strain_offset
+        offset_line = specimen.graph_manager.offset_line
+        OFFSET =0.002
+        
+        for artist in ax.get_children()[:]: # create a copy of the list for iteration for removal
+            if isinstance(artist, matplotlib.lines.Line2D):
+                if artist.get_label() == 'First Significant Increase':
+                    artist.set_xdata([strain_shifted[self.selected_points[0]]])
+                if artist.get_label() == 'Next Significant Decrease':
+                    artist.set_xdata([strain_shifted[self.selected_points[1]]])
+                if artist.get_label() == f"{OFFSET*100}% Offset Stress-Strain Curve":
+                    artist.set_xdata(strain_offset)
+                    artist.set_ydata(offset_line)
+                # Remove vertical line
+                if artist.get_label().startswith('Selected point'):
+                    artist.remove()
+
+            # Remove existing IYS scatter plot
+            if isinstance(artist, matplotlib.collections.PathCollection) and artist.get_label().startswith('IYS:'):
+                artist.remove()
+            
+        
+        if iys_strain is not None and iys_stress is not None:
+            print("IYS found")
+            ax.scatter(iys_strain, iys_stress, c="red",label=f"IYS: ({iys_strain:.6f}, {iys_stress:.6f})")
+            
+        
+        # Store the old legend's properties
+        old_legend = ax.legend_
+        loc = old_legend._loc
+        bbox_to_anchor = old_legend.get_bbox_to_anchor().transformed(ax.transAxes.inverted())
+        fontsize = old_legend.get_texts()[0].get_fontsize()
+        framealpha = old_legend.get_frame().get_alpha()
+
+        old_legend.remove()
+        
+        # Draw the new legend with the old properties
+        ax.legend(loc=loc, bbox_to_anchor=bbox_to_anchor, fontsize=fontsize, framealpha=framealpha)
+
+        
+        # Clear the selected points list
+        self.selected_points.clear()
+        self.plots['left'].draw()
 
     def on_plot_click(self, event):
         if self.enable_click_event:
@@ -130,29 +197,11 @@ class PlotManager:
 
                         # Visaul guide for user draw a vertical line at the selected point
                         ax.axvline(x=clicked_point, color='black', linestyle=':',
-                                   linewidth=2.5, label=f'Selected point {len(self.selected_points)}')
+                                linewidth=2.5, label=f'Selected point {len(self.selected_points)}')
 
-                        # Redraw the lines
+                        # Update the lines
                         if len(self.selected_points) == 2:
-                            self.selected_points.sort()
-                            _, specimen = self.app.button_actions.get_current_tab()
-                            # Set the indices
-                            specimen.graph_manager.first_increase_index = self.selected_points[0]
-                            specimen.graph_manager.next_decrease_index = self.selected_points[1]
-                            print(
-                                f"First index {specimen.graph_manager.first_increase_index } and last index {specimen.graph_manager.next_decrease_index}")
-                            # Recalculate
-                            specimen.graph_manager.youngs_modulus = None
-                            specimen.graph_manager.calculate_youngs_modulus(
-                                specimen.stress)
-                            specimen.graph_manager.calculate_offset_line(
-                                OFFSET=0.0002)
-                            specimen.graph_manager.calculate_iys(
-                                specimen.stress)
-                            # Redraw
-                            self.app.button_actions.plot_current_specimen()
-                            # Clear the selected points list
-                            self.selected_points.clear()
+                            self.update_lines_with_selected_points(ax)
 
                         break
 
