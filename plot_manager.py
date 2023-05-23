@@ -9,7 +9,7 @@ from widget_manager import SliderManager
 
 
 LEFT = 'left'
-MIDDLE = 'middle'
+MIDDLE = "middle"
 RIGHT = 'right'
 # Line manger class
 
@@ -22,12 +22,12 @@ class PlotManager:
 
         self.ax = None
         self.canvas = None
-        self.position_dictionary = {'left': 0, 'middle': 1, 'right': 2}
-        self.frames = {"left": None, "middle": None, "right": None}
-        self.plots = {"left": None, "middle": None, "right": None}
-        self.toolbars = {"left": None, "middle": None, "right": None}
-        self.slider_managers = {"left": None, "middle": None}
-        self.lines = {"left": None, "middle": {}}
+        self.position_dictionary = {LEFT: 0, MIDDLE: 1, RIGHT: 2}
+        self.frames = {LEFT: None, MIDDLE: None, RIGHT: None}
+        self.plots = {LEFT: None, MIDDLE: None, RIGHT: None}
+        self.toolbars = {LEFT: None, MIDDLE: None, RIGHT: None}
+        self.slider_managers = {LEFT: None, MIDDLE: None}
+        self.lines = {LEFT: None, MIDDLE: {}}
 
         self.enable_click_event = False  # No click events on plots by default
         self.selected_points = []
@@ -47,7 +47,7 @@ class PlotManager:
         toolbar = NavigationToolbar2Tk(canvas, toolbar_frame)
         toolbar.update()
 
-        if position in ['left', 'middle']:
+        if position in [LEFT,MIDDLE]:
             slider_manager = SliderManager(
                 self.frames[position], self.shared_var, self.app, self.update_plots_with_shift)
             self.slider_managers[position] = slider_manager
@@ -68,17 +68,17 @@ class PlotManager:
 
     def update_lines(self):
         # Update line data rather than recreating plot
-        if self.lines["left"]:
-            self.lines["left"].set_xdata(self.specimen.shifted_strain)
-            self.lines["left"].set_ydata(self.specimen.stress)
-            self.plots["left"].draw()
+        if self.lines[LEFT]:
+            self.lines[LEFT].set_xdata(self.specimen.shifted_strain)
+            self.lines[LEFT].set_ydata(self.specimen.stress)
+            self.plots[LEFT].draw()
 
         # Middle plot contains lines for all specimens. We need to find and update the line for the current specimen.
-        if self.specimen.name in self.lines["middle"]:
-            line = self.lines["middle"][self.specimen.name]
+        if self.specimen.name in self.lines[MIDDLE]:
+            line = self.lines[MIDDLE][self.specimen.name]
             line.set_xdata(self.specimen.shifted_strain)
             line.set_ydata(self.specimen.stress)
-            self.plots['middle'].draw()
+            self.plots[MIDDLE].draw()
 
     def plot_and_draw(self, plot_function, title, position, specimen):
         self.specimen = specimen
@@ -95,7 +95,7 @@ class PlotManager:
         self.fig = fig
         self.fig.tight_layout()
 
-        if position == 'left':
+        if position == LEFT:
             for text in legend.get_texts():
                 text.set_fontsize(8)
 
@@ -105,7 +105,7 @@ class PlotManager:
                         self.lines[position] = line
                         break
 
-        if position == 'middle':
+        if position == MIDDLE:
             self.create_lines()
         self.create_figure_canvas(fig, position)
         self.canvas.mpl_connect('button_press_event', self.on_plot_click)
@@ -113,7 +113,7 @@ class PlotManager:
     def create_lines(self):
         # Create a line for each specimen
         for line in self.ax.get_lines():
-            self.lines["middle"][line.get_label()] = line
+            self.lines[MIDDLE][line.get_label()] = line
                   
     def update_lines_with_selected_points(self, ax):
         self.selected_points.sort()
@@ -139,9 +139,9 @@ class PlotManager:
         for artist in ax.get_children()[:]: # create a copy of the list for iteration for removal
             if isinstance(artist, matplotlib.lines.Line2D):
                 if artist.get_label() == 'First Significant Increase':
-                    artist.set_xdata([strain_shifted[self.selected_points[0]]])
+                    artist.set_xdata([strain_shifted[self.selected_points[0]]]*2)
                 if artist.get_label() == 'Next Significant Decrease':
-                    artist.set_xdata([strain_shifted[self.selected_points[1]]])
+                    artist.set_xdata([strain_shifted[self.selected_points[1]]]*2)
                 if artist.get_label() == f"{OFFSET*100}% Offset Stress-Strain Curve":
                     artist.set_xdata(strain_offset)
                     artist.set_ydata(offset_line)
@@ -174,7 +174,7 @@ class PlotManager:
         
         # Clear the selected points list
         self.selected_points.clear()
-        self.plots['left'].draw()
+        self.plots[LEFT].draw()
 
     def on_plot_click(self, event):
         if self.enable_click_event:
