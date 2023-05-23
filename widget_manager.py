@@ -9,6 +9,7 @@ import datetime
 
 # widget_manager.py
 class WidgetManager:
+    """A class to manage widgets for the application."""
     def __init__(self, app):
         self.app = app
         self.slider_enabled = tk.BooleanVar(value=False)
@@ -240,6 +241,7 @@ class LabelGroup(tk.Frame):
 
 
 class PlaceholderEntry(ttk.Entry):
+    """A subclass of ttk.Entry to support placeholders."""
     def __init__(self, parent=None, placeholder="", **kwargs):
         super().__init__(parent, **kwargs)
         self.placeholder = placeholder
@@ -253,11 +255,13 @@ class PlaceholderEntry(ttk.Entry):
         self.bind('<FocusOut>', self.on_focusout)
         
     def on_entry_click(self, event):
+        """Handles the event of a click on the entry."""
         if self.get() == self.placeholder:
             self.delete(0, 'end')
             self.configure(style="TEntry")
     
     def on_focusout(self, event):
+        """Handles the event of losing focus on the entry."""
         if self.get() == '':
             self.insert(0, self.placeholder)
             self.configure(style="Placeholder.TEntry")
@@ -270,8 +274,6 @@ class EntryGroup(tk.Frame):
         
         for i, entry in enumerate(self.entries):
             entry.grid(row=i, column=1, padx=15, pady=8, sticky='e')
-
-
 
 class PropertiesGroup(tk.Frame):
     def __init__(self, master=None,width=None, **kwargs):

@@ -25,6 +25,15 @@ def is_float(value: str) -> bool:
 
 # data_handler.py
 class DataHandler:
+    """
+    Handles data manipulation and management tasks for the application. 
+
+    Attributes:
+    app (object): The main application object.
+    excel_exporter (ExcelExporter): An ExcelExporter instance for exporting data to Excel.
+    widget_manager (WidgetManager): Manages the GUI widgets of the application.
+    button_actions (dict): Maps button names to their corresponding actions.
+    """
     def __init__(self, app):
         self.app = app
         self.excel_exporter = ExcelExporter(self.app)
@@ -166,6 +175,13 @@ class DataHandler:
         return specimen_filename 
 
     def save_specimen_data(self, specimen, output_directory):
+        """
+        Saves the specimen data to a temporary directory and then zips the files.
+
+        Args:
+        specimen (Specimen): The specimen to save.
+        output_directory (str): The directory where to save the zipped file.
+        """
         with tempfile.TemporaryDirectory() as temp_dir:
             # Serialize specimen properties to JSON
             properties_dict = specimen.__dict__
@@ -180,6 +196,12 @@ class DataHandler:
                     zip_file.write(file, os.path.basename(file))
 
     def load_specimen_data(self, file_path):
+        """
+        Loads the specimen data from a zipped file.
+
+        Args:
+        file_path (str): The path to the zipped file containing the specimen data.
+        """
         # Create a temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
             # Unzip the file
@@ -202,12 +224,27 @@ class DataHandler:
 
 
 class SpecimenDataEncoder(json.JSONEncoder):
+    """
+    Custom JSONEncoder subclass that knows how to encode custom specimen data types.
+
+    Attributes:
+    export_dir (str): Directory where data files are exported.
+    """
     def __init__(self, *args, **kwargs):
         # accept the export directory as an argument
         self.export_dir = kwargs.pop("export_dir", ".")
         super().__init__(*args, **kwargs)
 
     def default(self, obj):
+        """
+        Overrides the default method of json.JSONEncoder.
+
+        Args:
+        obj (object): The object to convert to JSON.
+
+        Returns:
+        dict or list or str or int or float or bool or None: The JSON-serializable representation of obj.
+        """
         try:
             return super().default(obj)
         except TypeError:
@@ -219,6 +256,15 @@ class SpecimenDataEncoder(json.JSONEncoder):
                 raise
 
     def encode_dict(self, obj_dict):
+        """
+        Encodes a dictionary into a JSON-friendly format.
+
+        Args:
+        obj_dict (dict): The dictionary to encode.
+
+        Returns:
+        dict: The encoded dictionary.
+        """
         encoded_dict = {}
         for attr, value in obj_dict.items():
             if attr == "raw_data" or attr == "specimen":

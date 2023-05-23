@@ -1,8 +1,6 @@
 # excel_exporter.py
 import cProfile
-import datetime
 import tkinter as tk
-from tkinter import filedialog
 
 import pandas as pd
 from openpyxl.chart import Reference, ScatterChart, Series
@@ -12,6 +10,13 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 
 
 class ExcelExporter:
+    """
+    This class handles the exporting of data to an Excel file.
+
+    Attributes:
+        app: A reference to the application that uses this class.
+        export_in_progress: A boolean flag indicating whether an export is currently in progress.
+    """
     def __init__(self, app):
         self.app = app
         self.export_in_progress = False
@@ -26,6 +31,13 @@ class ExcelExporter:
 
     # Main control flow function 
     def export_data_to_excel(self, selected_indices, file_path):
+        """
+        Exports the data of the selected specimens to an Excel file.
+
+        Args:
+            selected_indices: Indices of the specimens to export.
+            file_path: The path to the Excel file to which the data is exported.
+        """
         print("export_data_to_exce")
         def create_charts(writer, data_dfs, average_df):
             # Create combined chart for selected specimens
@@ -202,6 +214,16 @@ class ExcelExporter:
 
 
     def write_dfs_to_excel(self, properties_dfs, data_dfs, writer, start_row=0, start_col=0):
+        """
+        Writes properties and data dataframes to an Excel file.
+
+        Args:
+            properties_dfs: A list of properties dataframes to write.
+            data_dfs: A list of data dataframes to write.
+            writer: The ExcelWriter to use for writing.
+            start_row: The row at which to start writing (default is 0).
+            start_col: The column at which to start writing (default is 0).
+        """
         print("write_dfs_to_excel")
         # Write properties tables
         for df in properties_dfs:
@@ -235,6 +257,17 @@ class ExcelExporter:
             ws.cell(row=1, column=idx * (len(df.columns) + 1) + 1, value=self.selected_specimens[idx].name).font = Font(bold=True)
 
     def create_table(self, writer, sheet_name, start_row, start_col, row_count, col_count):
+        """
+        Creates a table in an Excel file.
+
+        Args:
+            writer: The ExcelWriter to use for writing.
+            sheet_name: The name of the sheet in which to create the table.
+            start_row: The row at which to start the table.
+            start_col: The column at which to start the table.
+            row_count: The number of rows in the table.
+            col_count: The number of columns in the table.
+        """
         def get_used_table_names(workbook):
             """Get a list of all table names used in the workbook."""
             return [
