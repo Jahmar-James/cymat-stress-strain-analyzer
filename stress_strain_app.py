@@ -42,8 +42,8 @@ class AppConfiguration:
     def configure_master(self):
         # Your existing code for configuring the master window
         self.master.title("Cymat Stress-Strain Analyzer")
-        self.master.geometry("800x500")
-        self.master.minsize(750, 500)
+        self.master.geometry("850x600")
+        self.master.minsize(850, 600)
         self.style = ttk.Style()
         self.style.theme_use('clam')
 

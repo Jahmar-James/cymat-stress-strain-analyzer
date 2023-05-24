@@ -22,26 +22,19 @@ class WidgetManager:
         self.button_actions = button_actions
         self.create_widgets()
         
-    def get_slider(self, position):
-        return self.app.plot_manager.slider_managers.get(position)
-
-    def update_slider(self, position, value):
-        slider = self.get_slider(position)
-        if slider is not None:
-            slider.set_value(value)
 
     # Widget flow control
     def create_widgets(self):
+        self.app.master.grid_columnconfigure(4, weight=1)
+        self.app.master.grid_rowconfigure(6, weight=1)
+
         labels_texts = ["Specimen Name:", "Length:", "Width:", "Thickness:", "Weight:"]
-        self.label_group = LabelGroup(self.app.master, labels_texts)
-        self.label_group.grid(row=0, column=0, rowspan=5, sticky='ns')
-        
         self.entry_group = EntryGroup(self.app.master, labels_texts)
-        self.entry_group.grid(row=0, column=1, rowspan=5, sticky='ns')
+        self.entry_group.grid(row=0, column=0, rowspan=5, sticky='ns')
         self.name_entry, self.length_entry,self.width_entry,self.thickness_entry, self.weight_entry = self.entry_group.entries
 
         self.properties_group = PropertiesGroup(self.app.master,width=400)
-        self.properties_group.grid(row=0, column=2, rowspan=5, sticky='ns')
+        self.properties_group.grid(row=0, column=1, rowspan=5, sticky='ns')
         self.specimen_properties_label =  self.properties_group.specimen_properties_label
         self.file_name_label =  self.properties_group.file_name_label
 
@@ -52,24 +45,27 @@ class WidgetManager:
         button_specs = list(zip(button_names, button_functions, ['disabled' if i != 0 else 'normal' for i in range(len(button_names))]))
         
         self.button_group = ButtonGroup(self.app.master, button_specs)
-        self.button_group.grid(row=0, column=3, rowspan=5, sticky='ns')
+        self.button_group.grid(row=0, column=2, rowspan=5, sticky='ns')
         self.buttons = self.button_group.buttons
         self.buttons[0].bind("<Return>", self.button_actions.submit)
 
-        self.list_box_group = ListBoxGroup(self.app.master, "Select specimens:",width=300)
-        self.list_box_group.grid(row=0, column=4, rowspan=5, sticky='ns')
+        self.list_box_group = ListBoxGroup(self.app.master, "Select specimens:", width=100)
+        self.list_box_group.grid(row=0, column=3, rowspan=2, sticky='ns')
         self.specimen_listbox = self.list_box_group.specimen_listbox
       
-        self.create_buttons()
+        # Fifith Row 
+        
+        self.fifth_row_group = FifthRowGroup(self.app.master, reset_callback=self.reset_sliders,
+                                              import_callback=self.button_actions.import_data,
+                                              enable_strain_callback=self.toggle_slider, 
+                                              enable_select_callback=self.toggle_select_mode,
+                                              slider_enabled=self.slider_enabled,
+                                              select_mode_enabled=self.select_mode_enabled)
+        self.fifth_row_group.grid(row=5, column=0, columnspan=4, sticky='nsew')
 
-        self.create_toggle_button()
 
         self.create_notebook()
-        self.app.master.grid_columnconfigure(4, weight=1)
-        self.app.master.grid_rowconfigure(5, weight=1)
-
-        self.create_select_mode_toggle_button()
-
+        
     # Creation
     def create_label_entry(self, parent, row, label_text):
         label = ttk.Label(parent, text=label_text)
@@ -228,18 +224,6 @@ class SliderManager(tk.Frame):
             self.slider.set(0)
             self.shared_var.set(0)
 
-
-class LabelGroup(tk.Frame):
-    def __init__(self, master=None, labels=None, **kwargs):
-        super().__init__(master, **kwargs)
-        self.labels = labels or []
-        self.entries = []
-
-        for i, text in enumerate(self.labels):
-            label = ttk.Label(self, text=text,  justify='right')
-            label.grid(row=i, column=0, padx=15, pady=8, sticky='w')
-
-
 class PlaceholderEntry(ttk.Entry):
     """A subclass of ttk.Entry to support placeholders."""
     def __init__(self, parent=None, placeholder="", **kwargs):
@@ -269,19 +253,22 @@ class PlaceholderEntry(ttk.Entry):
 class EntryGroup(tk.Frame):
     def __init__(self, master=None, labels=None, **kwargs):
         super().__init__(master, **kwargs)
+        self.grid_rowconfigure(0, weight=1)  
+        self.grid_columnconfigure(0, weight=1)
         self.labels = labels or []
         self.entries = [PlaceholderEntry(self, label) for label in self.labels]
         
         for i, entry in enumerate(self.entries):
-            entry.grid(row=i, column=1, padx=15, pady=8, sticky='e')
+            entry.grid(row=i, column=0, padx=15, pady=8, sticky='e')
 
 class PropertiesGroup(tk.Frame):
-    def __init__(self, master=None,width=None, **kwargs):
+    def __init__(self, master=None, width=None, **kwargs):
         super().__init__(master, width=width, **kwargs)
+
         self.specimen_properties_label = tk.Label(self, text="Specimen Properties", justify='left', anchor='n')
-        self.specimen_properties_label.grid(row=0, rowspan=3, column=2, padx=10, pady=5, sticky='n')
+        self.specimen_properties_label.grid(row=0, rowspan=3, column=0, padx=10, pady=5, sticky='n')
         self.file_name_label = tk.Label(self, text="file name", justify='left')
-        self.file_name_label.grid(row=4, column=2, padx=10, pady=10, sticky='es')
+        self.file_name_label.grid(row=4, column=0, padx=10, pady=10, sticky='es')
 
 class ButtonGroup(tk.Frame):
     def __init__(self, master=None, button_specs=None, **kwargs):
@@ -291,7 +278,7 @@ class ButtonGroup(tk.Frame):
 
         for i, (text, action, state) in enumerate(self.button_specs):
             button = tk.Button(self, text=text, command=action, state=state)
-            button.grid(row=i, column=0, padx=10, pady=5, sticky='we')
+            button.grid(row=i, column=0, padx=10, pady=10, sticky='we')
             self.buttons.append(button)
         
 
@@ -299,6 +286,33 @@ class ListBoxGroup(tk.Frame):
     def __init__(self, master=None, label_text=None,width=None, **kwargs):
         super().__init__(master,  width=width,**kwargs)
         self.specimen_listbox_label = tk.Label(self, text=label_text)
-        self.specimen_listbox_label.grid(row=0, column=4, padx=10, pady=10)
+        self.specimen_listbox_label.grid(row=0, column=0, padx=10, pady=10)
         self.specimen_listbox = tk.Listbox(self, selectmode=tk.MULTIPLE)
-        self.specimen_listbox.grid(row=1, column=4, rowspan=4, padx=10, pady=2, sticky='ns')
+        self.specimen_listbox.grid(row=1, column=0, rowspan=2, padx=10, pady=2, sticky='ns')
+
+class FifthRowGroup(tk.Frame):
+    def __init__(self, master=None, reset_callback=None, import_callback=None, enable_strain_callback=None, enable_select_callback=None, slider_enabled = None, select_mode_enabled = None, **kwargs ):
+        super().__init__(master, **kwargs)
+        self.strain_variable = slider_enabled
+        self.select_variable = select_mode_enabled
+        self.create_reset_button(reset_callback)
+        self.create_import_button(import_callback)
+        self.create_strain_checkbox(enable_strain_callback)
+        self.create_select_checkbox(enable_select_callback)
+
+    def create_reset_button(self, callback):
+        self.reset_button = tk.Button(self, text="Reset Strain Shift", command=callback)
+        self.reset_button.grid(row=0, column=1, padx=10, pady=5, sticky='n')
+
+    def create_import_button(self, callback):
+        self.import_button = tk.Button(self, text="Import Specimen", command=callback)
+        self.import_button.grid(row=0, column=3, padx=10, pady=5, sticky='n')
+
+    def create_strain_checkbox(self, callback):
+        self.toggle_button = tk.Checkbutton(self, text="Enable strain shift", variable=self.strain_variable, command=callback)
+        self.toggle_button.grid(row=0, column=0, padx=10, pady=10, sticky='n')
+
+    def create_select_checkbox(self, callback):
+        self.select_mode_toggle_button = tk.Checkbutton(self, text="Enable Select Mode", variable=self.select_variable, command=callback)
+        self.select_mode_toggle_button.grid(row=0, column=2, padx=10, pady=4, sticky='n')
+
