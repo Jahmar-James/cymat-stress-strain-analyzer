@@ -392,7 +392,8 @@ class SpecimenGraphManager:
     def plot_curves(self, ax=None, OFFSET=0.002, debugging=False):
         print(
             f"IYS is {self.specimen.IYS}, ax is {ax}, offset is {OFFSET} , debug mode is {debugging}")
-        self.Calculate_IYS_Alignment()
+        if self.youngs_modulus is None:
+            self.Calculate_IYS_Alignment()
 
         self.stress = np.array(self.specimen.stress.values)  # MPa
         self.strain = np.array(self.specimen.strain.values)  # %
@@ -421,12 +422,15 @@ class SpecimenGraphManager:
     def from_dict(cls, data, specimen, temp_dir=None):
         # Initialize the GraphManager with the data loaded from the CSV files
         manager = cls(specimen)
-        for attr, csv_file in data.items():
-            if isinstance(csv_file, str) and csv_file.endswith('_data.csv'):
+        for attr,  value in data.items():
+            if isinstance( value, str) and  value.endswith('_data.csv'):
+                csv_file = value
                 file_path = os.path.join(
                     temp_dir, csv_file) if temp_dir else csv_file
                 array = np.loadtxt(file_path, delimiter=',')
                 setattr(manager, attr, array)
+            else:
+                setattr(manager, attr, value)  # This line sets attributes that aren't csv files
 
         return manager
 
@@ -510,11 +514,13 @@ class SpecimenDataManager:
         # Initialize the DataManager with the data loaded from the CSV files
         manager = cls(specimen, None,
                       data['cross_sectional_area'], data['original_length'])
-        for attr, csv_file in data.items():
-            if isinstance(csv_file, str) and csv_file.endswith('_data.csv'):
+        for attr, value in data.items():
+            if isinstance( value, str) and value.endswith('_data.csv'):
+                csv_file = value
                 file_path = os.path.join(
                     temp_dir, csv_file) if temp_dir else csv_file
                 df = pd.read_csv(file_path)
                 setattr(manager, attr, df)
+           
 
         return manager
