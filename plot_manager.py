@@ -139,9 +139,9 @@ class PlotManager:
         for artist in ax.get_children()[:]: # create a copy of the list for iteration for removal
             if isinstance(artist, matplotlib.lines.Line2D):
                 if artist.get_label() == 'First Significant Increase':
-                    artist.set_xdata([strain_shifted[self.selected_points[0]]]*2)
+                    artist.set_xdata([strain_shifted[self.selected_points[0]]])
                 if artist.get_label() == 'Next Significant Decrease':
-                    artist.set_xdata([strain_shifted[self.selected_points[1]]]*2)
+                    artist.set_xdata([strain_shifted[self.selected_points[1]]])
                 if artist.get_label() == f"{OFFSET*100}% Offset Stress-Strain Curve":
                     artist.set_xdata(strain_offset)
                     artist.set_ydata(offset_line)

@@ -20,7 +20,6 @@ def is_float(value: str) -> bool:
     return value.replace('.', '', 1).isdigit()
 
 #TO DO
-# Need to make suree Specimen name is sutiable file name in save
 
 
 # data_handler.py

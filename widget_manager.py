@@ -67,31 +67,6 @@ class WidgetManager:
         self.create_notebook()
         
     # Creation
-    def create_label_entry(self, parent, row, label_text):
-        label = ttk.Label(parent, text=label_text)
-        label.grid(row=row, column=0, padx=15, pady=10, sticky='e')
-        entry = ttk.Entry(parent)
-        entry.grid(row=row, column=1, padx=15, pady=10, sticky='e')
-        return label, entry
-
-    def create_buttons(self):
-        self.reset_button = tk.Button( self.app.master, text="Reset Strain Shift", command=self.reset_sliders)
-        self.reset_button.grid(row=5, column=2, padx=10, pady=5, sticky='en')
-
-        self.import_button = tk.Button( self.app.master, text="Import Specimen", command=self.button_actions.import_data)
-        self.import_button.grid(row=5, column=3, padx=10, pady=5, sticky='en')
-
-    def create_toggle_button(self):
-        self.slider_enabled.trace('w', self.toggle_slider)
-        self.toggle_button = tk.Checkbutton(self.app.master, text="Enable strain shift", variable=self.slider_enabled)
-        self.toggle_button.grid(row=5, column=0, padx=10, pady=10, sticky='n')
-
-    def create_select_mode_toggle_button(self):
-        self.select_mode_enabled.trace('w', self.toggle_select_mode)
-        self.select_mode_toggle_button = tk.Checkbutton(self.app.master, text="Enable Select Mode", variable=self.select_mode_enabled)
-        self.select_mode_toggle_button.grid(
-            row=5, column=1, padx=10, pady=4, sticky='n')
-
     def create_notebook(self):
         self.notebook = ttk.Notebook(self.app.master)
         self.notebook.bind("<<NotebookTabChanged>>",
@@ -133,11 +108,10 @@ class WidgetManager:
             button['state'] = 'normal'
 
     def on_tab_change(self, event):
-        # updates the variables,bresets the toggle button and the slider
+        # updates the variables,resets the toggle button and the slider
         self.reset_toggle_button()
 
         current_tab_name = self.notebook.tab(self.notebook.select(), "text")
-
         self.app.variables.select_tab(current_tab_name)
         
         if len(self.app.variables.specimens) > 1:
@@ -145,7 +119,6 @@ class WidgetManager:
                 
        ###################### Temp fix for slider only workin on currnely plot ###########################################
         self.button_actions.plot_current_specimen()
-
     ####################################################################################################################
         
         # Update the slider for the current tab
@@ -166,14 +139,12 @@ class WidgetManager:
         for slider_manager in [self.app.plot_manager.slider_managers['left'], self.app.plot_manager.slider_managers['middle']]:
             if slider_manager is not None:  # Right plot has no slider
                 if self.slider_enabled.get():  # if toggle button is checked
-                    slider_manager.slider.config(
-                        state="normal")  # enable slider
+                    slider_manager.slider.config(state="normal")  # enable slider
                 else:
-                    slider_manager.slider.config(
-                        state="disabled")  # disable slider
+                    slider_manager.slider.config(state="disabled")  # disable slider
                     # update strain_shifted and reset manual_strain_shift
-                    self.app.plot_manager.specimen.graph_manager.strain_shifted = self.app.plot_manager.specimen.shifted_strain + \
-                        slider_manager.get_value()
+                    self.app.plot_manager.specimen.graph_manager.strain_shifted = self.app.plot_manager.specimen.shifted_strain 
+                        # slider_manager.get_value()
                     self.app.plot_manager.specimen.manual_strain_shift = 0
                     slider_manager.reset_slider()
 
@@ -192,7 +163,7 @@ class WidgetManager:
         return filedialog.asksaveasfilename(title="Save the average curve to an Excel file",
                                             filetypes=(("Excel files", "*.xlsx"), ("All files", "*.*")),
                                             defaultextension=".xlsx",
-                                            initialfile=f"{today}_{default_file_name}_Selected_Specimens.xlsx")
+                                            initialfile=f"{today}_Specimens_{default_file_name}_.xlsx")
         
 class SliderManager(tk.Frame):
     def __init__(self, master, shared_var, app, callback=None):
@@ -281,7 +252,6 @@ class ButtonGroup(tk.Frame):
             button.grid(row=i, column=0, padx=10, pady=10, sticky='we')
             self.buttons.append(button)
         
-
 class ListBoxGroup(tk.Frame):
     def __init__(self, master=None, label_text=None,width=None, **kwargs):
         super().__init__(master,  width=width,**kwargs)
