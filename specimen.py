@@ -29,7 +29,7 @@ class Specimen:
     def display_properties_in_label(self, label):
         properties_text = f"Specimen Properties\n\n"
         properties_text += f"Name: {self.name}\n"
-        properties_text += f"Dim (L W t): \n{self.length:.2f} x {self.width:.2f} x {self.weight:.2f}(mm)\n"
+        properties_text += f"Dim (L W t): \n{self.length:.2f} x {self.width:.2f} x {self.thickness:.2f}(mm)\n"
         properties_text += f"Weight: {self.weight:.3f} g\n"
         properties_text += f"Density: {self.density:.4f} (g/cc)\n"
         properties_text += f"Cross-sectional: {self.cross_sectional_area:.1f} (mm^2)\n"
@@ -268,7 +268,7 @@ class SpecimenGraphManager:
             print("No significant decrease found")
         return None
 
-    def find_interaction_point(self, plot1, plot2, min_dist_from_origin=0.02, max_attempts=3):
+    def find_interaction_point(self, plot1, plot2, min_dist_from_origin=0.001, max_attempts=3):
         # Get the x and y data from each tuple
         x1, y1 = plot1
         x2, y2 = plot2

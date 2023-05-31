@@ -30,7 +30,7 @@ class ButtonActions:
         self.data_handler.export_data()
 
     def export_average_to_excel(self) -> None:
-        if self.app.variables.export_in_progress:
+        if self.app.variables.export_in_progress == True:
             tk.messagebox.showerror("Error", "Export is already in progress, ignore the button click.")
             return
         selected_indices = self.app.widget_manager.specimen_listbox.curselection()
