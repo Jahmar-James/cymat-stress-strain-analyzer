@@ -124,6 +124,8 @@ class ExcelExporter:
             header_font = Font(name='Arial', size=10, bold=True)
             fill = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
             
+            number_format = '#,##0.000' 
+
             column_widths = {}
             
             for i, row in enumerate(worksheet.iter_rows(), start=1):
@@ -139,6 +141,9 @@ class ExcelExporter:
                         cell.font = header_font
                     elif apply_pattern_fill and i % 2 == 0:   # Apply alternating row fill
                         cell.fill = fill
+                    
+                    if isinstance(cell.value, (int, float))and sheet_name not in [SPECIMENS_OVERLAYED, AVERAGE_CHART]:
+                        cell.number_format = number_format
             
             # Set column widths
             for column, width in column_widths.items():
@@ -146,24 +151,39 @@ class ExcelExporter:
 
         def add_summary_sheet(writer):
             summary_dfs = []
+
+            summary_stats_df = self.app.data_handler.summary_statistics()
+            summary_dfs.append(summary_stats_df)
+            
+            average_summary = self.app.variables.average_of_specimens.describe().transpose()
+            summary_dfs.append(average_summary)
+            
             for df in self.data_dfs:
                 summary = df.describe().transpose()
                 summary_dfs.append(summary)
             
-            average_summary = self.app.variables.average_of_specimens.describe().transpose()
-            summary_dfs.append(average_summary)
-
             row_offset = 0
             summary_ws = writer.book.create_sheet(SUMMARY)
 
+            specimen = None
             for i, summary_df in enumerate(summary_dfs):
-                specimen = self.selected_specimens[i] if i < len(self.selected_specimens) else None
-                specimen_name = specimen.name if specimen else "Average"
-                density_iys_text = f" ({specimen.density:.2f} g/cc, {specimen.IYS} IYS)" if specimen else ""
+                if i == 0:
+                    specimen_name = "Summary Statistics"
+                elif i == 1:
+                    specimen_name = "Average"
+                else:
+                    specimen = self.selected_specimens[i - 2]
+                    specimen_name = specimen.name if specimen else "Unknown Specimen"
+
+                if specimen:
+                    yield_stress, yield_strain = specimen.IYS
+                    density_iys_text = f" ({specimen.density:.2f} g/cc,IYS: {yield_stress:.2f} MPa, {yield_strain:.2f} mm)"
+                else: density_iys_text = ""
                 summary_ws.cell(row=row_offset + 1, column=1, value=specimen_name + density_iys_text).font = Font(bold=True)
                 row_offset += 1
                 summary_df.to_excel(writer, sheet_name=SUMMARY, index=True, startrow=row_offset)
                 row_offset += len(summary_df) + 1
+
             
             apply_formatting(summary_ws)
 
@@ -173,7 +193,6 @@ class ExcelExporter:
 
         try:
             with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-                print("Writing for ")
                 self.write_dfs_to_excel(properties_dfs, data_dfs, writer)
                 self.app.variables.average_of_specimens.to_excel(writer, sheet_name= AVERAGE_OF_SELECTED, index=False)
                 self.create_table(writer,  AVERAGE_OF_SELECTED, 0, 0, len(self.app.variables.average_of_specimens.index), len(self.app.variables.average_of_specimens.columns))

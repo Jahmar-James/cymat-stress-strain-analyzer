@@ -157,6 +157,70 @@ class DataHandler:
         "strain": average_strain,
         "stress": average_stress
     })
+        
+    def get_density_values(self, selected_specimens):
+        density_values = [specimen.density for specimen in selected_specimens]
+        return density_values
+    
+    def get_elastic_modulus_values(self, selected_specimens):
+        elastic_modulus_values = [specimen.youngs_modulus for specimen in selected_specimens]
+        return elastic_modulus_values
+    
+    def get_IYS_values(self, selected_specimens):
+        yield_stresses = [specimen.IYS[1] for specimen in selected_specimens]
+        yield_strains = [specimen.IYS[0] for specimen in selected_specimens]
+        return yield_stresses, yield_strains
+        
+    def calculate_summary_stats(self, values):
+        average_value = np.mean(values)
+        std_value = np.std(values)
+        cv_value = (std_value / average_value) * 100 if average_value != 0 else 0
+        return average_value, std_value, cv_value
+
+    def compute_and_append_summary_stats(self, property_values, property_name, summary_stats):
+        avg, std, cv = self.calculate_summary_stats(property_values)
+        summary_stats.append({'Property': property_name, 'Average': avg, 'Std Dev': std, 'CV %': cv})
+
+    def summary_statistics(self, selected_specimens=None):
+        selected_specimens = self.get_selected_specimens() if selected_specimens is None else selected_specimens
+        summary_stats = []
+
+        # Elastic modulus
+        self.compute_and_append_summary_stats(self.get_elastic_modulus_values(selected_specimens), 'Elastic Modulus', summary_stats)
+
+        # Density
+        self.compute_and_append_summary_stats(self.get_density_values(selected_specimens), 'Density (g/cc)', summary_stats)
+
+        # Yield stresses and strains
+        yield_stresses, yield_strains = self.get_IYS_values(selected_specimens)
+        self.compute_and_append_summary_stats(yield_stresses, 'Yield Stress (Mpa)', summary_stats)
+        self.compute_and_append_summary_stats(yield_strains, 'Yield Strain', summary_stats)
+
+        # Other properties
+        toughness_values = []
+        ductility_values = []
+        resilience_values = []
+        for specimen in selected_specimens:
+            stress = specimen.stress
+            strain = specimen.shifted_strain
+            yield_stress, yield_strain = specimen.IYS
+            
+            toughness = np.trapz(stress, strain)
+            ductility = max(strain)
+            resilience = 0.5 * yield_stress * yield_strain
+            
+            toughness_values.append(toughness)
+            ductility_values.append(ductility)
+            resilience_values.append(resilience)
+
+        self.compute_and_append_summary_stats(toughness_values, 'Toughness (MJ/m^3)', summary_stats)
+        self.compute_and_append_summary_stats(ductility_values, 'Ductility', summary_stats)
+        self.compute_and_append_summary_stats(resilience_values, 'Resilience (MJ/m^3)', summary_stats)
+
+        summary_stats_df = pd.DataFrame(summary_stats)
+        summary_stats_df.set_index('Property', inplace=True)
+
+        return summary_stats_df
 
     def export_average_to_excel(self,selected_indices, file_path):
         print("Starting export thread")
