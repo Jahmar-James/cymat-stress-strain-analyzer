@@ -7,12 +7,11 @@ from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
 
 from widget_manager import SliderManager
 
-
+OFFSET =0.002
 LEFT = 'left'
 MIDDLE = "middle"
 RIGHT = 'right'
 # Line manger class
-
 
 class PlotManager:
     def __init__(self, master, app):
@@ -125,16 +124,18 @@ class PlotManager:
 
         # Recalculate
         specimen.graph_manager.youngs_modulus = None
-        specimen.graph_manager.calculate_youngs_modulus(specimen.stress)
-        specimen.graph_manager.calculate_offset_line(OFFSET=0.0002)
-        specimen.graph_manager.calculate_iys(specimen.stress)
+        specimen.graph_manager.calculate_youngs_modulus(specimen.stress, specimen.strain)
+        specimen.graph_manager.calculate_strength(specimen.stress, specimen.shifted_strain, offset=OFFSET)
         iys_strain, iys_stress = specimen.IYS
+        ys_strain, ys_stress = specimen.YS
 
         # Update the lines
         strain_shifted = specimen.graph_manager.strain_shifted
-        strain_offset = specimen.graph_manager.strain_offset
-        offset_line = specimen.graph_manager.offset_line
-        OFFSET =0.002
+        if specimen.graph_manager.strain_offset is not None:
+            strain_offset = specimen.graph_manager.strain_offset
+        if specimen.graph_manager.offset_line is not None:
+            offset_line = specimen.graph_manager.offset_line
+        
         
         for artist in ax.get_children()[:]: # create a copy of the list for iteration for removal
             if isinstance(artist, matplotlib.lines.Line2D):
@@ -143,7 +144,7 @@ class PlotManager:
                 if artist.get_label() == 'Next Significant Decrease':
                     artist.set_xdata([strain_shifted[self.selected_points[1]]])
                 if artist.get_label() == f"{OFFSET*100}% Offset Stress-Strain Curve":
-                    artist.set_xdata(strain_offset)
+                    artist.set_xdata(strain_shifted)
                     artist.set_ydata(offset_line)
                 # Remove vertical line
                 if artist.get_label().startswith('Selected point'):
@@ -152,13 +153,18 @@ class PlotManager:
             # Remove existing IYS scatter plot
             if isinstance(artist, matplotlib.collections.PathCollection) and artist.get_label().startswith('IYS:'):
                 artist.remove()
+            if isinstance(artist, matplotlib.collections.PathCollection) and artist.get_label().startswith('YS:'):
+                artist.remove()
             
         
         if iys_strain is not None and iys_stress is not None:
             print("IYS found")
             ax.scatter(iys_strain, iys_stress, c="red",label=f"IYS: ({iys_strain:.6f}, {iys_stress:.6f})")
-            
         
+        if ys_strain is not None and ys_stress is not None:
+            print("YS found")
+            ax.scatter(ys_strain, ys_stress, c="blue",label=f"YS: ({ys_strain:.6f}, {ys_stress:.6f})")
+            
         # Store the old legend's properties
         old_legend = ax.legend_
         loc = old_legend._loc

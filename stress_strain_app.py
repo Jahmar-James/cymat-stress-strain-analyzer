@@ -84,11 +84,6 @@ if __name__ == "__main__":
     root.mainloop()
 
 # To Do
-# 1. Automate import specimen data from Excel
-# - Identify the Excel file format and structure.
-# - Use a library like pandas to read the data from the Excel file.
-# - Write a function or method to handle the data import and integration with the existing code.
-
 # 2. Fix 2% offset curve
 # - Identify the code section responsible for the 2% offset curve calculation.
 # - Analyze the code and identify any issues or bugs.
@@ -99,14 +94,11 @@ if __name__ == "__main__":
 # - Identify the code section where these values are calculated or used.
 # - Implement the necessary logic to differentiate between them based on your requirements.
 
-# 4. Add units next to entry Box
-# - Identify the entry boxes where units need to be displayed.
-# - Update the corresponding labels or widgets to include the appropriate units.
-
 # 5. Refine 1st index and next index
 # - Understand the purpose and functionality of the 1st index and next index.
 # - Identify the code sections where these values are used or calculated.
 # - Make any necessary adjustments or improvements to refine their functionality.
+
 
 # 6. Be able to create custom Skew cards
 # - Determine the requirements and specifications for custom Skew cards.
@@ -123,11 +115,6 @@ if __name__ == "__main__":
 # - Identify the relevant formulas or algorithms for the calculations.
 # - Implement the necessary code to perform the calculations and update the variables accordingly.
 
-# 9. Refine layout and styling of the GUI
-# - Identify the areas of the GUI that require refinement.
-# - Modify the existing code or add new code to update the layout and styling as desired.
-# - Use appropriate GUI libraries and features to achieve the desired look and feel.
-
 # 10. Ability to shift the stress axes up
 # - Identify the code section responsible for the stress axes.
 # - Implement the necessary functionality to allow users to shift the stress axes up.
@@ -137,6 +124,10 @@ if __name__ == "__main__":
 # - Identify the files or resources with messy or inconsistent names.
 # - Rename the files or resources using a consistent and clean naming convention.
 # - Update any references to the renamed files in the code.
+
+# 4. Add units next to entry Box
+# - Identify the entry boxes where units need to be displayed.
+# - Update the corresponding labels or widgets to include the appropriate units.
 
 # 12. Clean up graphs
 # - Identify the graphs that require cleaning up.
@@ -152,3 +143,8 @@ if __name__ == "__main__":
     # - Identify the code section or user interface elements related to line selection.
     # - Add the necessary functionality to allow users to select and unselect lines.
     # - Update the code to reflect the selection status of the lines and perform any associated actions accordingly.
+
+# 9. Refine layout and styling of the GUI
+# - Identify the areas of the GUI that require refinement.
+# - Modify the existing code or add new code to update the layout and styling as desired.
+# - Use appropriate GUI libraries and features to achieve the desired look and feel.
