@@ -166,6 +166,7 @@ class WidgetManager:
                                             initialfile=f"{today}_Specimens_{default_file_name}_.xlsx")
         
 class SliderManager(tk.Frame):
+    """A class to create custom widget"""
     def __init__(self, master, shared_var, app, callback=None):
         super().__init__(master)
         self.master = master

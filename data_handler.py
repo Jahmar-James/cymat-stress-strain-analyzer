@@ -19,9 +19,6 @@ from specimen import Specimen
 def is_float(value: str) -> bool:
     return value.replace('.', '', 1).isdigit()
 
-#TO DO
-
-
 # data_handler.py
 class DataHandler:
     """

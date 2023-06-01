@@ -74,12 +74,10 @@ class Specimen:
 
     @property
     def shifted_displacement(self):
-        print("shift displcement")
         force = self.force
         displacement = self.displacement
-        first_increase_index = self.graph_manager.find_first_significant_increase(
-            force, displacement)
-        return displacement - displacement[first_increase_index]
+        first_increase_index = self.graph_manager.find_first_significant_increase(force, displacement)
+        return displacement - displacement[first_increase_index] +(self.manual_strain_shift * self.original_length)
 
     @property
     def IYS(self):
