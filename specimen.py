@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import LineString, MultiPoint, Point
 
-# from specimen_DIN import SpecimenDINAnalysis
+from specimen_DIN import SpecimenDINAnalysis
 
 
 class Specimen:
@@ -23,8 +23,8 @@ class Specimen:
         self.din_analyzer = None
         self.manual_strain_shift = 0
 
-    def set_analyzer(self, stress ,strain):
-        self.din_analyzer = SpecimenDINAnalysis(stress, strain)
+    def set_analyzer(self):
+        self.din_analyzer = SpecimenDINAnalysis(self.stress, self.shifted_strain)
 
     def calculate_properties(self):
         self.cross_sectional_area = self.length * self.width  # mm^2
@@ -128,7 +128,6 @@ class Specimen:
 
         return specimen
 
-
 class SpecimenGraphManager:
     def __init__(self, specimen):
         self.specimen = specimen
@@ -140,6 +139,7 @@ class SpecimenGraphManager:
         self.strain_offset = None
         self.offset_line = None
 
+    # Determine the plastic region 
     def find_first_significant_increase(self, stress, strain, threshold=0.015, testing=False,  min_force=80, max_force=1000):
         """Find the index of the first significant increase in stress.
 
@@ -277,7 +277,8 @@ class SpecimenGraphManager:
         else:
             print("No significant decrease found")
         return None
-
+    
+    #find intercept for YS
     def find_interaction_point(self, plot1, plot2, min_dist_from_origin=0.001, max_attempts=3):
         # Get the x and y data from each tuple
         x1, y1 = plot1
@@ -382,8 +383,7 @@ class SpecimenGraphManager:
             self.YS = (ys_strain, ys_stress)
             self.IYS = (strain[end], stress[end])
 
-         
-
+    
     def Calculate_Strength_Alignment(self, OFFSET=0.002):
         # Check if youngs_modulus and IYS are already calculated
         if self.youngs_modulus is not None and self.IYS is not None:
@@ -511,6 +511,16 @@ class SpecimenDataManager:
             self.formatted_data['Force'] / self.cross_sectional_area)*-1
         self.formatted_data['strain'] = (
             (self.formatted_data['Displacement']) / self.original_length)*-1
+        
+    def calculate_toughness(self):
+        return np.trapz(self.specimen.stress, self.specimen.shifted_strain)
+
+    def calculate_ductility(self):
+        return max(self.specimen.shifted_strain)
+
+    def calculate_resilience(self):
+        yield_stress, yield_strain = self.specimen.IYS
+        return 0.5 * yield_stress * yield_strain
 
 
     @classmethod

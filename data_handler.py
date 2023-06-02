@@ -15,6 +15,9 @@ import pandas as pd
 from excel_exporter import ExcelExporter
 from specimen import Specimen
 
+DIN_PROPERTIES = [
+        'Rplt', 'Rplt_E', 'ReH', 'Ev', 'Eff', 'ReH_Rplt_ratio', 'Aplt_E', 'AeH', 'Rp1', 'm'
+    ]
 
 def is_float(value: str) -> bool:
     return value.replace('.', '', 1).isdigit()
@@ -168,6 +171,15 @@ class DataHandler:
         yield_strains = [specimen.IYS[0] for specimen in selected_specimens]
         return yield_stresses, yield_strains
         
+    def get_DIN_property_values(self, selected_specimens, property_name):
+        values = []
+        for specimen in selected_specimens:
+            try:
+                values.append(getattr(specimen.din_analyzer, property_name))
+            except AttributeError:
+                print(f'Error: din_analyzer not initialized for specimen: {specimen}')
+        return values
+    
     def calculate_summary_stats(self, values):
         average_value = np.mean(values)
         std_value = np.std(values)
@@ -178,9 +190,16 @@ class DataHandler:
         avg, std, cv = self.calculate_summary_stats(property_values)
         summary_stats.append({'Property': property_name, 'Average': avg, 'Std Dev': std, 'CV %': cv})
 
+    def compute_and_append_summary_stats_DIN(self, property_values, property_name, summary_stats):
+        avg, std, cv = self.calculate_summary_stats(property_values)
+        summary_stats.append({'Property': 'DIN ' + property_name, 'Average': avg, 'Std Dev': std, 'CV %': cv})
+
     def summary_statistics(self, selected_specimens=None):
         selected_specimens = self.get_selected_specimens() if selected_specimens is None else selected_specimens
         summary_stats = []
+
+        for specimen in selected_specimens:
+            specimen.set_analyzer()
 
         # Elastic modulus
         self.compute_and_append_summary_stats(self.get_elastic_modulus_values(selected_specimens), 'Elastic Modulus', summary_stats)
@@ -194,25 +213,20 @@ class DataHandler:
         self.compute_and_append_summary_stats(yield_strains, 'Yield Strain', summary_stats)
 
         # Other properties
-        toughness_values = []
-        ductility_values = []
-        resilience_values = []
-        for specimen in selected_specimens:
-            stress = specimen.stress
-            strain = specimen.shifted_strain
-            yield_stress, yield_strain = specimen.IYS
-            
-            toughness = np.trapz(stress, strain)
-            ductility = max(strain)
-            resilience = 0.5 * yield_stress * yield_strain
-            
-            toughness_values.append(toughness)
-            ductility_values.append(ductility)
-            resilience_values.append(resilience)
+        toughness_values = [specimen.data_manager.calculate_toughness() for specimen in selected_specimens]
+        ductility_values = [specimen.data_manager.calculate_ductility() for specimen in selected_specimens]
+        resilience_values = [specimen.data_manager.calculate_resilience() for specimen in selected_specimens]
 
         self.compute_and_append_summary_stats(toughness_values, 'Toughness (MJ/m^3)', summary_stats)
         self.compute_and_append_summary_stats(ductility_values, 'Ductility', summary_stats)
         self.compute_and_append_summary_stats(resilience_values, 'Resilience (MJ/m^3)', summary_stats)
+
+
+        # DIN Analysis properties
+        for property_name in DIN_PROPERTIES:
+            property_values = self.get_DIN_property_values(selected_specimens, property_name)
+            self.compute_and_append_summary_stats_DIN(property_values, property_name, summary_stats)
+
 
         summary_stats_df = pd.DataFrame(summary_stats)
         summary_stats_df.set_index('Property', inplace=True)
