@@ -36,6 +36,10 @@ class DataHandler:
     def __init__(self, app):
         self.app = app
         self.excel_exporter = ExcelExporter(self.app)
+        self.general_properties = ['name', 'length', 'width', 'thickness', 'weight', 'density', 'youngs_modulus']
+        self.data_manager_properties = ['toughness','ductility','resilience']
+        self.din_properties = DIN_PROPERTIES
+        self.properties_df =  pd.DataFrame()
     
     def set_widget_manager(self, widget_manager):
         self.widget_manager = widget_manager
@@ -157,83 +161,76 @@ class DataHandler:
         "strain": average_strain,
         "stress": average_stress
     })
-        
-    def get_density_values(self, selected_specimens):
-        density_values = [specimen.density for specimen in selected_specimens]
-        return density_values
-    
-    def get_elastic_modulus_values(self, selected_specimens):
-        elastic_modulus_values = [specimen.youngs_modulus for specimen in selected_specimens]
-        return elastic_modulus_values
-    
-    def get_IYS_values(self, selected_specimens):
-        yield_stresses = [specimen.IYS[1] for specimen in selected_specimens]
-        yield_strains = [specimen.IYS[0] for specimen in selected_specimens]
-        return yield_stresses, yield_strains
-        
-    def get_DIN_property_values(self, selected_specimens, property_name):
-        values = []
-        for specimen in selected_specimens:
-            try:
-                values.append(getattr(specimen.din_analyzer, property_name))
-            except AttributeError:
-                print(f'Error: din_analyzer not initialized for specimen: {specimen}')
-        return values
-    
+          
     def calculate_summary_stats(self, values):
         average_value = np.mean(values)
         std_value = np.std(values)
         cv_value = (std_value / average_value) * 100 if average_value != 0 else 0
         return average_value, std_value, cv_value
 
-    def compute_and_append_summary_stats(self, property_values, property_name, summary_stats):
-        avg, std, cv = self.calculate_summary_stats(property_values)
-        summary_stats.append({'Property': property_name, 'Average': avg, 'Std Dev': std, 'CV %': cv})
-
-    def compute_and_append_summary_stats_DIN(self, property_values, property_name, summary_stats):
-        avg, std, cv = self.calculate_summary_stats(property_values)
-        summary_stats.append({'Property': 'DIN ' + property_name, 'Average': avg, 'Std Dev': std, 'CV %': cv})
-
-    def summary_statistics(self, selected_specimens=None):
+    def summary_statistics(self):
+        """Calculate summary statistics for each property."""
+        summary_df = self.create_summary_df(self.properties_df)
+        return summary_df
+  
+    def create_properties_df(self, selected_specimens = None):
+        """Create a DataFrame with all properties for each specimen."""
         selected_specimens = self.get_selected_specimens() if selected_specimens is None else selected_specimens
-        summary_stats = []
+
+        properties_dfs = []
 
         for specimen in selected_specimens:
-            specimen.set_analyzer()
+            specimen_properties = self.get_specimen_properties(specimen)
+            specimen_df = pd.DataFrame(specimen_properties, index=[specimen.name])
+            properties_dfs.append(specimen_df)
+        
+        properties_df = pd.concat(properties_dfs)
 
-        # Elastic modulus
-        self.compute_and_append_summary_stats(self.get_elastic_modulus_values(selected_specimens), 'Elastic Modulus', summary_stats)
+        return properties_df
+    
+    def get_specimen_properties(self, specimen):
+        """Extracts the properties of a specimen."""
+        properties = {}
 
-        # Density
-        self.compute_and_append_summary_stats(self.get_density_values(selected_specimens), 'Density (g/cc)', summary_stats)
+        # Get general properties
+        for prop in self.general_properties:
+            properties[prop] = getattr(specimen, prop)
+        
+        # Get DIN analysis properties
+        for prop in self.din_properties:
+            try:
+                properties[prop] = getattr(specimen.din_analyzer, prop)
+            except AttributeError:
+                print(f'Error: din_analyzer not initialized for specimen: {specimen}')
+            
+        # Get data manager properties
+        for prop in self.data_manager_properties:
+            properties[prop] = getattr(specimen.data_manager, prop)
+        
+        return properties
 
-        # Yield stresses and strains
-        yield_stresses, yield_strains = self.get_IYS_values(selected_specimens)
-        self.compute_and_append_summary_stats(yield_stresses, 'Yield Stress (Mpa)', summary_stats)
-        self.compute_and_append_summary_stats(yield_strains, 'Yield Strain', summary_stats)
+    def create_summary_df(self, properties_df):
+        """Create a summarized DataFrame of their average with the corresponding STD and CV."""
+        summary_stats = []
 
-        # Other properties
-        toughness_values = [specimen.data_manager.calculate_toughness() for specimen in selected_specimens]
-        ductility_values = [specimen.data_manager.calculate_ductility() for specimen in selected_specimens]
-        resilience_values = [specimen.data_manager.calculate_resilience() for specimen in selected_specimens]
-
-        self.compute_and_append_summary_stats(toughness_values, 'Toughness (MJ/m^3)', summary_stats)
-        self.compute_and_append_summary_stats(ductility_values, 'Ductility', summary_stats)
-        self.compute_and_append_summary_stats(resilience_values, 'Resilience (MJ/m^3)', summary_stats)
-
-
-        # DIN Analysis properties
-        for property_name in DIN_PROPERTIES:
-            property_values = self.get_DIN_property_values(selected_specimens, property_name)
-            self.compute_and_append_summary_stats_DIN(property_values, property_name, summary_stats)
-
-
+        for prop in properties_df.columns:
+            if prop != 'name':  # skip over 'name' column
+                avg, std, cv = self.calculate_summary_stats(properties_df[prop].values)
+                summary_stats.append({'Property': prop, 'Average': avg, 'Std Dev': std, 'CV %': cv})
+     
         summary_stats_df = pd.DataFrame(summary_stats)
         summary_stats_df.set_index('Property', inplace=True)
 
         return summary_stats_df
 
     def export_average_to_excel(self,selected_indices, file_path):
+        selected_specimens = self.get_selected_specimens(selected_indices)
+        for specimen in selected_specimens:
+            specimen.set_analyzer()
+
+        # Update specimen properties DataFrame
+        self.properties_df = self.create_properties_df(selected_specimens)
+
         print("Starting export thread")
         export_thread = threading.Thread(target=self.excel_exporter.export_data_to_excel(selected_indices, file_path))
         # export_thread = threading.Thread(target=self.excel_exporter.profile_export_average_to_excel)

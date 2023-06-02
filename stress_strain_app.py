@@ -84,10 +84,6 @@ if __name__ == "__main__":
     root.mainloop()
 
 # To Do
-# 2. Fix 2% offset curve
-# - Identify the code section responsible for the 2% offset curve calculation.
-# - Analyze the code and identify any issues or bugs.
-# - Debug and fix the issues to ensure the 2% offset curve is calculated correctly.
 
 # 3. Differentiate between yield shrink and initial yield strength
 # - Understand the difference between yield shrink and initial yield strength.

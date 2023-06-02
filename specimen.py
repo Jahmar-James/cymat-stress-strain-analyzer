@@ -408,8 +408,7 @@ class SpecimenGraphManager:
 
         if ax is None:
             ax = plt.gca()
-        ax.axhline(0, color='black', linestyle='--')
-        ax.axvline(0, color='black', linestyle='--')
+  
         ax.plot(self.strain_shifted, self.stress, label="Shifted Stress-Strain Curve")
         ax.plot(self.strain_shifted, self.offset_line,
                 label=f"{OFFSET*100}% Offset Stress-Strain Curve")
@@ -430,12 +429,7 @@ class SpecimenGraphManager:
             ys_strain, ys_stress = self.YS
             if ys_strain is not None and ys_stress is not None:
                 ax.scatter(ys_strain, ys_stress, c="blue",
-                        label=f"YS: ({ys_strain:.6f}, {ys_stress:.6f})")
-            
-
-        ax.set_xlabel("Strain")
-        ax.set_ylabel("Stress (MPa)")
-        ax.legend()
+                        label=f"YS: ({ys_strain:.6f}, {ys_stress:.6f})")        
 
     @classmethod
     def from_dict(cls, data, specimen, temp_dir=None):
@@ -464,6 +458,9 @@ class SpecimenDataManager:
         self.original_length = original_length
         self.headers = []
         self.units = []
+        self._toughness = None
+        self._ductility = None
+        self._resilience = None
 
     def clean_data(self,):
         raw_data = self.raw_data
@@ -509,9 +506,25 @@ class SpecimenDataManager:
     def add_stress_and_strain(self):
         self.formatted_data['stress'] = (
             self.formatted_data['Force'] / self.cross_sectional_area)*-1
-        self.formatted_data['strain'] = (
-            (self.formatted_data['Displacement']) / self.original_length)*-1
-        
+        self.formatted_data['strain'] = (  (self.formatted_data['Displacement']) / self.original_length)*-1
+    @property
+    def toughness(self):
+        if self._toughness is None:
+            self._toughness = self.calculate_toughness()
+        return self._toughness  
+    
+    @property
+    def ductility(self):
+        if self._ductility is None:
+            self._ductility = self.calculate_ductility()
+        return self._ductility  
+    
+    @property
+    def resilience(self):
+        if self._resilience is None:
+            self._resilience = self.calculate_resilience()
+        return self._resilience  
+
     def calculate_toughness(self):
         return np.trapz(self.specimen.stress, self.specimen.shifted_strain)
 

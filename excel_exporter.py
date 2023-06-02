@@ -27,7 +27,6 @@ class ExcelExporter:
     """
     def __init__(self, app):
         self.app = app
-        self.export_in_progress = False
     
     @property
     def selected_specimens(self):
@@ -153,6 +152,7 @@ class ExcelExporter:
             summary_dfs = []
 
             summary_stats_df = self.app.data_handler.summary_statistics()
+
             summary_dfs.append(summary_stats_df)
             
             average_summary = self.app.variables.average_of_specimens.describe().transpose()
