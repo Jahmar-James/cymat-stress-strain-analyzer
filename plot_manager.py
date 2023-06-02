@@ -2,6 +2,7 @@ import tkinter as tk
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.ticker as mtick
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
                                                NavigationToolbar2Tk)
 
@@ -87,8 +88,12 @@ class PlotManager:
         ax.set_title(title)
         ax.set_xlabel("Strain")
         ax.set_ylabel("Stress (MPa)")
-        legend = ax.legend(loc="upper right",framealpha=0.5)
+        ax.xaxis.set_major_formatter(mtick.PercentFormatter())
+        legend = ax.legend(loc="upper left",framealpha=0.5)
         # bbox_to_anchor=(0.5, 1.6)
+
+        ax.axhline(0, color='black', linestyle='--')
+        ax.axvline(0, color='black', linestyle='--')
 
         self.ax = ax
         self.fig = fig
@@ -96,7 +101,7 @@ class PlotManager:
 
         if position == LEFT:
             for text in legend.get_texts():
-                text.set_fontsize(8)
+                text.set_fontsize(6)
 
                 lines = ax.get_lines()
                 for line in lines:
