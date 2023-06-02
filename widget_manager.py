@@ -59,8 +59,10 @@ class WidgetManager:
                                               import_callback=self.button_actions.import_data,
                                               enable_strain_callback=self.toggle_slider, 
                                               enable_select_callback=self.toggle_select_mode,
+                                              ms_word_callback=self.button_actions.export_ms_data,    
                                               slider_enabled=self.slider_enabled,
-                                              select_mode_enabled=self.select_mode_enabled)
+                                              select_mode_enabled=self.select_mode_enabled
+                                              )
         self.fifth_row_group.grid(row=5, column=0, columnspan=4, sticky='nsew')
 
 
@@ -262,7 +264,7 @@ class ListBoxGroup(tk.Frame):
         self.specimen_listbox.grid(row=1, column=0, rowspan=2, padx=10, pady=2, sticky='ns')
 
 class FifthRowGroup(tk.Frame):
-    def __init__(self, master=None, reset_callback=None, import_callback=None, enable_strain_callback=None, enable_select_callback=None, slider_enabled = None, select_mode_enabled = None, **kwargs ):
+    def __init__(self, master=None, reset_callback=None, import_callback=None, enable_strain_callback=None, enable_select_callback=None, ms_word_callback =None, slider_enabled = None, select_mode_enabled = None, **kwargs ):
         super().__init__(master, **kwargs)
         self.strain_variable = slider_enabled
         self.select_variable = select_mode_enabled
@@ -270,6 +272,7 @@ class FifthRowGroup(tk.Frame):
         self.create_import_button(import_callback)
         self.create_strain_checkbox(enable_strain_callback)
         self.create_select_checkbox(enable_select_callback)
+        self.create_word_button( ms_word_callback)
 
     def create_reset_button(self, callback):
         self.reset_button = tk.Button(self, text="Reset Strain Shift", command=callback)
@@ -286,4 +289,9 @@ class FifthRowGroup(tk.Frame):
     def create_select_checkbox(self, callback):
         self.select_mode_toggle_button = tk.Checkbutton(self, text="Enable Select Mode", variable=self.select_variable, command=callback)
         self.select_mode_toggle_button.grid(row=0, column=2, padx=10, pady=4, sticky='n')
+    
+    def create_word_button(self, callback):
+        self.ms_button = tk.Button(self, text="MS word", command=callback)
+        self.ms_button.grid(row=0, column=4, padx=10, pady=5, sticky='n')
+
 

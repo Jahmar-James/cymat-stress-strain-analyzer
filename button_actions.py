@@ -25,6 +25,11 @@ class ButtonActions:
     @property
     def average_of_specimens(self):
         return self.app.variables.average_of_specimens
+    def get_export_path():
+        pass
+
+    def validate_selected_specimen():
+        pass
 
     def export_data(self) -> None:
         self.data_handler.export_data()
@@ -50,6 +55,7 @@ class ButtonActions:
         
         self.data_handler.export_average_to_excel(selected_indices, file_path)     
         tk.messagebox.showinfo("Data Export", "Data has been exported to Excel successfully!")
+        self.app.variables.export_in_progress = False
 
        
     # Work with enter press
@@ -97,6 +103,20 @@ class ButtonActions:
             except Exception as e:
                 tk.messagebox.showerror("Import Error", f"Failed to import data from {filename}\n\nError: {e}")
 
+    def export_ms_data(self):
+        FILE_TYPE = ( ("All files", "*.*"))
+        file_path = filedialog.asksaveasfilename(defaultextension=".docx", filetypes=[("Word Document", "*.docx"), ("All files", "*.*")])
+        if file_path: 
+            selected_indices = self.app.widget_manager.specimen_listbox.curselection()
+            if not selected_indices:
+                tk.messagebox.showerror("Error", "No specimens selected.")
+                return
+            try:
+                self.data_handler.export_DIN_to_word(selected_indices, file_path)
+                tk.messagebox.showinfo("Export Successful", f"Data successfully exported to {file_path}")
+            except Exception as e:
+                tk.messagebox.showerror("Export Error", f"Failed to export data to {file_path}\n\nError: {e}")
+            return
     
     def clear_entries(self) -> None:
         self.widget_manager.name_entry.delete(0, 'end')

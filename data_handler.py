@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from excel_exporter import ExcelExporter
+from ms_word_exporter import WordExporter
 from specimen import Specimen
 
 DIN_PROPERTIES = [
@@ -32,10 +33,12 @@ class DataHandler:
     excel_exporter (ExcelExporter): An ExcelExporter instance for exporting data to Excel.
     widget_manager (WidgetManager): Manages the GUI widgets of the application.
     button_actions (dict): Maps button names to their corresponding actions.
+    properties_df (DataFame): df containing key properties for all selected speicmen 
     """
     def __init__(self, app):
         self.app = app
         self.excel_exporter = ExcelExporter(self.app)
+        self.word_exporter = WordExporter(self.app)
         self.general_properties = ['name', 'length', 'width', 'thickness', 'weight', 'density', 'youngs_modulus']
         self.data_manager_properties = ['toughness','ductility','resilience']
         self.din_properties = DIN_PROPERTIES
@@ -50,6 +53,16 @@ class DataHandler:
     @property
     def average_of_specimens(self):
         return self.app.variables.average_of_specimens
+    
+    def validate_and_import_data(self) -> Optional[str]:
+        name, length, width, thickness, weight = self.get_specimen_properties()
+
+        if not all([name, length, width, thickness, weight]):
+            return "All fields must be filled."
+
+        if not all([is_float(value) for value in [length, width, thickness, weight]]):
+            return "Length, Width, Thickness, and Weight must be numbers."
+        return None
 
     def import_specimen_data(self):
         def read_raw_data(file_path):
@@ -97,16 +110,6 @@ class DataHandler:
         thickness = self.widget_manager.thickness_entry.get()
         weight = self.widget_manager.weight_entry.get()
         return name, length, width, thickness, weight
-    
-    def validate_and_import_data(self) -> Optional[str]:
-        name, length, width, thickness, weight = self.get_specimen_properties()
-
-        if not all([name, length, width, thickness, weight]):
-            return "All fields must be filled."
-
-        if not all([is_float(value) for value in [length, width, thickness, weight]]):
-            return "Length, Width, Thickness, and Weight must be numbers."
-        return None
 
     def get_common_strain(self, selected_specimens):
         max_strain = max(specimen.shifted_strain.max() for specimen in selected_specimens)
@@ -222,14 +225,19 @@ class DataHandler:
         summary_stats_df.set_index('Property', inplace=True)
 
         return summary_stats_df
-
-    def export_average_to_excel(self,selected_indices, file_path):
+    
+    def update_properties_df(self, selected_indices):
         selected_specimens = self.get_selected_specimens(selected_indices)
         for specimen in selected_specimens:
-            specimen.set_analyzer()
+            if specimen.din_analyzer is None:
+                specimen.set_analyzer()
 
         # Update specimen properties DataFrame
         self.properties_df = self.create_properties_df(selected_specimens)
+
+    def export_average_to_excel(self,selected_indices, file_path):
+    
+        self.update_properties_df(selected_indices)
 
         print("Starting export thread")
         export_thread = threading.Thread(target=self.excel_exporter.export_data_to_excel(selected_indices, file_path))
@@ -244,6 +252,13 @@ class DataHandler:
         if len(filename) > 50:  # check if filename is too long
             specimen_filename = filename[:50]
         return specimen_filename 
+    
+    def export_DIN_to_word(self,selected_indices, file_path):
+        self.update_properties_df(selected_indices)
+
+        print("Starting export thread")
+        export_thread = threading.Thread(target=self.word_exporter.export_report(selected_indices, file_path))
+          
 
     def save_specimen_data(self, specimen, output_directory):
         """

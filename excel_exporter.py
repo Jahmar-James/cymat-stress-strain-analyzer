@@ -205,11 +205,11 @@ class ExcelExporter:
                     ws.freeze_panes = ws.cell(row=5 if sheet_name == SELECTED_SPECIMEN  else 2, column=1)
                 add_summary_sheet(writer)
                 create_charts(writer, data_dfs, self.app.variables.average_of_specimens)
-                tk.messagebox.showinfo("Data Export", "Data has been exported to Excel successfully!")
                 self.app.variables.export_in_progress = False
 
         except Exception as e:
             tk.messagebox.showerror("Error", f"An error occurred while exporting the data: {e}")
+            self.app.variables.export_in_progress = False
 
     # Procoessing and creation functions
     def prepare_data(self, selected_indices):
