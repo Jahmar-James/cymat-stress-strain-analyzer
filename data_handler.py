@@ -13,21 +13,38 @@ import numpy as np
 import pandas as pd
 
 from excel_exporter import ExcelExporter
+from ms_word_exporter import WordExporter
 from specimen import Specimen
 
+DIN_PROPERTIES = [
+        'Rplt', 'Rplt_E', 'ReH', 'Ev', 'Eff', 'ReH_Rplt_ratio', 'Aplt_E', 'AeH', 'Rp1', 'm'
+    ]
 
 def is_float(value: str) -> bool:
     return value.replace('.', '', 1).isdigit()
 
-#TO DO
-# Need to make suree Specimen name is sutiable file name in save
-
-
 # data_handler.py
 class DataHandler:
+    """
+    Handles data manipulation and management tasks for the application. 
+
+    Attributes:
+    app (object): The main application object.
+    excel_exporter (ExcelExporter): An ExcelExporter instance for exporting data to Excel.
+    widget_manager (WidgetManager): Manages the GUI widgets of the application.
+    button_actions (dict): Maps button names to their corresponding actions.
+    properties_df (DataFame): df containing key properties for all selected speicmen 
+    """
     def __init__(self, app):
         self.app = app
         self.excel_exporter = ExcelExporter(self.app)
+        self.word_exporter = WordExporter(self.app)
+        self.general_properties = ['name', 'length', 'width', 'thickness', 'weight', 'density', 'youngs_modulus']
+        self.data_manager_properties = ['toughness','ductility','resilience']
+        self.din_properties = DIN_PROPERTIES
+        self.properties_df =  pd.DataFrame()
+        self.data_analysis_buttons = []  # First group
+        self.data_management_buttons = []  # Second group
     
     def set_widget_manager(self, widget_manager):
         self.widget_manager = widget_manager
@@ -38,6 +55,16 @@ class DataHandler:
     @property
     def average_of_specimens(self):
         return self.app.variables.average_of_specimens
+    
+    def validate_and_import_data(self) -> Optional[str]:
+        name, length, width, thickness, weight = self.get_specimen_properties()
+
+        if not all([name, length, width, thickness, weight]):
+            return "All fields must be filled."
+
+        if not all([is_float(value) for value in [length, width, thickness, weight]]):
+            return "Length, Width, Thickness, and Weight must be numbers."
+        return None
 
     def import_specimen_data(self):
         def read_raw_data(file_path):
@@ -85,16 +112,6 @@ class DataHandler:
         thickness = self.widget_manager.thickness_entry.get()
         weight = self.widget_manager.weight_entry.get()
         return name, length, width, thickness, weight
-    
-    def validate_and_import_data(self) -> Optional[str]:
-        name, length, width, thickness, weight = self.get_specimen_properties()
-
-        if not all([name, length, width, thickness, weight]):
-            return "All fields must be filled."
-
-        if not all([is_float(value) for value in [length, width, thickness, weight]]):
-            return "Length, Width, Thickness, and Weight must be numbers."
-        return None
 
     def get_common_strain(self, selected_specimens):
         max_strain = max(specimen.shifted_strain.max() for specimen in selected_specimens)
@@ -119,7 +136,7 @@ class DataHandler:
     def get_selected_specimens(self, selected_indices=None):
         if selected_indices is None:
             selected_indices = self.widget_manager.specimen_listbox.curselection()
-            self.app.variables.selected_indices =selected_indices
+            self.app.variables.selected_indices = selected_indices
         
         selected_specimens = [self.app.variables.specimens[index] for index in selected_indices]
         return selected_specimens
@@ -149,8 +166,81 @@ class DataHandler:
         "strain": average_strain,
         "stress": average_stress
     })
+          
+    def calculate_summary_stats(self, values):
+        average_value = np.mean(values)
+        std_value = np.std(values)
+        cv_value = (std_value / average_value) * 100 if average_value != 0 else 0
+        return average_value, std_value, cv_value
+
+    def summary_statistics(self):
+        """Calculate summary statistics for each property."""
+        summary_df = self.create_summary_df(self.properties_df)
+        return summary_df
+  
+    def create_properties_df(self, selected_specimens = None):
+        """Create a DataFrame with all properties for each specimen."""
+        selected_specimens = self.get_selected_specimens() if selected_specimens is None else selected_specimens
+
+        properties_dfs = []
+
+        for specimen in selected_specimens:
+            specimen_properties = self.get_specimen_full_properties(specimen)
+            specimen_df = pd.DataFrame(specimen_properties, index=[specimen.name])
+            properties_dfs.append(specimen_df)
+        
+        properties_df = pd.concat(properties_dfs)
+
+        return properties_df
+    
+    def get_specimen_full_properties(self, specimen):
+        """Extracts the properties of a specimen."""
+        properties = {}
+
+        # Get general properties
+        for prop in self.general_properties:
+            properties[prop] = getattr(specimen, prop)
+        
+        # Get DIN analysis properties
+        for prop in self.din_properties:
+            try:
+                properties[prop] = getattr(specimen.din_analyzer, prop)
+            except AttributeError:
+                print(f'Error: din_analyzer not initialized for specimen: {specimen}')
+            
+        # Get data manager properties
+        for prop in self.data_manager_properties:
+            properties[prop] = getattr(specimen.data_manager, prop)
+        
+        return properties
+
+    def create_summary_df(self, properties_df):
+        """Create a summarized DataFrame of their average with the corresponding STD and CV."""
+        summary_stats = []
+
+        for prop in properties_df.columns:
+            if prop != 'name':  # skip over 'name' column
+                avg, std, cv = self.calculate_summary_stats(properties_df[prop].values)
+                summary_stats.append({'Property': prop, 'Average': avg, 'Std Dev': std, 'CV %': cv})
+     
+        summary_stats_df = pd.DataFrame(summary_stats)
+        summary_stats_df.set_index('Property', inplace=True)
+
+        return summary_stats_df
+    
+    def update_properties_df(self, selected_indices):
+        selected_specimens = self.get_selected_specimens(selected_indices)
+        for specimen in selected_specimens:
+            if specimen.din_analyzer is None:
+                specimen.set_analyzer()
+
+        # Update specimen properties DataFrame
+        self.properties_df = self.create_properties_df(selected_specimens)
 
     def export_average_to_excel(self,selected_indices, file_path):
+    
+        self.update_properties_df(selected_indices)
+
         print("Starting export thread")
         export_thread = threading.Thread(target=self.excel_exporter.export_data_to_excel(selected_indices, file_path))
         # export_thread = threading.Thread(target=self.excel_exporter.profile_export_average_to_excel)
@@ -164,8 +254,22 @@ class DataHandler:
         if len(filename) > 50:  # check if filename is too long
             specimen_filename = filename[:50]
         return specimen_filename 
+    
+    def export_DIN_to_word(self,selected_indices, file_path):
+        self.update_properties_df(selected_indices)
+
+        print("Starting export thread")
+        export_thread = threading.Thread(target=self.word_exporter.export_report(selected_indices, file_path))
+          
 
     def save_specimen_data(self, specimen, output_directory):
+        """
+        Saves the specimen data to a temporary directory and then zips the files.
+
+        Args:
+        specimen (Specimen): The specimen to save.
+        output_directory (str): The directory where to save the zipped file.
+        """
         with tempfile.TemporaryDirectory() as temp_dir:
             # Serialize specimen properties to JSON
             properties_dict = specimen.__dict__
@@ -180,6 +284,12 @@ class DataHandler:
                     zip_file.write(file, os.path.basename(file))
 
     def load_specimen_data(self, file_path):
+        """
+        Loads the specimen data from a zipped file.
+
+        Args:
+        file_path (str): The path to the zipped file containing the specimen data.
+        """
         # Create a temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
             # Unzip the file
@@ -202,12 +312,27 @@ class DataHandler:
 
 
 class SpecimenDataEncoder(json.JSONEncoder):
+    """
+    Custom JSONEncoder subclass that knows how to encode custom specimen data types.
+
+    Attributes:
+    export_dir (str): Directory where data files are exported.
+    """
     def __init__(self, *args, **kwargs):
         # accept the export directory as an argument
         self.export_dir = kwargs.pop("export_dir", ".")
         super().__init__(*args, **kwargs)
 
     def default(self, obj):
+        """
+        Overrides the default method of json.JSONEncoder.
+
+        Args:
+        obj (object): The object to convert to JSON.
+
+        Returns:
+        dict or list or str or int or float or bool or None: The JSON-serializable representation of obj.
+        """
         try:
             return super().default(obj)
         except TypeError:
@@ -219,6 +344,15 @@ class SpecimenDataEncoder(json.JSONEncoder):
                 raise
 
     def encode_dict(self, obj_dict):
+        """
+        Encodes a dictionary into a JSON-friendly format.
+
+        Args:
+        obj_dict (dict): The dictionary to encode.
+
+        Returns:
+        dict: The encoded dictionary.
+        """
         encoded_dict = {}
         for attr, value in obj_dict.items():
             if attr == "raw_data" or attr == "specimen":

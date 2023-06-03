@@ -1,10 +1,13 @@
 import os
 from datetime import datetime
+from scipy.optimize import curve_fit
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from shapely.geometry import LineString, MultiPoint, Point
+
+from specimen_DIN import SpecimenDINAnalysis
 
 
 class Specimen:
@@ -15,10 +18,13 @@ class Specimen:
         self.thickness = float(thickness)
         self.weight = float(weight)
         self.calculate_properties()
-        self.data_manager = SpecimenDataManager(
-        self, data, self.cross_sectional_area, self.original_length)
+        self.data_manager = SpecimenDataManager(self, data, self.cross_sectional_area, self.original_length)
         self.graph_manager = SpecimenGraphManager(self)
+        self.din_analyzer = None
         self.manual_strain_shift = 0
+
+    def set_analyzer(self):
+        self.din_analyzer = SpecimenDINAnalysis(self.stress, self.shifted_strain)
 
     def calculate_properties(self):
         self.cross_sectional_area = self.length * self.width  # mm^2
@@ -29,7 +35,7 @@ class Specimen:
     def display_properties_in_label(self, label):
         properties_text = f"Specimen Properties\n\n"
         properties_text += f"Name: {self.name}\n"
-        properties_text += f"Dim (L W t): \n{self.length:.2f} x {self.width:.2f} x {self.weight:.2f}(mm)\n"
+        properties_text += f"Dim (L W t): \n{self.length:.2f} x {self.width:.2f} x {self.thickness:.2f}(mm)\n"
         properties_text += f"Weight: {self.weight:.3f} g\n"
         properties_text += f"Density: {self.density:.4f} (g/cc)\n"
         properties_text += f"Cross-sectional: {self.cross_sectional_area:.1f} (mm^2)\n"
@@ -41,8 +47,7 @@ class Specimen:
         self.data_manager.add_stress_and_strain()
 
     def find_IYS_align(self):
-        # self.graph_manager.Calculate_IYS_Alignment(self.data_manager.formatted_data)
-        self.graph_manager.Calculate_IYS_Alignment()
+        self.graph_manager.Calculate_Strength_Alignment()
 
     def plot_stress_strain(self, ax):
         ax.plot(self.shifted_strain, self.stress, label=self.name)
@@ -74,16 +79,18 @@ class Specimen:
 
     @property
     def shifted_displacement(self):
-        print("shift displcement")
         force = self.force
         displacement = self.displacement
-        first_increase_index = self.graph_manager.find_first_significant_increase(
-            force, displacement)
-        return displacement - displacement[first_increase_index]
+        first_increase_index = self.graph_manager.find_first_significant_increase(force, displacement)
+        return displacement - displacement[first_increase_index] +(self.manual_strain_shift * self.original_length)
 
     @property
     def IYS(self):
         return self.graph_manager.IYS
+    
+    @property
+    def YS(self):
+        return self.graph_manager.YS
 
     @property
     def youngs_modulus(self):
@@ -121,15 +128,18 @@ class Specimen:
 
         return specimen
 
-
 class SpecimenGraphManager:
     def __init__(self, specimen):
         self.specimen = specimen
         self.first_increase_index = None
         self.next_decrease_index = None
         self.IYS = None
+        self.YS = None
         self.youngs_modulus = None
+        self.strain_offset = None
+        self.offset_line = None
 
+    # Determine the plastic region 
     def find_first_significant_increase(self, stress, strain, threshold=0.015, testing=False,  min_force=80, max_force=1000):
         """Find the index of the first significant increase in stress.
 
@@ -267,8 +277,9 @@ class SpecimenGraphManager:
         else:
             print("No significant decrease found")
         return None
-
-    def find_interaction_point(self, plot1, plot2, min_dist_from_origin=0.02, max_attempts=3):
+    
+    #find intercept for YS
+    def find_interaction_point(self, plot1, plot2, min_dist_from_origin=0.001, max_attempts=3):
         # Get the x and y data from each tuple
         x1, y1 = plot1
         x2, y2 = plot2
@@ -342,8 +353,7 @@ class SpecimenGraphManager:
     # plotting calculations
     def calculate_shifted_strain(self, stress, strain):
         if self.first_increase_index is None:
-            self.first_increase_index = self.find_first_significant_increase(
-                stress, strain)
+            self.first_increase_index = self.find_first_significant_increase(stress, strain)
         self.strain_shifted = strain - strain[self.first_increase_index]
 
     def calculate_next_decrease_index(self, stress):
@@ -351,82 +361,89 @@ class SpecimenGraphManager:
             self.next_decrease_index = self.find_next_significant_decrease(
                 stress, self.strain_shifted, self.first_increase_index + 1)
 
-    def calculate_youngs_modulus(self, stress):
-        if self.youngs_modulus is None and self.next_decrease_index is not None:
-            self.youngs_modulus = (stress[self.next_decrease_index] - stress[self.first_increase_index]) / (
-                self.strain_shifted[self.next_decrease_index] - self.strain_shifted[self.first_increase_index])
-        print(
-            f" youngs : {self.youngs_modulus} for first of {self.first_increase_index} and next of {self.next_decrease_index}")
+    def calculate_youngs_modulus(self, stress, strain):
+        start, end = self.first_increase_index, self.next_decrease_index
+        if start is not None and end is not None:
+            def linear_func(x, a, b):
+                return a * x + b
+            popt, _ = curve_fit(linear_func, strain[start:end], stress[start:end])
+            self.youngs_modulus = popt[0]  # slope of the line
 
-    def calculate_offset_line(self, OFFSET):
-        if self.youngs_modulus is not None:
-            self.strain_offset = self.strain_shifted + OFFSET
-            self.offset_line = self.strain_offset * self.youngs_modulus
-        print(f" create offset line with offset at: {OFFSET}")
+    def calculate_strength(self, stress, strain, offset=0.002):
+        start, end = self.first_increase_index, self.next_decrease_index
+        if start is not None and end is not None and self.youngs_modulus is not None:
 
-    def calculate_iys(self, stress):
-        if self.youngs_modulus is not None:
-            plot1 = (self.strain_offset, self.offset_line)
-            plot2 = (self.strain_shifted, stress)
-            iys_strain, iys_stress = self.find_interaction_point(plot1, plot2)
-            self.IYS = (iys_strain, iys_stress)
-        print(f" IYS : {self.IYS}")
+            offset_intercept = - (offset * self.youngs_modulus) - (self.youngs_modulus *  strain[start]) # y-intercept for the offset line
 
-    def Calculate_IYS_Alignment(self, OFFSET=0.002):
+            self.offset_line = (self.youngs_modulus * strain) + offset_intercept  # equation for the offset line
+            ss_plot = (strain, stress)
+            linear_plot = (strain, self.offset_line)
+
+            ys_strain, ys_stress = self.find_interaction_point(ss_plot, linear_plot)
+            self.YS = (ys_strain, ys_stress)
+            self.IYS = (strain[end], stress[end])
+
+    
+    def Calculate_Strength_Alignment(self, OFFSET=0.002):
         # Check if youngs_modulus and IYS are already calculated
         if self.youngs_modulus is not None and self.IYS is not None:
             return
 
-        stress = np.array(self.specimen.stress)  # MPa
-        strain = np.array(self.specimen.strain)  # %
+        self.stress = np.array(self.specimen.stress.values)  # MPa
+        self.strain = np.array(self.specimen.strain.values)  # %
 
-        self.calculate_shifted_strain(stress, strain)
-        self.calculate_next_decrease_index(stress)
-        self.calculate_youngs_modulus(stress)
-        self.calculate_offset_line(OFFSET)
-        self.calculate_iys(stress)
+        self.calculate_shifted_strain(self.stress, self.strain)
+        self.calculate_next_decrease_index(self.stress)
+        self.calculate_youngs_modulus(self.stress, self.strain)
+        self.calculate_strength(self.stress, self.strain_shifted, OFFSET)
 
-        print(
-            f"Graph manger: IYS is {self.IYS}, youngs is {self.youngs_modulus} - IN Calculate_IYS_Alignment ")
 
-    def plot_curves(self, ax=None, OFFSET=0.002, debugging=False):
-        print(
-            f"IYS is {self.specimen.IYS}, ax is {ax}, offset is {OFFSET} , debug mode is {debugging}")
-        self.Calculate_IYS_Alignment()
+    def plot_curves(self, ax=None, OFFSET=0.002, debugging=False):       
+        print( f"IYS is {self.specimen.IYS}, ax is {ax}, offset is {OFFSET} , debug mode is {debugging}")
+        if self.youngs_modulus is None:
+            self.Calculate_IYS_Alignment()
 
         self.stress = np.array(self.specimen.stress.values)  # MPa
         self.strain = np.array(self.specimen.strain.values)  # %
 
         if ax is None:
             ax = plt.gca()
-        ax.axhline(0, color='black', linestyle='--')
-        ax.axvline(0, color='black', linestyle='--')
-        ax.plot(self.strain_shifted, self.stress,  label="Shifted Stress-Strain Curve")
-        ax.plot(self.strain_offset, self.offset_line,
+  
+        ax.plot(self.strain_shifted, self.stress, label="Shifted Stress-Strain Curve")
+        ax.plot(self.strain_shifted, self.offset_line,
                 label=f"{OFFSET*100}% Offset Stress-Strain Curve")
         if debugging:
             ax.plot(self.strain, self.stress, linestyle=':', label="Original Stress-Strain Curve")
             ax.axvline(self.strain_shifted[self.first_increase_index], color='r', linestyle='--', label='First Significant Increase')
             if self.next_decrease_index is not None:
                 ax.axvline(self.strain_shifted[self.next_decrease_index],
-                           color='g', linestyle='--', label='Next Significant Decrease')
-        iys_strain, iys_stress = self.IYS
-        if iys_strain is not None and iys_stress is not None:
-            ax.scatter(iys_strain, iys_stress, c="red",
-                       label=f"IYS: ({iys_strain:.6f}, {iys_stress:.6f})")
-        ax.set_xlabel("Strain")
-        ax.set_ylabel("Stress (MPa)")
+                        color='g', linestyle='--', label='Next Significant Decrease')
+
+        if self.IYS is not None:  
+            iys_strain, iys_stress = self.IYS
+            if iys_strain is not None and iys_stress is not None:
+                ax.scatter(iys_strain, iys_stress, c="red",
+                        label=f"IYS: ({iys_strain:.6f}, {iys_stress:.6f})")
+            
+        if self.YS is not None:
+            ys_strain, ys_stress = self.YS
+            if ys_strain is not None and ys_stress is not None:
+                ax.scatter(ys_strain, ys_stress, c="blue",
+                        label=f"YS: ({ys_strain:.6f}, {ys_stress:.6f})")        
 
     @classmethod
     def from_dict(cls, data, specimen, temp_dir=None):
         # Initialize the GraphManager with the data loaded from the CSV files
         manager = cls(specimen)
-        for attr, csv_file in data.items():
-            if isinstance(csv_file, str) and csv_file.endswith('_data.csv'):
+        for attr,  value in data.items():
+            if isinstance( value, str) and  value.endswith('_data.csv'):
+                csv_file = value
                 file_path = os.path.join(
                     temp_dir, csv_file) if temp_dir else csv_file
                 array = np.loadtxt(file_path, delimiter=',')
                 setattr(manager, attr, array)
+            else:
+                setattr(manager, attr, value)  # This line sets attributes that aren't csv files
 
         return manager
 
@@ -441,6 +458,9 @@ class SpecimenDataManager:
         self.original_length = original_length
         self.headers = []
         self.units = []
+        self._toughness = None
+        self._ductility = None
+        self._resilience = None
 
     def clean_data(self,):
         raw_data = self.raw_data
@@ -486,35 +506,48 @@ class SpecimenDataManager:
     def add_stress_and_strain(self):
         self.formatted_data['stress'] = (
             self.formatted_data['Force'] / self.cross_sectional_area)*-1
-        self.formatted_data['strain'] = (
-            (self.formatted_data['Displacement']) / self.original_length)*-1
+        self.formatted_data['strain'] = (  (self.formatted_data['Displacement']) / self.original_length)*-1
+    @property
+    def toughness(self):
+        if self._toughness is None:
+            self._toughness = self.calculate_toughness()
+        return self._toughness  
+    
+    @property
+    def ductility(self):
+        if self._ductility is None:
+            self._ductility = self.calculate_ductility()
+        return self._ductility  
+    
+    @property
+    def resilience(self):
+        if self._resilience is None:
+            self._resilience = self.calculate_resilience()
+        return self._resilience  
 
-    def export_to_excel(self, output_path):
-        properties_df = pd.DataFrame({'Specimen Name': [self.specimen.name],
-                                      'Density (g/cc)': [self.specimen.density],
-                                      'Cross-sectional Area (mm^2)': [self.cross_sectional_area],
-                                      'Original Length (mm)': [self.original_length],
-                                      'Date of Export': [datetime.now().strftime('%Y-%m-%d %H:%M:%S')]})
-        # Write properties DataFrame and data to Excel file
-        if 'stress' not in self.formatted_data.columns:
-            self.add_stress_and_strain()
+    def calculate_toughness(self):
+        return np.trapz(self.specimen.stress, self.specimen.shifted_strain)
 
-        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-            properties_df.to_excel(
-                writer, sheet_name=self.specimen.name, index=False)
-            self.formatted_data.to_excel(
-                writer, sheet_name=self.specimen.name, startrow=2, index=False)
+    def calculate_ductility(self):
+        return max(self.specimen.shifted_strain)
+
+    def calculate_resilience(self):
+        yield_stress, yield_strain = self.specimen.IYS
+        return 0.5 * yield_stress * yield_strain
+
 
     @classmethod
     def from_dict(cls, data, specimen, temp_dir=None):
         # Initialize the DataManager with the data loaded from the CSV files
         manager = cls(specimen, None,
                       data['cross_sectional_area'], data['original_length'])
-        for attr, csv_file in data.items():
-            if isinstance(csv_file, str) and csv_file.endswith('_data.csv'):
+        for attr, value in data.items():
+            if isinstance( value, str) and value.endswith('_data.csv'):
+                csv_file = value
                 file_path = os.path.join(
                     temp_dir, csv_file) if temp_dir else csv_file
                 df = pd.read_csv(file_path)
                 setattr(manager, attr, df)
+           
 
         return manager

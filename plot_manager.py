@@ -2,17 +2,17 @@ import tkinter as tk
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.ticker as mtick
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
                                                NavigationToolbar2Tk)
 
 from widget_manager import SliderManager
 
-
+OFFSET =0.002
 LEFT = 'left'
-MIDDLE = 'middle'
+MIDDLE = "middle"
 RIGHT = 'right'
 # Line manger class
-
 
 class PlotManager:
     def __init__(self, master, app):
@@ -22,12 +22,12 @@ class PlotManager:
 
         self.ax = None
         self.canvas = None
-        self.position_dictionary = {'left': 0, 'middle': 1, 'right': 2}
-        self.frames = {"left": None, "middle": None, "right": None}
-        self.plots = {"left": None, "middle": None, "right": None}
-        self.toolbars = {"left": None, "middle": None, "right": None}
-        self.slider_managers = {"left": None, "middle": None}
-        self.lines = {"left": None, "middle": {}}
+        self.position_dictionary = {LEFT: 0, MIDDLE: 1, RIGHT: 2}
+        self.frames = {LEFT: None, MIDDLE: None, RIGHT: None}
+        self.plots = {LEFT: None, MIDDLE: None, RIGHT: None}
+        self.toolbars = {LEFT: None, MIDDLE: None, RIGHT: None}
+        self.slider_managers = {LEFT: None, MIDDLE: None}
+        self.lines = {LEFT: None, MIDDLE: {}}
 
         self.enable_click_event = False  # No click events on plots by default
         self.selected_points = []
@@ -47,7 +47,7 @@ class PlotManager:
         toolbar = NavigationToolbar2Tk(canvas, toolbar_frame)
         toolbar.update()
 
-        if position in ['left', 'middle']:
+        if position in [LEFT,MIDDLE]:
             slider_manager = SliderManager(
                 self.frames[position], self.shared_var, self.app, self.update_plots_with_shift)
             self.slider_managers[position] = slider_manager
@@ -68,17 +68,17 @@ class PlotManager:
 
     def update_lines(self):
         # Update line data rather than recreating plot
-        if self.lines["left"]:
-            self.lines["left"].set_xdata(self.specimen.shifted_strain)
-            self.lines["left"].set_ydata(self.specimen.stress)
-            self.plots["left"].draw()
+        if self.lines[LEFT]:
+            self.lines[LEFT].set_xdata(self.specimen.shifted_strain)
+            self.lines[LEFT].set_ydata(self.specimen.stress)
+            self.plots[LEFT].draw()
 
         # Middle plot contains lines for all specimens. We need to find and update the line for the current specimen.
-        if self.specimen.name in self.lines["middle"]:
-            line = self.lines["middle"][self.specimen.name]
+        if self.specimen.name in self.lines[MIDDLE]:
+            line = self.lines[MIDDLE][self.specimen.name]
             line.set_xdata(self.specimen.shifted_strain)
             line.set_ydata(self.specimen.stress)
-            self.plots['middle'].draw()
+            self.plots[MIDDLE].draw()
 
     def plot_and_draw(self, plot_function, title, position, specimen):
         self.specimen = specimen
@@ -88,16 +88,20 @@ class PlotManager:
         ax.set_title(title)
         ax.set_xlabel("Strain")
         ax.set_ylabel("Stress (MPa)")
-        legend = ax.legend(loc="upper right",framealpha=0.5)
+        ax.xaxis.set_major_formatter(mtick.PercentFormatter())
+        legend = ax.legend(loc="upper left",framealpha=0.5)
         # bbox_to_anchor=(0.5, 1.6)
+
+        ax.axhline(0, color='black', linestyle='--')
+        ax.axvline(0, color='black', linestyle='--')
 
         self.ax = ax
         self.fig = fig
         self.fig.tight_layout()
 
-        if position == 'left':
+        if position == LEFT:
             for text in legend.get_texts():
-                text.set_fontsize(8)
+                text.set_fontsize(6)
 
                 lines = ax.get_lines()
                 for line in lines:
@@ -105,7 +109,7 @@ class PlotManager:
                         self.lines[position] = line
                         break
 
-        if position == 'middle':
+        if position == MIDDLE:
             self.create_lines()
         self.create_figure_canvas(fig, position)
         self.canvas.mpl_connect('button_press_event', self.on_plot_click)
@@ -113,7 +117,7 @@ class PlotManager:
     def create_lines(self):
         # Create a line for each specimen
         for line in self.ax.get_lines():
-            self.lines["middle"][line.get_label()] = line
+            self.lines[MIDDLE][line.get_label()] = line
                   
     def update_lines_with_selected_points(self, ax):
         self.selected_points.sort()
@@ -125,16 +129,18 @@ class PlotManager:
 
         # Recalculate
         specimen.graph_manager.youngs_modulus = None
-        specimen.graph_manager.calculate_youngs_modulus(specimen.stress)
-        specimen.graph_manager.calculate_offset_line(OFFSET=0.0002)
-        specimen.graph_manager.calculate_iys(specimen.stress)
+        specimen.graph_manager.calculate_youngs_modulus(specimen.stress, specimen.strain)
+        specimen.graph_manager.calculate_strength(specimen.stress, specimen.shifted_strain, offset=OFFSET)
         iys_strain, iys_stress = specimen.IYS
+        ys_strain, ys_stress = specimen.YS
 
         # Update the lines
         strain_shifted = specimen.graph_manager.strain_shifted
-        strain_offset = specimen.graph_manager.strain_offset
-        offset_line = specimen.graph_manager.offset_line
-        OFFSET =0.002
+        if specimen.graph_manager.strain_offset is not None:
+            strain_offset = specimen.graph_manager.strain_offset
+        if specimen.graph_manager.offset_line is not None:
+            offset_line = specimen.graph_manager.offset_line
+        
         
         for artist in ax.get_children()[:]: # create a copy of the list for iteration for removal
             if isinstance(artist, matplotlib.lines.Line2D):
@@ -143,7 +149,7 @@ class PlotManager:
                 if artist.get_label() == 'Next Significant Decrease':
                     artist.set_xdata([strain_shifted[self.selected_points[1]]])
                 if artist.get_label() == f"{OFFSET*100}% Offset Stress-Strain Curve":
-                    artist.set_xdata(strain_offset)
+                    artist.set_xdata(strain_shifted)
                     artist.set_ydata(offset_line)
                 # Remove vertical line
                 if artist.get_label().startswith('Selected point'):
@@ -152,13 +158,18 @@ class PlotManager:
             # Remove existing IYS scatter plot
             if isinstance(artist, matplotlib.collections.PathCollection) and artist.get_label().startswith('IYS:'):
                 artist.remove()
+            if isinstance(artist, matplotlib.collections.PathCollection) and artist.get_label().startswith('YS:'):
+                artist.remove()
             
         
         if iys_strain is not None and iys_stress is not None:
             print("IYS found")
             ax.scatter(iys_strain, iys_stress, c="red",label=f"IYS: ({iys_strain:.6f}, {iys_stress:.6f})")
-            
         
+        if ys_strain is not None and ys_stress is not None:
+            print("YS found")
+            ax.scatter(ys_strain, ys_stress, c="blue",label=f"YS: ({ys_strain:.6f}, {ys_stress:.6f})")
+            
         # Store the old legend's properties
         old_legend = ax.legend_
         loc = old_legend._loc
@@ -174,7 +185,7 @@ class PlotManager:
         
         # Clear the selected points list
         self.selected_points.clear()
-        self.plots['left'].draw()
+        self.plots[LEFT].draw()
 
     def on_plot_click(self, event):
         if self.enable_click_event:
