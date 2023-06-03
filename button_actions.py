@@ -25,6 +25,7 @@ class ButtonActions:
     @property
     def average_of_specimens(self):
         return self.app.variables.average_of_specimens
+    
     def get_export_path():
         pass
 
@@ -68,8 +69,9 @@ class ButtonActions:
             return
 
         self.data_handler.import_specimen_data()
-        for i in range(1, len(self.widget_manager.buttons)):
-            self.widget_manager.buttons[i].config(state='normal')
+        for i in range(1, len(self.widget_manager.data_analysis_buttons)):
+            self.widget_manager.data_analysis_buttons[i].config(state='normal')
+            self.widget_manager.data_management_buttons[i].config(state='normal')
 
     def save_selected_specimens(self) -> None:
         selected_specimens = self.data_handler.get_selected_specimens()
@@ -88,8 +90,10 @@ class ButtonActions:
                 self.data_handler.save_specimen_data(selected_specimens[0], zip_dir)
             else:    
                 for specimen in selected_specimens:
-                    self.data_handler.save_specimen_data(specimen, zip_dir)
-            tk.messagebox.showinfo("Save Successful", f"Saved selected specimens.")
+                    self.data_handler.save_specimen_data(specimen, zip_dir)   
+            
+            if zip_dir:   
+                tk.messagebox.showinfo("Save Successful", f"Saved selected specimens.")
         except Exception as e:
             tk.messagebox.showerror("Save Error", f"Failed to save selected specimens.\n\nError: {e}")
 
@@ -172,17 +176,36 @@ class ButtonActions:
             _
         )
 
-
 ##### Not implemented ############
+    
+    def import_properties(self):
+        print("Import Specimen Properties button clicked.")
+
+    def custom_skew_cards(self):
+        print("Custom Skew Cards button clicked.")
+
+    def clear_specimen_action(self):
+        print("Clear Specimen button clicked.")
+
+    def recalculate_specimen(self):
+        print("Recalculate Specimen Variables button clicked.")
 
     def delete_selected_specimens(self):
         """Delete the selected specimens from the list."""
+        print("Clear Specimen button clicked.")
         selected_indices = self.widget_manager.specimen_listbox.curselection()
         if not selected_indices:
             tk.messagebox.showerror("Error", "No specimens selected for deletion.")
             return
-
+      
+        items_removed = []
         for index in selected_indices:
+            items_removed.append(self.app.variables.specimens[index].name)
             self.app.variables.specimens.pop(index)
+            self.widget_manager.specimen_listbox.delete(index)
+        tk.messagebox.showinfo("Removed", f"{items_removed} specimens removed.")
 
-        self.widget_manager.populate_specimen_listbox()
+        #clear note book tab move to other tab
+        # update app varable
+        # Deal with edge case 1 and 0.
+     

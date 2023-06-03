@@ -43,6 +43,8 @@ class DataHandler:
         self.data_manager_properties = ['toughness','ductility','resilience']
         self.din_properties = DIN_PROPERTIES
         self.properties_df =  pd.DataFrame()
+        self.data_analysis_buttons = []  # First group
+        self.data_management_buttons = []  # Second group
     
     def set_widget_manager(self, widget_manager):
         self.widget_manager = widget_manager
@@ -134,7 +136,7 @@ class DataHandler:
     def get_selected_specimens(self, selected_indices=None):
         if selected_indices is None:
             selected_indices = self.widget_manager.specimen_listbox.curselection()
-            self.app.variables.selected_indices =selected_indices
+            self.app.variables.selected_indices = selected_indices
         
         selected_specimens = [self.app.variables.specimens[index] for index in selected_indices]
         return selected_specimens
@@ -183,7 +185,7 @@ class DataHandler:
         properties_dfs = []
 
         for specimen in selected_specimens:
-            specimen_properties = self.get_specimen_properties(specimen)
+            specimen_properties = self.get_specimen_full_properties(specimen)
             specimen_df = pd.DataFrame(specimen_properties, index=[specimen.name])
             properties_dfs.append(specimen_df)
         
@@ -191,7 +193,7 @@ class DataHandler:
 
         return properties_df
     
-    def get_specimen_properties(self, specimen):
+    def get_specimen_full_properties(self, specimen):
         """Extracts the properties of a specimen."""
         properties = {}
 

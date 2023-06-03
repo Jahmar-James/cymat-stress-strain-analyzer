@@ -85,16 +85,11 @@ if __name__ == "__main__":
 
 # To Do
 
-# 3. Differentiate between yield shrink and initial yield strength
-# - Understand the difference between yield shrink and initial yield strength.
-# - Identify the code section where these values are calculated or used.
-# - Implement the necessary logic to differentiate between them based on your requirements.
 
 # 5. Refine 1st index and next index
 # - Understand the purpose and functionality of the 1st index and next index.
 # - Identify the code sections where these values are used or calculated.
 # - Make any necessary adjustments or improvements to refine their functionality.
-
 
 # 6. Be able to create custom Skew cards
 # - Determine the requirements and specifications for custom Skew cards.
@@ -129,11 +124,6 @@ if __name__ == "__main__":
 # - Identify the graphs that require cleaning up.
 # - Analyze the code responsible for generating the graphs.
 # - Make any necessary adjustments or improvements to enhance the appearance and readability of the graphs.
-
-    # 13. Add Origin line
-    # - Identify the code section responsible for plotting the graphs.
-    # - Implement the necessary logic to draw an origin line on the graphs.
-    # - Update the graph plotting code to include the origin line.
 
     # 14. Select on unselect lines
     # - Identify the code section or user interface elements related to line selection.

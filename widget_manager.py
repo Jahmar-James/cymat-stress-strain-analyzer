@@ -38,16 +38,31 @@ class WidgetManager:
         self.specimen_properties_label =  self.properties_group.specimen_properties_label
         self.file_name_label =  self.properties_group.file_name_label
 
-        button_names = ["Submit", "Plot Current Specimen",
-                        "Plot Average", "Save Specimen", "Export Average to Excel"]
-        button_functions = [self.button_actions.submit, self.button_actions.plot_current_specimen, self.button_actions.plot_average,
-                            self.button_actions.save_selected_specimens, self.button_actions.export_average_to_excel]
-        button_specs = list(zip(button_names, button_functions, ['disabled' if i != 0 else 'normal' for i in range(len(button_names))]))
-        
-        self.button_group = ButtonGroup(self.app.master, button_specs)
-        self.button_group.grid(row=0, column=2, rowspan=5, sticky='ns')
-        self.buttons = self.button_group.buttons
-        self.buttons[0].bind("<Return>", self.button_actions.submit)
+        data_analysis_names = ["Submit", "Plot Current Specimen", "Plot Average", 
+                               "Recalculate Specimen Variables", "Clear Specimen"]
+        data_analysis_functions = [self.button_actions.submit, self.button_actions.plot_current_specimen, 
+                                   self.button_actions.plot_average, self.button_actions.recalculate_specimen,
+                                   self.button_actions.delete_selected_specimens]
+        data_analysis_specs = list(zip(data_analysis_names, data_analysis_functions, 
+                                       ['normal' if i == 0 else 'disabled' for i in range(len(data_analysis_names))]))
+
+        data_management_names = ["Import Specimen Properties","Save Specimen", "Export Average to Excel", 
+                                 "MS Word", "Custom Skew Cards"]
+        data_management_functions = [self.button_actions.import_properties, self.button_actions.save_selected_specimens, self.button_actions.export_average_to_excel, 
+                                     self.button_actions.export_ms_data,
+                                     self.button_actions.custom_skew_cards]
+        data_management_specs = list(zip(data_management_names, data_management_functions, 
+                                         ['disabled' if i != 0 else 'normal' for i in range(len(data_management_names))]))
+
+        self.data_analysis_button_group = ButtonGroup(self.app.master, data_analysis_specs)
+        self.data_analysis_button_group.grid(row=0, column=2, rowspan=5, sticky='ns')
+        self.data_analysis_buttons = self.data_analysis_button_group.buttons
+        self.data_analysis_buttons[0].bind("<Return>", self.button_actions.submit)
+
+        self.data_management_button_group = ButtonGroup(self.app.master, data_management_specs)
+        self.data_management_button_group.grid(row=0, column=4, rowspan=5, sticky='ns')
+        self.data_management_buttons = self.data_management_button_group.buttons
+
 
         self.list_box_group = ListBoxGroup(self.app.master, "Select specimens:", width=100)
         self.list_box_group.grid(row=0, column=3, rowspan=2, sticky='ns')
@@ -106,7 +121,9 @@ class WidgetManager:
         self.specimen_listbox.insert(tk.END, specimen_name)
 
     def enable_buttons(self):
-        for button in self.buttons:
+        for button in self.data_analysis_buttons:
+            button['state'] = 'normal'
+        for button in self.data_management_buttons:
             button['state'] = 'normal'
 
     def on_tab_change(self, event):
@@ -293,5 +310,7 @@ class FifthRowGroup(tk.Frame):
     def create_word_button(self, callback):
         self.ms_button = tk.Button(self, text="MS word", command=callback)
         self.ms_button.grid(row=0, column=4, padx=10, pady=5, sticky='n')
+
+
 
 
