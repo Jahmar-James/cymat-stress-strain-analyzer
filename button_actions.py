@@ -123,11 +123,8 @@ class ButtonActions:
             return
     
     def clear_entries(self) -> None:
-        self.widget_manager.name_entry.delete(0, 'end')
-        self.widget_manager.length_entry.delete(0, 'end')
-        self.widget_manager.width_entry.delete(0, 'end')
-        self.widget_manager.thickness_entry.delete(0, 'end')
-        self.widget_manager.weight_entry.delete(0, 'end')
+        print("clear")
+        self.widget_manager.entry_group.clear_entries()  
 
     def get_current_tab(self):
         current_tab_id = self.widget_manager.notebook.select()

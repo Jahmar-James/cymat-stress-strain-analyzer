@@ -71,9 +71,6 @@ class DataHandler:
             with open(file_path, 'r') as file:
                 return file.readlines()
         
-        def clear_entries():
-            self.button_actions.clear_entries()
-
         DAT_FILE_TYPE = (("Data files", "*.dat"), ("All files", "*.*"))
         
         file_path = filedialog.askopenfilename(title="Select a data file",
@@ -93,7 +90,7 @@ class DataHandler:
             tab_id = self.widget_manager.create_new_tab(name)
             self.app.variables.add_specimen(tab_id, specimen)
 
-            clear_entries()
+            self.button_actions.clear_entries()
             # Run specimen.find_IYS_align() in a separate thread
             find_IYS_align_thread = threading.Thread(target=specimen.find_IYS_align)
 

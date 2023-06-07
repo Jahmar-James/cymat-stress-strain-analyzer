@@ -401,7 +401,7 @@ class SpecimenGraphManager:
     def plot_curves(self, ax=None, OFFSET=0.002, debugging=False):       
         print( f"IYS is {self.specimen.IYS}, ax is {ax}, offset is {OFFSET} , debug mode is {debugging}")
         if self.youngs_modulus is None:
-            self.Calculate_IYS_Alignment()
+            self.Calculate_Strength_Alignment()
 
         self.stress = np.array(self.specimen.stress.values)  # MPa
         self.strain = np.array(self.specimen.strain.values)  # %

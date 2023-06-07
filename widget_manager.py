@@ -28,7 +28,7 @@ class WidgetManager:
         self.app.master.grid_columnconfigure(4, weight=1)
         self.app.master.grid_rowconfigure(6, weight=1)
 
-        labels_texts = ["Specimen Name:", "Length:", "Width:", "Thickness:", "Weight:"]
+        labels_texts = [("Specimen Name:",''), ("Length:","mm"),( "Width:","mm"), ("Thickness:","mm") ,("Weight:","grams")]
         self.entry_group = EntryGroup(self.app.master, labels_texts)
         self.entry_group.grid(row=0, column=0, rowspan=5, sticky='ns')
         self.name_entry, self.length_entry,self.width_entry,self.thickness_entry, self.weight_entry = self.entry_group.entries
@@ -241,16 +241,53 @@ class PlaceholderEntry(ttk.Entry):
             self.insert(0, self.placeholder)
             self.configure(style="Placeholder.TEntry")
 
+class PlaceholderEntryWithUnit(PlaceholderEntry):
+    """A subclass of PlaceholderEntry to support placeholders with units."""
+    def __init__(self, parent=None, placeholder="", unit='', **kwargs):
+        super().__init__(parent, placeholder, **kwargs)
+        self.unit = f" {unit}"
+        # Update the displayed text to include the unit after the placeholder
+        self.delete(0, 'end')
+        self.insert(0, self.placeholder + self.unit)
+    
+    def on_entry_click(self, event):
+        if self.get().strip() == self.placeholder:
+            self.delete(0, 'end')
+            self.insert(0, self.unit)
+            self.icursor(0)
+            self.configure(style="TEntry")
+    
+    def on_focusout(self, event):
+        """Handles the event of losing focus on the entry."""
+        if self.get() == self.unit or self.get() == '':
+            self.delete(0, 'end')
+            self.insert(0, self.placeholder + self.unit)
+            self.configure(style="Placeholder.TEntry")
+
+    def get(self):
+        value = super().get()
+        return value.replace(self.unit, '')
+
 class EntryGroup(tk.Frame):
-    def __init__(self, master=None, labels=None, **kwargs):
+    def __init__(self, master=None, entries_data=None, **kwargs):
         super().__init__(master, **kwargs)
         self.grid_rowconfigure(0, weight=1)  
         self.grid_columnconfigure(0, weight=1)
-        self.labels = labels or []
-        self.entries = [PlaceholderEntry(self, label) for label in self.labels]
-        
-        for i, entry in enumerate(self.entries):
+        self.entries_data = entries_data or []
+
+        self.entries = []
+        for i, (label, unit) in enumerate(self.entries_data):
+            if unit:
+                entry = PlaceholderEntryWithUnit(self, placeholder=label, unit=unit)
+            else:
+                entry = PlaceholderEntry(self, placeholder=label)
+            self.entries.append(entry)
             entry.grid(row=i, column=0, padx=15, pady=8, sticky='e')
+
+    def clear_entries(self):
+        for entry in self.entries:
+            entry.delete(0, 'end')  
+            entry.on_focusout(None)
 
 class PropertiesGroup(tk.Frame):
     def __init__(self, master=None, width=None, **kwargs):
