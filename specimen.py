@@ -403,6 +403,7 @@ class SpecimenGraphManager:
         if self.youngs_modulus is None:
             self.Calculate_IYS_Alignment()
 
+
         self.stress = np.array(self.specimen.stress.values)  # MPa
         self.strain = np.array(self.specimen.strain.values)  # %
 
