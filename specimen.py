@@ -423,13 +423,13 @@ class SpecimenGraphManager:
             iys_strain, iys_stress = self.IYS
             if iys_strain is not None and iys_stress is not None:
                 ax.scatter(iys_strain, iys_stress, c="red",
-                        label=f"IYS: ({iys_strain:.6f}, {iys_stress:.6f})")
+                        label=f"IYS: ({iys_strain:.3f}, {iys_stress:.3f})")
             
         if self.YS is not None:
             ys_strain, ys_stress = self.YS
             if ys_strain is not None and ys_stress is not None:
                 ax.scatter(ys_strain, ys_stress, c="blue",
-                        label=f"YS: ({ys_strain:.6f}, {ys_stress:.6f})")        
+                        label=f"YS: ({ys_strain:.3f}, {ys_stress:.3f})")        
 
     @classmethod
     def from_dict(cls, data, specimen, temp_dir=None):

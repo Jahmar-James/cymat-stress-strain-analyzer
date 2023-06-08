@@ -116,10 +116,6 @@ if __name__ == "__main__":
 # - Rename the files or resources using a consistent and clean naming convention.
 # - Update any references to the renamed files in the code.
 
-# 4. Add units next to entry Box
-# - Identify the entry boxes where units need to be displayed.
-# - Update the corresponding labels or widgets to include the appropriate units.
-
 # 12. Clean up graphs
 # - Identify the graphs that require cleaning up.
 # - Analyze the code responsible for generating the graphs.
