@@ -181,7 +181,7 @@ class ButtonActions:
         std_dev_strain = self.average_of_specimens["std strain"].to_numpy()
         ax.plot(strain, stress, label="Average Stress-Strain Curve")
         # draw_error_band_xy(ax, strain, stress,xerr=std_dev_strain, yerr=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
-        # draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
+        draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
 
 ##### Not implemented ############
     

@@ -153,15 +153,22 @@ class DataHandler:
 
         common_strain = self.get_common_strain(selected_specimens)
         interpolated_stresses = self.get_interpolated_stresses(selected_specimens, common_strain)
+        std_strain = np.std(common_strain)
+
 
         average_stress = np.mean(interpolated_stresses, axis=0)
+        std_dev_stress = np.std(interpolated_stresses, axis=0)
+
         average_strain = common_strain
 
         self.app.variables.average_of_specimens = pd.DataFrame({
         "displacement": average_displacement,
         "force": average_force,
         "strain": average_strain,
-        "stress": average_stress
+        "stress": average_stress,
+        "std stress": std_dev_stress,
+        "std strain":std_strain,     
+
     })
           
     def calculate_summary_stats(self, values):
