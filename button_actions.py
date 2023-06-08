@@ -59,8 +59,6 @@ class ButtonActions:
         tk.messagebox.showinfo("Data Export", "Data has been exported to Excel successfully!")
         self.app.variables.export_in_progress = False
 
-       
-    # Work with enter press
     def submit(self, event=None) -> None:
         #enter work on submit
         validation_errors = self.data_handler.validate_and_import_data()
@@ -164,6 +162,7 @@ class ButtonActions:
             return
         
         self.data_handler.average_of_selected_specimens(selected_indices)
+        self.data_handler.update_properties_df(selected_indices)
 
         tab, _ = self.get_current_tab()
         self.app.plot_manager.master = tab
@@ -180,8 +179,26 @@ class ButtonActions:
         std_dev_stress = self.average_of_specimens["std stress"].to_numpy()
         std_dev_strain = self.average_of_specimens["std strain"].to_numpy()
         ax.plot(strain, stress, label="Average Stress-Strain Curve")
+
+        df = self.data_handler.properties_df
+        df_summary = self.data_handler.create_summary_df(df)
+
+        Rplt = df_summary.loc['Rplt', 'Average']
+        Rplt_E = df_summary.loc['Rplt_E', 'Average']
+        Aplt_E = df_summary.loc['Aplt_E', 'Average']
+        ReH = df_summary.loc['ReH', 'Average']
+        AeH = df_summary.loc['AeH', 'Average']
+
         # draw_error_band_xy(ax, strain, stress,xerr=std_dev_strain, yerr=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
         draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
+
+        ax.axhline(y=Rplt, color='r', linestyle='--',linewidth =0.2, label="Rplt")
+
+        # ax.scatter(Aplt_E,Rplt_E, color='g', label="(Aplt_E,Rplt_E)")
+        ax.scatter(AeH,ReH,  color='b', label="(ReH, AeH)")
+
+        # ax.annotate("( Aplt_E, Rplt_E)", ( Aplt_E,Rplt_E,), textcoords="offset points", xytext=(-10,10), ha='center')
+        ax.annotate("(AeH, ReH)", ( AeH,ReH,), textcoords="offset points", xytext=(-10,10), ha='center')
 
 ##### Not implemented ############
     
