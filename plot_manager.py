@@ -78,8 +78,8 @@ class PlotManager:
         ax.set_ylabel(r"Stress - $\sigma$ (MPa)")
         self.ax = ax
         self.fig = fig
-        
-        self.legend = self.create_legends( ax, position)
+
+        self.legend = self.create_legends(ax, position)
         
         ax.xaxis.set_major_formatter(mtick.PercentFormatter())
         locator = mtick.MaxNLocator(nbins=6)
@@ -95,7 +95,8 @@ class PlotManager:
         ax.axvline(0, color='black', linestyle='--')
         ax.grid()
 
-        self.fig.tight_layout()
+        if position is not LEFT:
+            self.fig.tight_layout()
         self.create_figure_canvas(fig, position)
         self.canvas.mpl_connect('button_press_event', self.on_plot_click)
           
@@ -126,7 +127,7 @@ class PlotManager:
             legend1 = ax.legend(handles=legend1_handles, )
             ax.add_artist(legend1)  # add legend1 manually
             
-            legend2 = ax.legend(handles=legend2_handles, loc='upper center', bbox_to_anchor=(0.45, -0.1), ncol=3)
+            legend2 = ax.legend(handles=legend2_handles, loc='upper center', bbox_to_anchor=(0.45, -0.3), ncol=2)
             
             ax.add_artist(legend2)
             
@@ -135,7 +136,7 @@ class PlotManager:
             for text in legend2.get_texts():
                 text.set_fontsize(6)
             legend = legend1,legend2
-            self.fig.subplots_adjust(bottom=0.3)
+            self.fig.subplots_adjust(bottom=0.32)
         else:
             # for the other positions, use the default legend
             legend = ax.legend()
