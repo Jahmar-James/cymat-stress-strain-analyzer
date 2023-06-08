@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import filedialog
 from pathlib import Path
 import os
+from plot_manager import draw_error_band_xy, draw_error_band_y
 
 class ButtonActions:
     def __init__(self, app: Any, data_handler: Any) -> None:
@@ -167,11 +168,20 @@ class ButtonActions:
         tab, _ = self.get_current_tab()
         self.app.plot_manager.master = tab
         self.app.plot_manager.plot_and_draw(
-            lambda ax: ax.plot(self.average_of_specimens["strain"], self.average_of_specimens["stress"], label="Average Stress-Strain Curve"),
+            self.plot_average_and_error_band,
             'Average Stress-Strain Curve',
             'right',
             _
         )
+    
+    def plot_average_and_error_band(self, ax):
+        strain = self.average_of_specimens["strain"].to_numpy()  
+        stress = self.average_of_specimens["stress"].to_numpy() 
+        std_dev_stress = self.average_of_specimens["std stress"].to_numpy()
+        std_dev_strain = self.average_of_specimens["std strain"].to_numpy()
+        ax.plot(strain, stress, label="Average Stress-Strain Curve")
+        # draw_error_band_xy(ax, strain, stress,xerr=std_dev_strain, yerr=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
+        # draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
 
 ##### Not implemented ############
     
