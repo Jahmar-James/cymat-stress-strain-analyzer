@@ -6,7 +6,7 @@ import matplotlib.ticker as mtick
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
                                                NavigationToolbar2Tk)
 
-from widget_manager import SliderManager
+from .widget_manager import SliderManager
 from matplotlib.path import Path
 from matplotlib.patches import PathPatch
 
@@ -124,12 +124,12 @@ class PlotManager:
             # lines
             legend2_handles = [line for line in ax.lines]
             
-            legend1 = ax.legend(handles=legend1_handles, )
-            ax.add_artist(legend1)  # add legend1 manually
-            
-            legend2 = ax.legend(handles=legend2_handles, loc='upper center', bbox_to_anchor=(0.45, -0.3), ncol=2)
-            
+            legend2 = ax.legend(handles=legend2_handles, loc='upper center', bbox_to_anchor=(0.45, -0.3), ncol=2) 
             ax.add_artist(legend2)
+
+            #Lengnd 1 must come after legend 2 to update the legend labels
+            legend1 = ax.legend(handles=legend1_handles, )
+            ax.add_artist(legend1)  
             
             for text in legend1.get_texts():
                 text.set_fontsize(6)
@@ -171,12 +171,14 @@ class PlotManager:
         if specimen.graph_manager.offset_line is not None:
             offset_line = specimen.graph_manager.offset_line
         
+        ESTIMATED_PLASTIC_INDEX_START = 'Start of Plastic Region'
+        ESTIMATED_PLASTIC_INDEX_END = 'End of Plastic Region'
         
         for artist in ax.get_children()[:]: # create a copy of the list for iteration for removal
             if isinstance(artist, matplotlib.lines.Line2D):
-                if artist.get_label() == 'First Significant Increase':
+                if artist.get_label() == ESTIMATED_PLASTIC_INDEX_START:
                     artist.set_xdata([strain_shifted[self.selected_points[0]]])
-                if artist.get_label() == 'Next Significant Decrease':
+                if artist.get_label() == ESTIMATED_PLASTIC_INDEX_END:
                     artist.set_xdata([strain_shifted[self.selected_points[1]]])
                 if artist.get_label() == f"{OFFSET*100}% Offset Stress-Strain Curve":
                     artist.set_xdata(strain_shifted)
@@ -199,7 +201,11 @@ class PlotManager:
         if ys_strain is not None and ys_stress is not None:
             print("YS found")
             ax.scatter(ys_strain, ys_stress, c="blue",label=f"YS: ({ys_strain:.3f}, {ys_stress:.3f})")
+
+        # update to work with split legend for left plot
             
+        # TODO: exclue non scatter plots from this
+
         # Store the old legend's properties
         old_legend = ax.legend_
         loc = old_legend._loc
@@ -211,7 +217,6 @@ class PlotManager:
         
         # Draw the new legend with the old properties
         ax.legend(loc=loc, bbox_to_anchor=bbox_to_anchor, fontsize=fontsize, framealpha=framealpha)
-
         
         # Clear the selected points list
         self.selected_points.clear()

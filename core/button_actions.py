@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import filedialog
 from pathlib import Path
 import os
-from plot_manager import draw_error_band_xy, draw_error_band_y
+from .plot_manager import draw_error_band_xy, draw_error_band_y
 
 class ButtonActions:
     def __init__(self, app: Any, data_handler: Any) -> None:
@@ -204,15 +204,28 @@ class ButtonActions:
     
     def import_properties(self):
         print("Import Specimen Properties button clicked.")
+        FILE_TYPE = (("Data files", "*.excel"), ("All files", "*.*"))
+        
+        file_path = filedialog.askopenfilename(title="Select a data file", filetypes=(FILE_TYPE))
+        if file_path:
+            try:
+                self.data_handler.import_properties(file_path)
+                self.widget_manager.update_specimen_listbox(self.app.variables.specimens)
+                tk.messagebox.showinfo("Import Successful", f"Data successfully imported from {file_path}")
+            except Exception as e:
+                tk.messagebox.showerror("Import Error", f"Failed to import data from {file_path}\n\nError: {e}")
+            return
+
 
     def custom_skew_cards(self):
         print("Custom Skew Cards button clicked.")
 
-    def clear_specimen_action(self):
-        print("Clear Specimen button clicked.")
-
     def recalculate_specimen(self):
         print("Recalculate Specimen Variables button clicked.")
+        selected_indices = self.widget_manager.specimen_listbox.curselection()
+        if not selected_indices:
+            tk.messagebox.showerror("caution","All specimen values will be recalculates \n Do you want to continue?")
+
 
     def delete_selected_specimens(self):
         """Delete the selected specimens from the list."""
@@ -228,6 +241,7 @@ class ButtonActions:
             self.app.variables.specimens.pop(index)
             self.widget_manager.specimen_listbox.delete(index)
         tk.messagebox.showinfo("Removed", f"{items_removed} specimens removed.")
+
 
         #clear note book tab move to other tab
         # update app varable

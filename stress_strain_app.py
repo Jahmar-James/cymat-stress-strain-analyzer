@@ -4,10 +4,10 @@ from tkinter import ttk
 
 import ttkbootstrap as tb
 
-from button_actions import ButtonActions
-from data_handler import DataHandler
-from plot_manager import PlotManager
-from widget_manager import WidgetManager
+from core.button_actions import ButtonActions
+from core.data_handler import DataHandler
+from core.plot_manager import PlotManager
+from core.widget_manager import WidgetManager
 
 # To Do
 # add cymat icon 
@@ -84,7 +84,6 @@ if __name__ == "__main__":
     root.mainloop()
 
 # To Do
-
 # 5. Refine 1st index and next index
 # - Understand the purpose and functionality of the 1st index and next index.
 # - Identify the code sections where these values are used or calculated.

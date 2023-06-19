@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import LineString, MultiPoint, Point
 
-from specimen_DIN import SpecimenDINAnalysis
+from standards.specimen_DIN import SpecimenDINAnalysis
 
 
 class Specimen:
@@ -400,6 +400,8 @@ class SpecimenGraphManager:
 
     def plot_curves(self, ax=None, OFFSET=0.002, debugging=False):       
         print( f"IYS is {self.specimen.IYS}, ax is {ax}, offset is {OFFSET} , debug mode is {debugging}")
+        ESTIMATED_PLASTIC_INDEX_START = 'Start of Plastic Region'
+        ESTIMATED_PLASTIC_INDEX_END = 'End of Plastic Region'
         if self.youngs_modulus is None:
             self.Calculate_Strength_Alignment()
 
@@ -408,16 +410,17 @@ class SpecimenGraphManager:
 
         if ax is None:
             ax = plt.gca()
+        # Estimate start of plastic region
   
         ax.plot(self.strain_shifted, self.stress, label="Shifted Stress-Strain Curve")
         ax.plot(self.strain_shifted, self.offset_line,
                 label=f"{OFFSET*100}% Offset Stress-Strain Curve")
         if debugging:
             ax.plot(self.strain, self.stress, linestyle=':', label="Original Stress-Strain Curve")
-            ax.axvline(self.strain_shifted[self.first_increase_index], color='r', linestyle='--', label='First Significant Increase')
+            ax.axvline(self.strain_shifted[self.first_increase_index], color='r', linestyle='--', label=ESTIMATED_PLASTIC_INDEX_START)
             if self.next_decrease_index is not None:
                 ax.axvline(self.strain_shifted[self.next_decrease_index],
-                        color='g', linestyle='--', label='Next Significant Decrease')
+                        color='g', linestyle='--', label=ESTIMATED_PLASTIC_INDEX_END)
 
         if self.IYS is not None:  
             iys_strain, iys_stress = self.IYS
@@ -532,6 +535,8 @@ class SpecimenDataManager:
         return max(self.specimen.shifted_strain)
 
     def calculate_resilience(self):
+        if self.specimen.IYS is None:
+            return None
         yield_stress, yield_strain = self.specimen.IYS
         return 0.5 * yield_stress * yield_strain
 

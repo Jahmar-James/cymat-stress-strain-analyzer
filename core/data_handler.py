@@ -12,9 +12,9 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from excel_exporter import ExcelExporter
-from ms_word_exporter import WordExporter
-from specimen import Specimen
+from ms_file_handling.excel_exporter import ExcelExporter
+from ms_file_handling.ms_word_exporter import WordExporter
+from specimens.specimen import Specimen
 
 DIN_PROPERTIES = [
         'Rplt', 'Rplt_E', 'ReH', 'Ev', 'Eff', 'ReH_Rplt_ratio', 'Aplt_E', 'AeH', 'Rp1', 'm'
