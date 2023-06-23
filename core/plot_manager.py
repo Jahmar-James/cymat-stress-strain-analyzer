@@ -81,7 +81,7 @@ class PlotManager:
 
         self.legend = self.create_legends(ax, position)
         
-        ax.xaxis.set_major_formatter(mtick.PercentFormatter())
+        ax.xaxis.set_major_formatter(mtick.PercentFormatter(1))
         locator = mtick.MaxNLocator(nbins=6)
         ax.xaxis.set_major_locator(locator)
         ax.tick_params(axis='x', rotation=25)
