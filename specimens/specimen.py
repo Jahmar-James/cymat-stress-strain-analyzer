@@ -454,62 +454,91 @@ class SpecimenGraphManager:
 class SpecimenDataManager:
     def __init__(self, specimen, raw_data, area, original_length):
         self.specimen = specimen
-        self.data = None
-        self.raw_data = raw_data
-        self.data_shiftd = None
+        self.hysteresis_data = None
+        self.raw_data = None
+        self.formatted_raw_data = None
+        self.formatted_hysteresis_data = None
+        self.raw_data_df = None
+        self.split_raw_data_df = None
         self.cross_sectional_area = area
         self.original_length = original_length
         self.headers = []
         self.units = []
-        self._toughness = None
-        self._ductility = None
-        self._resilience = None
 
-    def clean_data(self,):
-        raw_data = self.raw_data
+        # Determine the type of data and assign appropriately
+        if raw_data:
+            if len(raw_data) == 1:
+                self.raw_data = raw_data[0]
+            else:
+                self.hysteresis_data = raw_data[0]
+                self.raw_data = raw_data[1]
 
-        # Find the row where 'Data Acquisition' starts
-        for index, line in enumerate(raw_data):
-            if line.startswith('Data Acquisition'):
-                time_row = index
-                break
+    def clean_data(self):
+        # Check if each type of data exists and clean accordingly
+        if self.raw_data:
+            self.clean_raw_data()
+        if self.hysteresis_data:
+            self.clean_hysteresis_data()
 
-        # Extract headers and units from raw data
-        headers_row = raw_data[time_row + 1].split()
-        units_row = raw_data[time_row + 2].split()
 
-        self.headers = [header for header in headers_row if header in [
-            'Displacement', 'Force', 'Time']]
-        self.units = [unit for unit, header in zip(
-            units_row, headers_row) if header in self.headers]
+    def clean_raw_data(self):
+        self.formatted_data = self.clean_specific_data(self.raw_data)
 
-        # Extract data rows from raw data
+        self.raw_data_df = pd.DataFrame({'Raw Data': self.raw_data})
+        delimiter = '\t|\\n'
+        self.split_raw_data_df = self.raw_data_df['Raw Data'].str.split(delimiter, expand=True)
+        self.split_raw_data_df.columns = ['Column 1', 'Column 2', 'Column 3', 'Column 4',
+                                          'Column 5', 'Column 6', 'Column 7', 'Column 8', 'Column 9', 'Column 10']
+        
+
+    def clean_hysteresis_data(self):
+        self.formatted_hysteresis_data = self.clean_specific_data(self.hysteresis_data)
+
+    def clean_specific_data(self, data):
+        time_row = self.find_time_row(data)
+        headers, units = self.extract_headers_and_units(data, time_row)
+        data_rows = self.extract_data_rows(data, time_row, headers)
+        return self.format_data(data_rows, headers)
+
+    @staticmethod
+    def find_time_row(data):
+        return next((index for index, line in enumerate(data) if line.startswith('Data Acquisition')), None)
+
+    @staticmethod
+    def extract_headers_and_units(data, time_row):
+        headers_row = data[time_row + 1].split()
+        units_row = data[time_row + 2].split()
+
+        headers = [header for header in headers_row if header in ['Displacement', 'Force', 'Time']]
+        units = [unit for unit, header in zip(units_row, headers_row) if header in headers]
+
+        return headers, units
+
+    @staticmethod
+    def extract_data_rows(data, time_row, headers):
         data_rows = []
-        for line in raw_data[time_row + 3:]:
+        for line in data[time_row + 3:]:
             if line.startswith('Data Acquisition'):
                 continue
             if line.strip():  # Check if the line is not empty or contains only white spaces
                 data_rows.append(line.split()[:3])
+        return pd.DataFrame(data_rows, columns=headers)
 
-        # Format data rows into a DataFrame
-        data = pd.DataFrame(data_rows, columns=self.headers)
+    @staticmethod
+    def format_data(data, headers):
         pattern = r'^\D*$'  # this pattern matches any string that does not contain digits
         mask = data['Displacement'].str.match(pattern)
-        data = data[~mask]
-        self.formatted_data = data.astype(
-            {'Displacement': float, 'Force': float, 'Time': float})
-
-        self.raw_data_df = pd.DataFrame({'Raw Data': raw_data})
-        delimiter = '\t|\\n'
-        self.split_raw_data_df = self.raw_data_df['Raw Data'].str.split(
-            delimiter, expand=True)
-        self.split_raw_data_df.columns = ['Column 1', 'Column 2', 'Column 3', 'Column 4',
-                                          'Column 5', 'Column 6', 'Column 7', 'Column 8', 'Column 9', 'Column 10']
+        return data[~mask].astype({header: float for header in headers})
 
     def add_stress_and_strain(self):
         self.formatted_data['stress'] = (
             self.formatted_data['Force'] / self.cross_sectional_area)*-1
         self.formatted_data['strain'] = (  (self.formatted_data['Displacement']) / self.original_length)*-1
+
+    def get_secnat_pts(self):
+        self.formatted_data.stress
+
+
     @property
     def toughness(self):
         if self._toughness is None:

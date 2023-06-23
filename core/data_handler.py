@@ -66,41 +66,53 @@ class DataHandler:
             return "Length, Width, Thickness, and Weight must be numbers."
         return None
 
+
     def import_specimen_data(self):
         def read_raw_data(file_path):
             with open(file_path, 'r') as file:
                 return file.readlines()
-        
+
+        def process_file(file_path):
+            if file_path:
+                # Display file name above the 'Import Data' button
+                raw_data = read_raw_data(file_path)
+                return raw_data
+
         DAT_FILE_TYPE = (("Data files", "*.dat"), ("All files", "*.*"))
-        
-        file_path = filedialog.askopenfilename(title="Select a data file",
-                                            filetypes=(DAT_FILE_TYPE))
-        if file_path:
-            # Display file name above the 'Import Data' button
-            filename = Path(file_path).name
-            raw_data = read_raw_data(file_path)
-            name, length, width, thickness, weight = self.get_specimen_properties()
 
-            specimen = Specimen(name, raw_data, length, width, thickness, weight)
-            specimen.calculate_properties()
-            
-            self.widget_manager.update_ui_elements(filename, specimen)
-            
-            specimen.process_data()
-            tab_id = self.widget_manager.create_new_tab(name)
-            self.app.variables.add_specimen(tab_id, specimen)
+        raw_data_list = [] # Create an empty list to store raw data
+        data_types = ['Unloading data', 'General data']
 
-            self.button_actions.clear_entries()
-            # Run specimen.find_IYS_align() in a separate thread
-            find_IYS_align_thread = threading.Thread(target=specimen.find_IYS_align)
+        if self.app.variables.preliminary_sample == True:
+            file_path = filedialog.askopenfilename(title="Select a data file", filetypes=(DAT_FILE_TYPE))
+            raw_data = process_file(file_path)
+            raw_data_list.append(raw_data)
+        else:
+            for data_type in data_types:
+                file_path = filedialog.askopenfilename(title=f"Select {data_type} file", filetypes=(DAT_FILE_TYPE))
+                raw_data = process_file(file_path)
+                raw_data_list.append(raw_data)
 
-            # Start the new thread
-            find_IYS_align_thread.start()
-            
-             # Wait for the find_IYS_align_thread to finish
-            find_IYS_align_thread.join()
-            if len(self.app.variables.specimens) > 1:
-                self.button_actions.plot_all_specimens()
+        # Now the list raw_data_list contains all the raw data. We can process it now.
+        name, length, width, thickness, weight = self.get_specimen_properties()
+
+        specimen = Specimen(name, raw_data_list, length, width, thickness, weight)
+        specimen.calculate_properties()
+
+        filename = Path(file_path).name
+        self.widget_manager.update_ui_elements(filename, specimen)
+        specimen.process_data()
+        tab_id = self.widget_manager.create_new_tab(name)
+        self.app.variables.add_specimen(tab_id, specimen)
+        self.button_actions.clear_entries()
+        # Run specimen.find_IYS_align() in a separate thread
+        find_IYS_align_thread = threading.Thread(target=specimen.find_IYS_align)
+        # Start the new thread
+        find_IYS_align_thread.start()
+        # Wait for the find_IYS_align_thread to finish
+        find_IYS_align_thread.join()
+        if len(self.app.variables.specimens) > 1:
+            self.button_actions.plot_all_specimens()
 
     def get_specimen_properties(self):
         name = self.widget_manager.name_entry.get()

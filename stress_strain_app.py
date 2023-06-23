@@ -60,6 +60,7 @@ class AppVariables:
         # Map tab identifiers to tuples (specimen, slider_manager)
         self.notebook_to_data = {}
         self.export_in_progress = False
+        self.preliminary_sample = True
 
     def add_specimen(self, tab_id, specimen):
         self.specimens.append(specimen)
