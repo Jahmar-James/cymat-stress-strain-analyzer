@@ -61,6 +61,7 @@ class AppVariables:
         self.notebook_to_data = {}
         self.export_in_progress = False
         self.preliminary_sample = True
+        self.prelim_mode = tk.BooleanVar(value=False)
 
     def add_specimen(self, tab_id, specimen):
         self.specimens.append(specimen)
@@ -74,8 +75,7 @@ class AppVariables:
             self.notebook_to_data[tab_id] = (specimen, slider_manager)
 
     def select_tab(self, tab_id):
-        self.current_specimen, self.current_slider_manager = self.notebook_to_data.get(
-            tab_id, (None, None))
+        self.current_specimen, self.current_slider_manager = self.notebook_to_data.get(tab_id, (None, None))
 
 
 # Run Application
