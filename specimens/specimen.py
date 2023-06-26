@@ -48,6 +48,20 @@ class Specimen:
 
     def find_IYS_align(self):
         self.graph_manager.Calculate_Strength_Alignment()
+    
+    def calculate_shift_from_hysteresis(self):
+        if self.processed_hysteresis_data is None:
+            return None
+        # y = mx + b 
+        if self.data_manager.modulus is None:
+            self.data_manager.get_modulus_from_hysteresis()
+        slope = self.data_manager.modulus
+        # plug in the peak point to solve for b
+        #need to get the pt at 70% plt of regular data
+        pt = 0,0
+        x, y = pt
+        b = y - (slope * x)
+        return b
 
     def plot_stress_strain(self, ax):
         ax.plot(self.shifted_strain, self.stress, label=self.name)
@@ -103,6 +117,10 @@ class Specimen:
     @property
     def processed_data(self):
         return self.data_manager.formatted_data
+    
+    @property
+    def processed_hysteresis_data(self):
+        return self.data_manager.formatted_hysteresis_data
 
     @property
     def shifted_data(self):
@@ -480,6 +498,7 @@ class SpecimenDataManager:
         if self.hysteresis_data:
             self.clean_hysteresis_data()
 
+    # add filtering and noise reduction
 
     def clean_raw_data(self):
         self.formatted_data = self.clean_specific_data(self.raw_data)
@@ -531,13 +550,30 @@ class SpecimenDataManager:
         return data[~mask].astype({header: float for header in headers})
 
     def add_stress_and_strain(self):
-        self.formatted_data['stress'] = (
-            self.formatted_data['Force'] / self.cross_sectional_area)*-1
-        self.formatted_data['strain'] = (  (self.formatted_data['Displacement']) / self.original_length)*-1
+        self.formatted_data['stress'] = ( self.formatted_data['Force'] / self.cross_sectional_area)*-1
+        self.formatted_data['strain'] = ( (self.formatted_data['Displacement']) / self.original_length)*-1
 
-    def get_secnat_pts(self):
-        self.formatted_data.stress
+        if self.formatted_hysteresis_data:
+            self.formatted_hysteresis_data ['stress'] = ( self.formatted_hysteresis_data['Force'] / self.cross_sectional_area)*-1
+            self.formatted_hysteresis_data ['strain'] = ( (self.formatted_hysteresis_data ['Displacement']) / self.original_length)*-1
+    
+    def get_modulus_from_hysteresis(self):
+        force = self.formatted_hysteresis_data['Force'].values
+        negative_force = force*-1
+        max_force_index = np.argmax(negative_force)
+        max_stress_index = np.argmax(self.formatted_hysteresis_data['stress'].values)
 
+        assert max_force_index == max_stress_index, 'The max force and max stress do not occur at the same index'
+        peak_pt_by_force = self.formatted_hysteresis_data["Displacement"].iloc[max_force_index], self.formatted_hysteresis_data["Force"].iloc[max_force_index]
+        peak_pt_by_stress = self.formatted_hysteresis_data["strain"].iloc[max_stress_index], self.formatted_hysteresis_data["stress"].iloc[max_stress_index]
+
+        end_pt_by_force = self.formatted_hysteresis_data["Displacement"].iloc[-1], self.formatted_hysteresis_data["Force"].iloc[-1]
+        end_pt_by_stress = self.formatted_hysteresis_data["strain"].iloc[-1], self.formatted_hysteresis_data["stress"].iloc[-1]
+
+        modulus_by_force = (peak_pt_by_force[1] - end_pt_by_force[1]) / (peak_pt_by_force[0] - end_pt_by_force[0])
+        modulus_by_stress = (peak_pt_by_stress[1] - end_pt_by_stress[1]) / (peak_pt_by_stress[0] - end_pt_by_stress[0])
+
+        self.modulus = modulus_by_stress
 
     @property
     def toughness(self):
@@ -568,7 +604,6 @@ class SpecimenDataManager:
             return None
         yield_stress, yield_strain = self.specimen.IYS
         return 0.5 * yield_stress * yield_strain
-
 
     @classmethod
     def from_dict(cls, data, specimen, temp_dir=None):
