@@ -83,7 +83,7 @@ class DataHandler:
         raw_data_list = [] # Create an empty list to store raw data
         data_types = ['Unloading data', 'General data']
 
-        if self.app.variables.preliminary_sample == True:
+        if self.app.variables.prelim_mode.get():
             file_path = filedialog.askopenfilename(title="Select a data file", filetypes=(DAT_FILE_TYPE))
             raw_data = process_file(file_path)
             raw_data_list.append(raw_data)
