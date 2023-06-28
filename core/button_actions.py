@@ -27,6 +27,10 @@ class ButtonActions:
     def average_of_specimens(self):
         return self.app.variables.average_of_specimens
     
+    @property
+    def average_of_specimens_hysteresis(self):
+        return self.app.variables.average_of_specimens_hysteresis
+    
     def get_export_path():
         pass
 
@@ -174,11 +178,14 @@ class ButtonActions:
         )
     
     def plot_average_and_error_band(self, ax):
-        strain = self.average_of_specimens["strain"].to_numpy()  
-        stress = self.average_of_specimens["stress"].to_numpy() 
-        std_dev_stress = self.average_of_specimens["std stress"].to_numpy()
-        std_dev_strain = self.average_of_specimens["std strain"].to_numpy()
+        strain = self.average_of_specimens["Strain"].to_numpy()  
+        stress = self.average_of_specimens["Stress"].to_numpy() 
+        std_dev_stress = self.average_of_specimens["std Stress"].to_numpy()
+        std_dev_strain = self.average_of_specimens["std Strain"].to_numpy()
         ax.plot(strain, stress, label="Average Stress-Strain Curve")
+
+        if self.average_of_specimens_hysteresis.empty == False:
+            self.plot_average_hysteresis(ax)
 
         df = self.data_handler.properties_df
         df_summary = self.data_handler.create_summary_df(df)
@@ -192,14 +199,24 @@ class ButtonActions:
         # draw_error_band_xy(ax, strain, stress,xerr=std_dev_strain, yerr=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
         draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
 
-        ax.axhline(y=Rplt, color='r', linestyle='--',linewidth =0.2, label="Rplt")
+        if self.app.variables.DIN_Mode  == True:
+            ax.axhline(y=Rplt, color='r', linestyle='--',linewidth =0.2, label="Rplt")
 
-        # ax.scatter(Aplt_E,Rplt_E, color='g', label="(Aplt_E,Rplt_E)")
-        ax.scatter(AeH,ReH,  color='b', label="(ReH, AeH)")
+            # ax.scatter(Aplt_E,Rplt_E, color='g', label="(Aplt_E,Rplt_E)")
+            ax.scatter(AeH,ReH,  color='b', label="(ReH, AeH)")
 
-        # ax.annotate("( Aplt_E, Rplt_E)", ( Aplt_E,Rplt_E,), textcoords="offset points", xytext=(-10,10), ha='center')
-        ax.annotate("(AeH, ReH)", ( AeH,ReH,), textcoords="offset points", xytext=(-10,10), ha='center')
+            # ax.annotate("( Aplt_E, Rplt_E)", ( Aplt_E,Rplt_E,), textcoords="offset points", xytext=(-10,10), ha='center')
+            ax.annotate("(AeH, ReH)", ( AeH,ReH,), textcoords="offset points", xytext=(-10,10), ha='center')
 
+    def plot_average_hysteresis(self, ax) -> None:
+        ax.plot(self.average_of_specimens_hysteresis["Strain"].to_numpy(), self.average_of_specimens_hysteresis["Stress"].to_numpy(), label="Average Hysteresis Curve")
+        x,y  = self.app.variables.hyst_avg_linear_plot
+        ax.plot(x,y, label=" 1% Modulus offset line", linestyle='--',linewidth =0.6)
+        ps_strain, ps_stress =  self.app.variables.avg_compressive_proof_strength_from_hyst
+        if  ps_strain and ps_stress:
+            ax.scatter(ps_strain, ps_stress, color='g', label="Proof Strength")
+
+     
 ##### Not implemented ############
     
     def import_properties(self):

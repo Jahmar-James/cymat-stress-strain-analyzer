@@ -34,6 +34,7 @@ class PlotManager:
         self.enable_click_event = False  # No click events on plots by default
         self.selected_points = []
 
+
     def create_figure_canvas(self, fig, position):
         tab = self.app.widget_manager.notebook.nametowidget(
             self.app.widget_manager.notebook.select())
@@ -85,11 +86,24 @@ class PlotManager:
         locator = mtick.MaxNLocator(nbins=6)
         ax.xaxis.set_major_locator(locator)
         ax.tick_params(axis='x', rotation=25)
+
+        self.plateau_region_start_entry = self.app.widget_manager.prelim_group.range_entry_start
+        self.plateau_region_end_entry = self.app.widget_manager.prelim_group.range_entry_end
+        plateau_region_start = self.plateau_region_start_entry.get()
+        plateau_region_end  = self.plateau_region_end_entry.get()
+
+        if plateau_region_start and plateau_region_end:
+            if plateau_region_start ==  self.plateau_region_start_entry.placeholder:
+                plateau_region_start =0.2
+            if plateau_region_end ==  self.plateau_region_end_entry.placeholder:
+                plateau_region_end = 0.4    
+            ax.axvspan(float(plateau_region_start), float(plateau_region_end), facecolor='green', alpha=0.1)
+            ax.text((float(plateau_region_start) + float(plateau_region_end))/2, ax.get_ylim()[-1]*0.95, 'Plateau \nRegion', ha='center', va='top', fontsize=8, color='black')
     
-        ax.axvspan(0, .2, facecolor='yellow', alpha=0.1)
-        ax.axvspan(0.2, .4, facecolor='green', alpha=0.1)
-        ax.text(0.1, ax.get_ylim()[-1]*0.95, 'Elastic \nRegion', ha='center', va='top', fontsize=8, color='black')
-        ax.text(0.3, ax.get_ylim()[-1]*0.95, 'Plastic \nRegion', ha='center', va='top', fontsize=8, color='black')  
+        # ax.axvspan(0, .2, facecolor='yellow', alpha=0.1)
+        # ax.axvspan(0.2, .4, facecolor='green', alpha=0.1)
+        # ax.text(0.1, ax.get_ylim()[-1]*0.95, 'Elastic \nRegion', ha='center', va='top', fontsize=8, color='black')
+        # ax.text(0.3, ax.get_ylim()[-1]*0.95, 'Plastic \nRegion', ha='center', va='top', fontsize=8, color='black')  
         
         ax.axhline(0, color='black', linestyle='--')
         ax.axvline(0, color='black', linestyle='--')

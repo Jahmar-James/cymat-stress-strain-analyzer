@@ -45,7 +45,7 @@ class ExcelExporter:
             selected_indices: Indices of the specimens to export.
             file_path: The path to the Excel file to which the data is exported.
         """
-        print("export_data_to_exce")
+        print("export_data_to_excel")
         def create_charts(writer, data_dfs, average_df):
             # Create combined chart for selected specimens
             selected_specimens_ws = writer.sheets[SELECTED_SPECIMEN ]
@@ -176,7 +176,10 @@ class ExcelExporter:
                     specimen_name = specimen.name if specimen else "Unknown Specimen"
 
                 if specimen:
-                    yield_stress, yield_strain = specimen.IYS
+                    if specimen.processed_hysteresis_data.empty == True:
+                        yield_stress, yield_strain = specimen.IYS
+                    else:
+                        yield_stress, yield_strain = 0, 0 
                     density_iys_text = f" ({specimen.density:.2f} g/cc,IYS: {yield_stress:.2f} MPa, {yield_strain:.2f} mm)"
                 else: density_iys_text = ""
                 summary_ws.cell(row=row_offset + 1, column=1, value=specimen_name + density_iys_text).font = Font(bold=True)
@@ -251,7 +254,6 @@ class ExcelExporter:
             start_row: The row at which to start writing (default is 0).
             start_col: The column at which to start writing (default is 0).
         """
-        print("write_dfs_to_excel")
         # Write properties tables
         for df in properties_dfs:
             max_len = max(len(df.columns) for df in properties_dfs)

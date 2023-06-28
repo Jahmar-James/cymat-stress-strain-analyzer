@@ -53,6 +53,7 @@ class AppVariables:
     def __init__(self):
         self.specimens = []
         self.average_of_specimens = None
+        self.average_of_specimens_hysteresis = None
         self.selected_indices = None
         self.selected_specimen_names = []
         self.current_specimen = None
@@ -62,6 +63,8 @@ class AppVariables:
         self.export_in_progress = False
         self.preliminary_sample = False
         self.prelim_mode = tk.BooleanVar(value=self.preliminary_sample)
+        self.DIN_Mode = False
+        
 
     def add_specimen(self, tab_id, specimen):
         self.specimens.append(specimen)

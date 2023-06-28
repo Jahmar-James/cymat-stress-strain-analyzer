@@ -14,7 +14,8 @@ import pandas as pd
 
 from ms_file_handling.excel_exporter import ExcelExporter
 from ms_file_handling.ms_word_exporter import WordExporter
-from specimens.specimen import Specimen
+from specimens.specimen import Specimen, SpecimenDataManager, SpecimenGraphManager
+from scipy.interpolate import interp1d
 
 DIN_PROPERTIES = [
         'Rplt', 'Rplt_E', 'ReH', 'Ev', 'Eff', 'ReH_Rplt_ratio', 'Aplt_E', 'AeH', 'Rp1', 'm'
@@ -121,11 +122,124 @@ class DataHandler:
         thickness = self.widget_manager.thickness_entry.get()
         weight = self.widget_manager.weight_entry.get()
         return name, length, width, thickness, weight
+   
+    def split_hysteresis_data(self, data):
+        max_force_index = np.argmax(-data["Force"].values)
+        return data[:max_force_index+1], data[max_force_index+1:]
+    
+    def clean_split_hysteresis_data_by_force(self, data):
+        return data[data["Force"].abs() > 50]
+    
+    def get_common_force(self, split_data_1, split_data_2):
+        min_force_1 = max(abs(data["Force"].min()) for data in split_data_1)
+        min_force_2 = min(abs(data["Force"].max()) for data in split_data_2)
+        
+        max_force_1 = min(abs(data["Force"].max()) for data in split_data_1)
+        max_force_2 = max(abs(data["Force"].min()) for data in split_data_2)
+
+        max_force_common = min(max_force_1, max_force_2)
+        min_force_common = max(min_force_1, min_force_2)
+
+        max_num_points_1 = max(len(data) for data in split_data_1)
+        max_num_points_2 = max(len(data) for data in split_data_2)
+        
+        common_force_1 = np.linspace(min_force_common, max_force_common, num=max_num_points_1)
+        common_force_2 = np.linspace(max_force_common, min_force_common, num=max_num_points_2)
+        common_force_2 = common_force_2[::-1]  # Reverse array for second half
+        
+        return common_force_1, common_force_2
+    
+    def interpolate_data(self, data, common_force, cross_sectional_area, original_length):
+        # Create interpolating functions
+        data  = data.loc[:, ["Force", "Displacement", "Time"]]
+        f_displacement = interp1d(abs(data["Force"]), data["Displacement"])
+        f_time = interp1d(abs(data["Force"]), data["Time"])
+
+        # Check and set out of range values to min or max
+        common_force = np.clip(common_force, np.min(abs(data["Force"])), np.max(abs(data["Force"])))
+
+        # Perform the interpolation
+        interpolated_displacement = f_displacement(common_force)
+        interpolated_time = f_time(common_force)
+
+        # Calculate stress and strain
+        stress = (common_force / cross_sectional_area) 
+        strain = (interpolated_displacement / original_length) * -1
+
+        return pd.DataFrame({"Force": common_force, "Displacement": interpolated_displacement, "Time": interpolated_time, "Stress": stress, "Strain": strain})
+    
+    def process_hysteresis_data(self, selected_specimens = None):
+        if selected_specimens is None:
+            selected_indices = self.widget_manager.specimen_listbox.curselection()
+            selected_specimens= self.get_selected_specimens(selected_indices)
+      
+        # Create split_data_1 and split_data_2 once and reuse it
+        split_data = [self.split_hysteresis_data(specimen.processed_hysteresis_data) for specimen in selected_specimens]
+        split_data_1 = [self.clean_split_hysteresis_data_by_force(data[0]) for data in split_data]
+        split_data_2 = [self.clean_split_hysteresis_data_by_force(data[1]) for data in split_data]
+
+        common_force_1, common_force_2 = self.get_common_force(split_data_1, split_data_2)
+
+        interpolated_data_1 = [self.interpolate_data(data, common_force_1, specimen.cross_sectional_area, specimen.original_length) for specimen, data in zip(selected_specimens, split_data_1)]
+        interpolated_data_2 = [self.interpolate_data(data, common_force_2, specimen.cross_sectional_area, specimen.original_length) for specimen, data in zip(selected_specimens, split_data_2)]
+
+        average_data_1 = pd.concat(interpolated_data_1).groupby("Force").mean()
+        average_data_2 = pd.concat(interpolated_data_2).groupby("Force").mean()
+
+        average_data = pd.concat([average_data_1, average_data_2.iloc[::-1]]).reset_index()
+        average_data["Time"] = average_data["Time"] - average_data["Time"].min()
+
+        self.app.variables.average_of_specimens_hysteresis = average_data
+        
+
+    def shift_hysteresis_data(self, data = None):
+        if data is None:
+            data = self.app.variables.average_of_specimens_hysteresis
+            avg_data = self.app.variables.average_of_specimens
+
+        max_stress_index = np.argmax(data['Stress'].values)
+        max_stress_hysteresis = data["Stress"].iloc[max_stress_index]
+
+        # Find the closest corresponding stress in raw data
+        closest_stress_index_raw = (avg_data["Stress"] - max_stress_hysteresis).abs().idxmin()
+
+        closest_strain = avg_data["Strain"].iloc[closest_stress_index_raw]
+        closest_stress = avg_data["Stress"].iloc[closest_stress_index_raw]
+        
+        strain_offset = data["Strain"].iloc[max_stress_index] - closest_strain
+        data["Strain"] = data["Strain"] - strain_offset
+
+        # Get modulus
+        peak_pt_by_stress = data["Strain"].iloc[max_stress_index], data["Stress"].iloc[max_stress_index]
+        end_pt_by_stress = data["Strain"].iloc[-1], data["Stress"].iloc[-1]
+        modulus_by_stress = (peak_pt_by_stress[1] - end_pt_by_stress[1]) / (peak_pt_by_stress[0] - end_pt_by_stress[0])
+
+        
+        # Get linear line
+        max_strain = max(avg_data["Strain"])
+        num_points = len(avg_data["Stress"])
+        x = np.linspace(0, max_strain, num = num_points)
+        
+        slope = modulus_by_stress
+        offset = 0.01
+        y = slope *(x - offset)
+
+        self.app.variables.hyst_avg_linear_plot = x,y
+        ss_plot = avg_data["Stress"], avg_data["Strain"]
+       
+        ps_strain, ps_stress =  SpecimenGraphManager.find_interaction_point(ss_plot, self.app.variables.hyst_avg_linear_plot)
+
+        self.app.variables.avg_compressive_proof_strength_from_hyst = ps_strain, ps_stress 
+
+
+
+
 
     def get_common_strain(self, selected_specimens):
         max_strain = max(specimen.shifted_strain.max() for specimen in selected_specimens)
         max_num_points = max(len(specimen.shifted_strain) for specimen in selected_specimens)
         common_strain = np.linspace(0, max_strain, num=max_num_points)
+
         return common_strain
 
     def get_interpolated_stresses(self, selected_specimens, common_strain):
@@ -173,17 +287,30 @@ class DataHandler:
 
         average_strain = common_strain
 
-        self.app.variables.average_of_specimens = pd.DataFrame({
-        "displacement": average_displacement,
-        "force": average_force,
-        "strain": average_strain,
-        "stress": average_stress,
-        "std stress": std_dev_stress,
-        "std strain":std_strain,     
+        for specimen in selected_specimens:
+            if specimen.processed_hysteresis_data is None:
+                pass
+            else:
+                if not specimen.processed_hysteresis_data.empty:
+                    self.process_hysteresis_data(selected_specimens)
+                    continue
 
-    })
+        self.app.variables.average_of_specimens = pd.DataFrame({
+        "Displacement": average_displacement,
+        "Force": average_force,
+        "Strain": average_strain,
+        "Stress": average_stress,
+        "std Stress": std_dev_stress,
+        "std Strain":std_strain})
+
+        if self.app.variables.average_of_specimens_hysteresis.empty == False:
+            self.shift_hysteresis_data()
+        
+
           
     def calculate_summary_stats(self, values):
+        if np.any(np.equal(values, None)):
+            return None, None, None
         average_value = np.mean(values)
         std_value = np.std(values)
         cv_value = (std_value / average_value) * 100 if average_value != 0 else 0
@@ -349,15 +476,19 @@ class SpecimenDataEncoder(json.JSONEncoder):
         Returns:
         dict or list or str or int or float or bool or None: The JSON-serializable representation of obj.
         """
-        try:
+        if isinstance(obj, SpecimenDataManager) or isinstance(obj, SpecimenGraphManager):
+            return self.encode_dict(obj.__dict__)
+        else:
             return super().default(obj)
-        except TypeError:
-            if isinstance(obj, dict):
-                return self.encode_dict(obj)
-            elif hasattr(obj, '__dict__'):
-                return self.encode_dict(obj.__dict__)
-            else:
-                raise
+        # try:
+        #     return super().default(obj)
+        # except TypeError:
+        #     if isinstance(obj, dict):
+        #         return self.encode_dict(obj)
+        #     elif hasattr(obj, '__dict__'):
+        #         return self.encode_dict(obj.__dict__)
+        #     else:
+        #         raise
 
     def encode_dict(self, obj_dict):
         """
@@ -375,9 +506,9 @@ class SpecimenDataEncoder(json.JSONEncoder):
                 continue  # Skip raw_data and specimen
             elif isinstance(value, dict):
                 encoded_dict[attr] = self.encode_dict(value)  # recursively handle nested dictionaries
-            elif isinstance(value, np.int64):
+            elif isinstance(value, np.int64) or isinstance(value, pd.Int64Dtype):
                 encoded_dict[attr] = int(value)  # Convert np.int64 to int
-            elif isinstance(value, (pd.DataFrame, np.ndarray)):
+            elif isinstance(value, (pd.DataFrame,pd.Series, np.ndarray)):
                 csv_filename = f'{attr}_data.csv'
                 csv_filepath = os.path.join(self.export_dir, csv_filename)
                 if isinstance(value, pd.DataFrame):

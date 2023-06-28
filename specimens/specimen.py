@@ -9,7 +9,6 @@ from shapely.geometry import LineString, MultiPoint, Point
 
 from standards.specimen_DIN import SpecimenDINAnalysis
 
-
 class Specimen:
     def __init__(self, name, data, length, width, thickness, weight):
         self.name = name
@@ -57,7 +56,7 @@ class Specimen:
             self.data_manager.get_modulus_from_hysteresis()
 
     def plot_stress_strain(self, ax):
-        ax.plot(self.shifted_strain, self.stress, label=self.name)
+        ax.plot(self.shifted_strain, self.stress, alpha = 0.6, label=self.name)
 
     def plot_curves(self, ax, OFFSET=0.002, debugging=True):
         self.graph_manager.plot_curves(ax, OFFSET, debugging)
@@ -183,11 +182,9 @@ class SpecimenGraphManager:
         roc_normalized = np.divide(rate_of_change, max_abs_rate_of_change, out=np.zeros_like(
             rate_of_change), where=max_abs_rate_of_change != 0)
 
-        # rate_of_change = stress_diff / strain_diff
-        # roc_normalized = rate_of_change / np.max(np.abs(rate_of_change))
+       
 
-        print(
-            f"\n Rate of chanage{rate_of_change} and\n roc norm : {roc_normalized}")
+        # print( f"\n Rate of chanage{rate_of_change} and\n roc norm : {roc_normalized}")
 
         # Find the index of the first significant increase in the rate of change within tolerance
         i = np.argmax((roc_normalized >= threshold) & (
@@ -255,12 +252,11 @@ class SpecimenGraphManager:
             roc_normalized = np.divide(rate_of_change, max_abs_rate_of_change, out=np.zeros_like(
                 rate_of_change), where=max_abs_rate_of_change != 0)
 
-        print(f"inside of next")
-        print(f"roc is {rate_of_change} and roc norm = {roc_normalized}")
+        # print(f"inside of next")
+        # print(f"roc is {rate_of_change} and roc norm = {roc_normalized}")
         # print(f"\n roc max is {np.nanmax(rate_of_change)} and roc norm  max = {np.nanmax(roc_normalized)}")
 
-        print(
-            f"threshold of the next significant decrease in stress after the given start index: {threshold}")
+        # print(  f"threshold of the next significant decrease in stress after the given start index: {threshold}")
 
         # i = np.argmax(roc_normalized[start_index:] <= -threshold)
 
@@ -288,7 +284,8 @@ class SpecimenGraphManager:
         return None
     
     #find intercept for YS
-    def find_interaction_point(self, plot1, plot2, min_dist_from_origin=0.001, max_attempts=3):
+    @staticmethod
+    def find_interaction_point( plot1, plot2, min_dist_from_origin=0.001, max_attempts=3):
         # Get the x and y data from each tuple
         x1, y1 = plot1
         x2, y2 = plot2
@@ -410,8 +407,6 @@ class SpecimenGraphManager:
             self.youngs_modulus = self.specimen.data_manager.modulus 
             self.strain_shifted = self.specimen.processed_data['shiftd strain']
             self.strain_hyst_shifted = self.specimen.processed_hysteresis_data['shiftd strain']
-         
-
 
     def plot_curves(self, ax=None, OFFSET=0.002, debugging=False):   
             
@@ -433,6 +428,8 @@ class SpecimenGraphManager:
                 self.plot_debugging_curves(ax, ESTIMATED_PLASTIC_INDEX_START, ESTIMATED_PLASTIC_INDEX_END)
         else:
             if not self.specimen.processed_hysteresis_data.empty:
+                self.youngs_modulus = self.specimen.data_manager.modulus 
+                self.strain_hyst_shifted = self.specimen.processed_hysteresis_data['shiftd strain']
                 self.plot_hysteresis_data(ax)
     
 
@@ -463,6 +460,9 @@ class SpecimenGraphManager:
 
     def plot_hysteresis_data(self, ax):
         ax.plot(self.specimen.processed_hysteresis_data['shiftd strain'], self.specimen.processed_hysteresis_data['stress'], alpha=0.5, color='navy', linestyle='--', label="Hysteresis Stress-Strain Curve")  
+        if self.specimen.data_manager.modulus is None:
+            self.specimen.data_manager.get_modulus_from_hysteresis()
+
 
         slope = self.specimen.data_manager.modulus
         self.plot_zero_slope_line(ax,slope)
@@ -470,6 +470,7 @@ class SpecimenGraphManager:
         self.plot_strength_points(ax)
 
     def plot_zero_slope_line(self, ax,slope):
+        
         
         y = slope * self.strain_hyst_shifted  
         x = self.strain_hyst_shifted 
@@ -510,10 +511,6 @@ class SpecimenGraphManager:
             ps_strain, ps_stress = self.compressive_proof_strength
             ax.scatter(ps_strain, ps_stress, c="green", label=f"Compressive Proof Strength: ({ps_strain:.3f}, {ps_stress:.3f})") 
 
-   
-        
-
-
     def plot_scatter_points(self, ax):
         def plot_iys(ax):
             if self.IYS is not None:
@@ -529,7 +526,6 @@ class SpecimenGraphManager:
         
         plot_iys(ax)
         plot_ys(ax)
-
 
 
     @classmethod
@@ -564,6 +560,9 @@ class SpecimenDataManager:
         self.units = []
         self.modulus = None
         self.pt_70_plt = None
+        self._toughness = None
+        self._resilience = None
+        self._ductility  = None
 
         # Determine the type of data and assign appropriately
         if raw_data:
@@ -709,19 +708,21 @@ class SpecimenDataManager:
     def toughness(self):
         if self._toughness is None:
             self._toughness = self.calculate_toughness()
-        return self._toughness  
+        return self._toughness 
     
     @property
     def ductility(self):
         if self._ductility is None:
             self._ductility = self.calculate_ductility()
-        return self._ductility  
+        return self._ductility 
     
     @property
     def resilience(self):
         if self._resilience is None:
             self._resilience = self.calculate_resilience()
-        return self._resilience  
+        return self._resilience 
+    
+    
 
     def calculate_toughness(self):
         return np.trapz(self.specimen.stress, self.specimen.shifted_strain)
