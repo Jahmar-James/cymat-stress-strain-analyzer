@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 import datetime
+import numpy as np
 
 # To Do
 # toolbox or round toggle for checkbuttons
@@ -439,9 +440,8 @@ class PrelimGroup(tk.Frame):
         self.create_calculation_results_labels()
         self.create_trigger_forces_labels()
 
-
     def create_prelim_toggle_button(self):
-        self.prelim_toggle_button = tk.Checkbutton(self, text="Enable Prelim Mode", variable=self.prelim_mode)
+        self.prelim_toggle_button = tk.Checkbutton(self, text="Enable Preliminary Mode", variable=self.prelim_mode)
         self.prelim_toggle_button.grid(row=0, column=0,columnspan=2, padx=10, pady=10, sticky='n')
 
     def create_plateau_stress_entry(self):
@@ -467,10 +467,16 @@ class PrelimGroup(tk.Frame):
             self.trigger_forces_label.config(text=f"Trigger Forces (MPa): {forces[0]:.2f}, {forces[1]:.2f}, {forces[2]:.2f}")
 
     def create_range_entries(self):
-        self.range_entry_start = PlaceholderEntry(self, placeholder="Range Start - 0.2") 
-        self.range_entry_end = PlaceholderEntry(self, placeholder="Range End - 0.4")
+        self.range_start_var = tk.StringVar()
+        self.range_end_var = tk.StringVar()
+
+        self.range_entry_start = PlaceholderEntry(self, placeholder="Range Start - 0.2", textvar=self.range_start_var)
+        self.range_entry_end = PlaceholderEntry(self, placeholder="Range End - 0.4", textvar=self.range_end_var)
         self.range_entry_start.grid(row=2, column=0, padx=15, pady=8, sticky='e')
         self.range_entry_end.grid(row=2, column=1, padx=15, pady=8, sticky='w')
+
+        self.range_start_var.trace('w', lambda *args: self.calculate_and_display_average_stress())
+        self.range_end_var.trace('w', lambda *args: self.calculate_and_display_average_stress())
     
     def create_calculation_results_labels(self):
         self.calculation_results_label = tk.Label(self, text="20% 70% and 1.3plt")
@@ -479,6 +485,34 @@ class PrelimGroup(tk.Frame):
     def create_trigger_forces_labels(self):
         self.trigger_forces_label = tk.Label(self, text="Trigger Forces")
         self.trigger_forces_label.grid(row=4, column=0,columnspan=2, padx=15, pady=8, sticky='we')
+
+    def calculate_and_display_average_stress(self):
+       if not self.prelim_mode.get():
+            if self.app.variables.current_specimen:
+                if (self.range_start_var.get() != self.range_entry_start.placeholder) and (self.range_end_var.get() != self.range_entry_end.placeholder):
+                    try:
+                        range_start = float(self.range_start_var.get())
+                        range_end = float(self.range_end_var.get())
+                    except ValueError:
+                        range_start = 0.2
+                        range_end = 0.4
+                        self.range_start_var.set(range_start)
+                        self.range_end_var.set(range_end)
+                        # tk.messagebox.showinfo("Invalid range", "Setting range to default values.")
+                    plt_stress = self.calculate_average_stress(range_start, range_end)
+                    if plt_stress:  # Ensure plt_stress is not None
+                        self.plateau_stress_entry.delete(0, tk.END)
+                        self.plateau_stress_entry.insert(0, f"Calculated Plt Stress {plt_stress:.3f}")
+        
+    def calculate_average_stress(self, range_start, range_end):
+        if self.app.variables.current_specimen:
+            stress = self.app.variables.current_specimen.stress
+            strain = self.app.variables.current_specimen.strain
+
+            idx_lower = (np.abs(strain - range_start)).argmin()
+            idx_upper = (np.abs(strain - range_end)).argmin()
+
+            return np.mean(stress[idx_lower:idx_upper])
 
 
 
