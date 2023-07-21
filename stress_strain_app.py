@@ -8,6 +8,7 @@ from core.button_actions import ButtonActions
 from core.data_handler import DataHandler
 from core.plot_manager import PlotManager
 from core.widget_manager import WidgetManager
+import pandas as pd
 
 # To Do
 # add cymat icon 
@@ -53,7 +54,7 @@ class AppVariables:
     def __init__(self):
         self.specimens = []
         self.average_of_specimens = None
-        self.average_of_specimens_hysteresis = None
+        self.average_of_specimens_hysteresis = pd.DataFrame()
         self.selected_indices = None
         self.selected_specimen_names = []
         self.current_specimen = None
@@ -63,7 +64,8 @@ class AppVariables:
         self.export_in_progress = False
         self.preliminary_sample = False
         self.prelim_mode = tk.BooleanVar(value=self.preliminary_sample)
-        self.DIN_Mode = False
+        self.DIN_Mode = True
+        self.ISO_Mode = False
         
 
     def add_specimen(self, tab_id, specimen):
