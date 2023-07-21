@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 from scipy.optimize import curve_fit
+from scipy.integrate import trapz
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -44,7 +45,28 @@ class Specimen:
     def process_data(self):
         self.data_manager.clean_data()
         self.data_manager.add_stress_and_strain()
-        self.calculate_shift_from_hysteresis()
+        if  self.processed_hysteresis_data is not None:
+            self.calculate_shift_from_hysteresis()
+        self.calculate_general_KPI()
+
+    def calculate_general_KPI(self):
+        self.calculate_energy()
+    
+    def calculate_energy(self):
+        def calculate_Ev(stress, strain, compression):
+            idx = (np.abs(strain - compression)).argmin()
+            return trapz(stress[:idx], strain[:idx])
+        
+        
+        self.E20_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain, 0.2)*1000 # kJ/kg
+        self.E50_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain,0.5)*1000 # kJ/kg
+        self.E80_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain, 0.8)*1000 # kJ/kg
+
+        density_kg_meters = self.density * 1000  # kg/m^3
+        self.E20_kJ_kg = self.E20_kJ_m3 / density_kg_meters
+        self.E50_kJ_kg = self.E50_kJ_m3 / density_kg_meters
+        self.E80_kJ_kg = self.E80_kJ_m3 / density_kg_meters
+         
 
     def find_IYS_align(self):
         self.graph_manager.Calculate_Strength_Alignment()
@@ -146,6 +168,7 @@ class SpecimenGraphManager:
         self.youngs_modulus = None
         self.strain_offset = None
         self.offset_line = None
+        self.compressive_proof_strength = None, None
 
     # Determine the plastic region 
     def find_first_significant_increase(self, stress, strain, threshold=0.015, testing=False,  min_force=80, max_force=1000):
@@ -167,8 +190,7 @@ class SpecimenGraphManager:
         strain = np.array(self.specimen.strain)  # %
 
         if np.isnan(stress).any() or np.isnan(strain).any():
-            print(
-                "Warning: NaN values detected in stress or strain data. Please handle them.")
+            print("Warning: NaN values detected in stress or strain data. Please handle them.")
 
         stress_diff = np.diff(stress)
         strain_diff = np.diff(strain)
@@ -182,7 +204,6 @@ class SpecimenGraphManager:
         roc_normalized = np.divide(rate_of_change, max_abs_rate_of_change, out=np.zeros_like(
             rate_of_change), where=max_abs_rate_of_change != 0)
 
-       
 
         # print( f"\n Rate of chanage{rate_of_change} and\n roc norm : {roc_normalized}")
 
@@ -190,13 +211,11 @@ class SpecimenGraphManager:
         i = np.argmax((roc_normalized >= threshold) & (
             self.specimen.force[:-1] >= min_force) & (self.specimen.force[:-1] <= max_force))
 
-        print(
-            f"Index of {i}  verser argmax i {i} with threshold of the first significant increase in stress: {threshold}")
+        print(f"Index of {i}  verser argmax i {i} with threshold of the first significant increase in stress: {threshold}")
         # If the index is zero, find the first index greater than zero.
         if i == 0:
             i = np.argmax(self.specimen.force > 500)
-            print(
-                f"No first significant increase Found, using force lead to a index of {i}")
+            print(f"No first significant increase Found, using force lead to a index of {i}")
 
         if ((strain[0]-strain[i]) < (-0.04)):
             print("moved too much")
@@ -209,8 +228,7 @@ class SpecimenGraphManager:
             plt.title("find_first_significant_increase")
             plt.show()
 
-        print(
-            f"First significant increase index: {i} has a stress of {stress[i]:.2f} MPa and strain of {strain[i]:.6f} and force of {self.specimen.force[i]} N")
+        print(f"First significant increase index: {i} has a stress of {stress[i]:.2f} MPa and strain of {strain[i]:.6f} and force of {self.specimen.force[i]} N")
         return i
 
     def find_next_significant_decrease(self, stress, strain, start_index=0, threshold=0.0005, testing=False):
@@ -233,8 +251,7 @@ class SpecimenGraphManager:
         strain = np.array(self.specimen.strain)  # %
 
         if np.isnan(stress).any() or np.isnan(strain).any():
-            print(
-                "Warning: NaN values detected in stress or strain data. Please handle them.")
+            print("Warning: NaN values detected in stress or strain data. Please handle them.")
 
         stress_diff = np.diff(stress)
         strain_diff = np.diff(strain)
@@ -302,8 +319,7 @@ class SpecimenGraphManager:
             intersection = line1.intersection(line2)
             if intersection.is_empty:
                 # Shift line2 and try again
-                line2 = LineString([(x, y + shift_step)
-                                   for x, y in line2.coords])
+                line2 = LineString([(x, y + shift_step) for x, y in line2.coords])
                 attempts += 1
             else:
                 # Check if the intersection point is not too close to the origin
@@ -410,7 +426,7 @@ class SpecimenGraphManager:
 
     def plot_curves(self, ax=None, OFFSET=0.002, debugging=False):   
             
-        print( f"IYS is {self.specimen.IYS}, ax is {ax}, offset is {OFFSET} , debug mode is {debugging}")
+        print( f"\n{self.specimen.name}: IYS is {self.specimen.IYS}, ax is {ax}, offset is {OFFSET} , debug mode is {debugging}")
 
         ESTIMATED_PLASTIC_INDEX_START = 'Start of Plastic Region'
         ESTIMATED_PLASTIC_INDEX_END = 'End of Plastic Region'
@@ -463,15 +479,13 @@ class SpecimenGraphManager:
         if self.specimen.data_manager.modulus is None:
             self.specimen.data_manager.get_modulus_from_hysteresis()
 
-
         slope = self.specimen.data_manager.modulus
         self.plot_zero_slope_line(ax,slope)
         self.plot_one_pnt_line(ax,slope)
         self.plot_strength_points(ax)
 
     def plot_zero_slope_line(self, ax,slope):
-        
-        
+          
         y = slope * self.strain_hyst_shifted  
         x = self.strain_hyst_shifted 
 
@@ -490,19 +504,20 @@ class SpecimenGraphManager:
         x = np.linspace(0, max_strain, num = num_points)
         y = slope *(x - offset)
 
-
         linear_plot = x,y
         ss_plot = self.strain_shifted, self.stress
 
         ps_strain, ps_stress = self.find_interaction_point(ss_plot, linear_plot)
         self.compressive_proof_strength = ps_strain, ps_stress 
+        self.specimen.data_manager.compressive_proof_strength = ps_stress
 
         # Filter using boolean indexing
+        max_stress = max(self.stress)
         mask_1 = y > 0
-        # mask_2 = y < self.stress
-        # mask  = mask_1 & mask_2
-        y_filtered = y[mask_1]
-        x_filtered = x[mask_1]
+        mask_2 = y < max_stress
+        mask  = mask_1 & mask_2
+        y_filtered = y[mask]
+        x_filtered = x[mask]
 
         ax.plot(x_filtered , y_filtered ,  alpha=0.6,color='red', label='1% Slope Line')
 
@@ -633,11 +648,11 @@ class SpecimenDataManager:
     def add_stress_and_strain(self):
         self.formatted_data['stress'] = ( self.formatted_data['Force'] / self.cross_sectional_area)*-1
         self.formatted_data['strain'] = ( (self.formatted_data['Displacement']) / self.original_length)*-1
-
-        if self.formatted_hysteresis_data.empty == False:
+        
+        if self.specimen.processed_hysteresis_data is not None:
             self.formatted_hysteresis_data['stress'] = ( self.formatted_hysteresis_data['Force'] / self.cross_sectional_area)*-1
             self.formatted_hysteresis_data['strain'] = ( (self.formatted_hysteresis_data ['Displacement']) / self.original_length)*-1
-    
+
 
     def align_hysteresis_data(self, max_stress_index):
         max_stress_hysteresis = self.formatted_hysteresis_data["stress"].iloc[max_stress_index]
@@ -650,6 +665,7 @@ class SpecimenDataManager:
         closest_stress_raw = self.formatted_data["stress"].iloc[closest_stress_index_raw]
 
         self.pt_70_plt = closest_strain_raw,closest_stress_raw
+        self.pt_20_plt = self.formatted_data["strain"].iloc[-1], self.formatted_data["stress"].iloc[-1]
 
         # Calculate the offset between the strain of max stress point in hysteresis data and raw data
         strain_offset = self.formatted_hysteresis_data["strain"].iloc[max_stress_index] - closest_strain_raw
@@ -701,8 +717,7 @@ class SpecimenDataManager:
         # Shift the strain data in both datasets
         self.formatted_data['shiftd strain'] = self.formatted_data['strain'] - strain_shift
         self.formatted_hysteresis_data['shiftd strain'] = self.formatted_hysteresis_data['strain'] - strain_shift
-
-
+        self.shift_offset = strain_shift
 
     @property
     def toughness(self):
