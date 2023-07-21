@@ -4,7 +4,7 @@ from scipy.integrate import trapz
 
 
 class SpecimenDINAnalysis:
-    def __init__(self, stress, strain, lower_strain=0.2, upper_strain=0.4):
+    def __init__(self, stress, strain, lower_strain=0.2, upper_strain=0.3):
         self.stress = np.array(stress)# Compressive Stress (Rd)
         self.strain = np.array(strain) # Compressive Strain (ed)
         self.lower_strain = lower_strain
