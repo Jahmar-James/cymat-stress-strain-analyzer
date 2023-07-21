@@ -7,6 +7,7 @@ import numpy as np
 # To Do
 # toolbox or round toggle for checkbuttons
 # float button for export data to excel
+# add buttons for iso and DIn mode
 
 # widget_manager.py
 class WidgetManager:
@@ -26,8 +27,8 @@ class WidgetManager:
 
     # Widget flow control
     def create_widgets(self):
-        self.app.master.grid_columnconfigure(4, weight=1)
-        self.app.master.grid_rowconfigure(6, weight=1)
+        self.app.master.grid_columnconfigure(8, weight=1)
+        self.app.master.grid_rowconfigure(7, weight=1)
 
         self.create_entry_group()
         self.create_properties_group()
@@ -36,65 +37,9 @@ class WidgetManager:
         self.create_list_box_group()
         self.create_fifth_row_group()
         self.create_notebook()
-
         self.create_prelim_group()
-
-        # Create the widgets
-
-        # labels_texts = [("Specimen Name:",''), ("Length:","mm"),( "Width:","mm"), ("Thickness:","mm") ,("Weight:","grams")]
-        # self.entry_group = EntryGroup(self.app.master, labels_texts)
-        # self.entry_group.grid(row=0, column=0, rowspan=5, sticky='ns')
-        # self.name_entry, self.length_entry,self.width_entry,self.thickness_entry, self.weight_entry = self.entry_group.entries
-
-        # self.properties_group = PropertiesGroup(self.app.master,width=400)
-        # self.properties_group.grid(row=0, column=1, rowspan=5, sticky='ns')
-        # self.specimen_properties_label =  self.properties_group.specimen_properties_label
-        # self.file_name_label =  self.properties_group.file_name_label
-
-        # data_analysis_names = ["Submit", "Plot Current Specimen", "Plot Average", 
-        #                        "Recalculate Specimen Variables", "Clear Specimen"]
-        # data_analysis_functions = [self.button_actions.submit, self.button_actions.plot_current_specimen, 
-        #                            self.button_actions.plot_average, self.button_actions.recalculate_specimen,
-        #                            self.button_actions.delete_selected_specimens]
-        # data_analysis_specs = list(zip(data_analysis_names, data_analysis_functions, 
-        #                                ['normal' if i == 0 else 'disabled' for i in range(len(data_analysis_names))]))
-
-        # data_management_names = ["Import Specimen Properties","Save Specimen", "Export Average to Excel", 
-        #                          "MS Word", "Custom Skew Cards"]
-        # data_management_functions = [self.button_actions.import_properties, self.button_actions.save_selected_specimens, self.button_actions.export_average_to_excel, 
-        #                              self.button_actions.export_ms_data,
-        #                              self.button_actions.custom_skew_cards]
-        # data_management_specs = list(zip(data_management_names, data_management_functions, 
-        #                                  ['disabled' if i != 0 else 'normal' for i in range(len(data_management_names))]))
-
-        # self.data_analysis_button_group = ButtonGroup(self.app.master, data_analysis_specs)
-        # self.data_analysis_button_group.grid(row=0, column=2, rowspan=5, sticky='ns')
-        # self.data_analysis_buttons = self.data_analysis_button_group.buttons
-        # self.data_analysis_buttons[0].bind("<Return>", self.button_actions.submit)
-
-        # self.data_management_button_group = ButtonGroup(self.app.master, data_management_specs)
-        # self.data_management_button_group.grid(row=0, column=4, rowspan=5, sticky='ns')
-        # self.data_management_buttons = self.data_management_button_group.buttons
-
-
-        # self.list_box_group = ListBoxGroup(self.app.master, "Select specimens:", width=100)
-        # self.list_box_group.grid(row=0, column=3, rowspan=2, sticky='ns')
-        # self.specimen_listbox = self.list_box_group.specimen_listbox
-      
-        # # Fifith Row 
-        
-        # self.fifth_row_group = FifthRowGroup(self.app.master, reset_callback=self.reset_sliders,
-        #                                       import_callback=self.button_actions.import_data,
-        #                                       enable_strain_callback=self.toggle_slider, 
-        #                                       enable_select_callback=self.toggle_select_mode,
-        #                                       ms_word_callback=self.button_actions.export_ms_data,    
-        #                                       slider_enabled=self.slider_enabled,
-        #                                       select_mode_enabled=self.select_mode_enabled
-        #                                       )
-        # self.fifth_row_group.grid(row=5, column=0, columnspan=4, sticky='nsew')
-        # self.create_notebook()
-
-  
+        self.plot_title_entry_group = PlotTitleEntryGroup(self.app.master)
+        self.plot_title_entry_group.grid(row=0, column=6,rowspan=5, sticky='ns')
 
     def create_entry_group(self):
         labels_texts = [("Specimen Name:",''), ("Length:","mm"), ("Width:","mm"), ("Thickness:","mm") ,("Weight:","grams")]
@@ -163,7 +108,7 @@ class WidgetManager:
         self.notebook = ttk.Notebook(self.app.master)
         self.notebook.bind("<<NotebookTabChanged>>",self.update_specimen_properties_label)
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
-        self.notebook.grid(row=7, column=0, columnspan=6, sticky='nsew')
+        self.notebook.grid(row=7, column=0, columnspan=8, sticky='nsew')
         return self.notebook
 
     def create_new_tab(self, name):
@@ -513,6 +458,30 @@ class PrelimGroup(tk.Frame):
             idx_upper = (np.abs(strain - range_end)).argmin()
 
             return np.mean(stress[idx_lower:idx_upper])
+
+class PlotTitleEntryGroup(tk.Frame):
+    def __init__(self, master=None, **kwargs):
+        super().__init__(master, **kwargs)
+        self.grid_rowconfigure(0, weight=1)  
+        self.grid_columnconfigure(0, weight=1)
+
+        labels = ['Title for Current Specimen', 'Title for Specimens Overlayed', 'Title for Average of Specimens']
+        placeholders = ['Current Specimen', 'Specimens Overlayed', 'Average of Specimens']
+
+        iteration_length = len(labels)
+
+        self.entries = []
+        for i in range(iteration_length):
+            label_widget = tk.Label(self, text=labels[i])
+            label_widget.grid(row=2*i, column=0, sticky='w')
+            entry = PlaceholderEntry(self, placeholder=placeholders[i])
+            self.entries.append(entry)
+            entry.grid(row=2*i + 1, column=0, padx=15, pady=8, sticky='e')
+
+    def clear_entries(self):
+        for entry in self.entries:
+            entry.delete(0, 'end')  
+            entry.on_focusout(None)
 
 
 
