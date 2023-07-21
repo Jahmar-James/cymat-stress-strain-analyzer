@@ -3,8 +3,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.ticker as mtick
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
-                                               NavigationToolbar2Tk)
+import matplotlib.ticker as ticker
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
+from tkinter import filedialog
 
 from .widget_manager import SliderManager
 from matplotlib.path import Path
@@ -14,7 +15,27 @@ OFFSET =0.002
 LEFT = 'left'
 MIDDLE = "middle"
 RIGHT = 'right'
-# Line manger class
+
+
+class CustomToolbar(NavigationToolbar2Tk):
+    #Custom toolbar class to Save figure with new size and DPI
+    def save_figure(self, *args):
+        filetypes = self.canvas.get_supported_filetypes().items()
+        default_filetype = self.canvas.get_default_filetype()
+        
+        fname = filedialog.asksaveasfilename(
+            defaultextension=default_filetype,
+            filetypes=[*filetypes, ("All Files", "*.*")], )
+        if fname:
+              # Store original size
+            original_size = self.canvas.figure.get_size_inches()
+            # Set new size
+            self.canvas.figure.set_size_inches(8, 6)
+            # Save with new DPI and size
+            self.canvas.figure.savefig(fname, dpi=300)
+            # Restore original size
+            self.canvas.figure.set_size_inches(original_size)
+
 
 class PlotManager:
     def __init__(self, master, app):
@@ -47,7 +68,7 @@ class PlotManager:
         self.canvas = canvas
 
         toolbar_frame = tk.Frame(frame)
-        toolbar = NavigationToolbar2Tk(canvas, toolbar_frame)
+        toolbar = CustomToolbar(canvas, toolbar_frame)
         toolbar.update()
 
         if position in [LEFT,MIDDLE]:
@@ -83,8 +104,10 @@ class PlotManager:
         self.legend = self.create_legends(ax, position)
         
         ax.xaxis.set_major_formatter(mtick.PercentFormatter(1))
-        locator = mtick.MaxNLocator(nbins=6)
+        locator = mtick.MaxNLocator(nbins=8)
         ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(0.1))
+        ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
         ax.tick_params(axis='x', rotation=25)
 
         self.plateau_region_start_entry = self.app.widget_manager.prelim_group.range_entry_start
@@ -97,14 +120,9 @@ class PlotManager:
                 plateau_region_start =0.2
             if plateau_region_end ==  self.plateau_region_end_entry.placeholder:
                 plateau_region_end = 0.4    
-            ax.axvspan(float(plateau_region_start), float(plateau_region_end), facecolor='green', alpha=0.1)
-            ax.text((float(plateau_region_start) + float(plateau_region_end))/2, ax.get_ylim()[-1]*0.95, 'Plateau \nRegion', ha='center', va='top', fontsize=8, color='black')
-    
-        # ax.axvspan(0, .2, facecolor='yellow', alpha=0.1)
-        # ax.axvspan(0.2, .4, facecolor='green', alpha=0.1)
-        # ax.text(0.1, ax.get_ylim()[-1]*0.95, 'Elastic \nRegion', ha='center', va='top', fontsize=8, color='black')
-        # ax.text(0.3, ax.get_ylim()[-1]*0.95, 'Plastic \nRegion', ha='center', va='top', fontsize=8, color='black')  
-        
+            # ax.axvspan(float(plateau_region_start), float(plateau_region_end), facecolor='green', alpha=0.1)
+            # ax.text((float(plateau_region_start) + float(plateau_region_end))/2, ax.get_ylim()[-1]*0.95, 'Plateau \nRegion', ha='center', va='top', fontsize=8, color='black')
+      
         ax.axhline(0, color='black', linestyle='--')
         ax.axvline(0, color='black', linestyle='--')
         ax.grid()
@@ -295,6 +313,18 @@ def draw_error_band_xy(ax, x, y, xerr, yerr, **kwargs):
 def draw_error_band_y(ax, x, y, err, **kwargs):
     xp = np.concatenate([x, x[::-1]])  # Upper band then lower band
     yp = np.concatenate([y + err, y[::-1] - err[::-1]])  # Positive error then negative error
+
+    vertices = np.column_stack([xp, yp])
+    codes = np.ones(vertices.shape[0], dtype=Path.code_type) * Path.LINETO
+    codes[0] = Path.MOVETO
+
+    path = Path(vertices, codes)
+    patch = PathPatch(path, **kwargs)
+    ax.add_patch(patch)
+
+def draw_error_band_y_modified(ax, x, upper_y, lower_y, **kwargs):
+    xp = np.concatenate([x, x[::-1]])  # Upper band then lower band for x axis
+    yp = np.concatenate([upper_y, lower_y[::-1]])  # Upper limit then lower limit
 
     vertices = np.column_stack([xp, yp])
     codes = np.ones(vertices.shape[0], dtype=Path.code_type) * Path.LINETO
