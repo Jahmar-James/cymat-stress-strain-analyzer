@@ -1,14 +1,14 @@
 import os
 from datetime import datetime
 from scipy.optimize import curve_fit
+from scipy.integrate import trapz
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from shapely.geometry import LineString, MultiPoint, Point
 
-from specimen_DIN import SpecimenDINAnalysis
-
+from standards.specimen_DIN import SpecimenDINAnalysis
 
 class Specimen:
     def __init__(self, name, data, length, width, thickness, weight):
@@ -45,16 +45,42 @@ class Specimen:
     def process_data(self):
         self.data_manager.clean_data()
         self.data_manager.add_stress_and_strain()
+        if  self.processed_hysteresis_data is not None:
+            self.calculate_shift_from_hysteresis()
+        self.calculate_general_KPI()
+
+    def calculate_general_KPI(self):
+        self.calculate_energy()
+    
+    def calculate_energy(self):
+        def calculate_Ev(stress, strain, compression):
+            idx = (np.abs(strain - compression)).argmin()
+            return trapz(stress[:idx], strain[:idx])
+        
+        
+        self.E20_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain, 0.2)*1000 # kJ/kg
+        self.E50_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain,0.5)*1000 # kJ/kg
+        self.E80_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain, 0.8)*1000 # kJ/kg
+
+        density_kg_meters = self.density * 1000  # kg/m^3
+        self.E20_kJ_kg = self.E20_kJ_m3 / density_kg_meters
+        self.E50_kJ_kg = self.E50_kJ_m3 / density_kg_meters
+        self.E80_kJ_kg = self.E80_kJ_m3 / density_kg_meters
+         
 
     def find_IYS_align(self):
         self.graph_manager.Calculate_Strength_Alignment()
+    
+    def calculate_shift_from_hysteresis(self):
+        if self.processed_hysteresis_data.empty:
+            return None
+        if self.data_manager.modulus is None:
+            self.data_manager.get_modulus_from_hysteresis()
 
     def plot_stress_strain(self, ax):
-        ax.plot(self.shifted_strain, self.stress, label=self.name)
+        ax.plot(self.shifted_strain, self.stress, alpha = 0.6, label=self.name)
 
     def plot_curves(self, ax, OFFSET=0.002, debugging=True):
-        print(
-            f"IN spec, ax is {ax}offset is {OFFSET} , debug mode is {debugging}")
         self.graph_manager.plot_curves(ax, OFFSET, debugging)
 
     @property
@@ -103,6 +129,10 @@ class Specimen:
     @property
     def processed_data(self):
         return self.data_manager.formatted_data
+    
+    @property
+    def processed_hysteresis_data(self):
+        return self.data_manager.formatted_hysteresis_data
 
     @property
     def shifted_data(self):
@@ -138,6 +168,7 @@ class SpecimenGraphManager:
         self.youngs_modulus = None
         self.strain_offset = None
         self.offset_line = None
+        self.compressive_proof_strength = None, None
 
     # Determine the plastic region 
     def find_first_significant_increase(self, stress, strain, threshold=0.015, testing=False,  min_force=80, max_force=1000):
@@ -159,8 +190,7 @@ class SpecimenGraphManager:
         strain = np.array(self.specimen.strain)  # %
 
         if np.isnan(stress).any() or np.isnan(strain).any():
-            print(
-                "Warning: NaN values detected in stress or strain data. Please handle them.")
+            print("Warning: NaN values detected in stress or strain data. Please handle them.")
 
         stress_diff = np.diff(stress)
         strain_diff = np.diff(strain)
@@ -174,23 +204,18 @@ class SpecimenGraphManager:
         roc_normalized = np.divide(rate_of_change, max_abs_rate_of_change, out=np.zeros_like(
             rate_of_change), where=max_abs_rate_of_change != 0)
 
-        # rate_of_change = stress_diff / strain_diff
-        # roc_normalized = rate_of_change / np.max(np.abs(rate_of_change))
 
-        print(
-            f"\n Rate of chanage{rate_of_change} and\n roc norm : {roc_normalized}")
+        # print( f"\n Rate of chanage{rate_of_change} and\n roc norm : {roc_normalized}")
 
         # Find the index of the first significant increase in the rate of change within tolerance
         i = np.argmax((roc_normalized >= threshold) & (
             self.specimen.force[:-1] >= min_force) & (self.specimen.force[:-1] <= max_force))
 
-        print(
-            f"Index of {i}  verser argmax i {i} with threshold of the first significant increase in stress: {threshold}")
+        print(f"Index of {i}  verser argmax i {i} with threshold of the first significant increase in stress: {threshold}")
         # If the index is zero, find the first index greater than zero.
         if i == 0:
             i = np.argmax(self.specimen.force > 500)
-            print(
-                f"No first significant increase Found, using force lead to a index of {i}")
+            print(f"No first significant increase Found, using force lead to a index of {i}")
 
         if ((strain[0]-strain[i]) < (-0.04)):
             print("moved too much")
@@ -203,8 +228,7 @@ class SpecimenGraphManager:
             plt.title("find_first_significant_increase")
             plt.show()
 
-        print(
-            f"First significant increase index: {i} has a stress of {stress[i]:.2f} MPa and strain of {strain[i]:.6f} and force of {self.specimen.force[i]} N")
+        print(f"First significant increase index: {i} has a stress of {stress[i]:.2f} MPa and strain of {strain[i]:.6f} and force of {self.specimen.force[i]} N")
         return i
 
     def find_next_significant_decrease(self, stress, strain, start_index=0, threshold=0.0005, testing=False):
@@ -227,8 +251,7 @@ class SpecimenGraphManager:
         strain = np.array(self.specimen.strain)  # %
 
         if np.isnan(stress).any() or np.isnan(strain).any():
-            print(
-                "Warning: NaN values detected in stress or strain data. Please handle them.")
+            print("Warning: NaN values detected in stress or strain data. Please handle them.")
 
         stress_diff = np.diff(stress)
         strain_diff = np.diff(strain)
@@ -246,12 +269,11 @@ class SpecimenGraphManager:
             roc_normalized = np.divide(rate_of_change, max_abs_rate_of_change, out=np.zeros_like(
                 rate_of_change), where=max_abs_rate_of_change != 0)
 
-        print(f"inside of next")
-        print(f"roc is {rate_of_change} and roc norm = {roc_normalized}")
+        # print(f"inside of next")
+        # print(f"roc is {rate_of_change} and roc norm = {roc_normalized}")
         # print(f"\n roc max is {np.nanmax(rate_of_change)} and roc norm  max = {np.nanmax(roc_normalized)}")
 
-        print(
-            f"threshold of the next significant decrease in stress after the given start index: {threshold}")
+        # print(  f"threshold of the next significant decrease in stress after the given start index: {threshold}")
 
         # i = np.argmax(roc_normalized[start_index:] <= -threshold)
 
@@ -279,7 +301,8 @@ class SpecimenGraphManager:
         return None
     
     #find intercept for YS
-    def find_interaction_point(self, plot1, plot2, min_dist_from_origin=0.001, max_attempts=3):
+    @staticmethod
+    def find_interaction_point( plot1, plot2, min_dist_from_origin=0.001, max_attempts=3):
         # Get the x and y data from each tuple
         x1, y1 = plot1
         x2, y2 = plot2
@@ -296,8 +319,7 @@ class SpecimenGraphManager:
             intersection = line1.intersection(line2)
             if intersection.is_empty:
                 # Shift line2 and try again
-                line2 = LineString([(x, y + shift_step)
-                                   for x, y in line2.coords])
+                line2 = LineString([(x, y + shift_step) for x, y in line2.coords])
                 attempts += 1
             else:
                 # Check if the intersection point is not too close to the origin
@@ -388,49 +410,139 @@ class SpecimenGraphManager:
         # Check if youngs_modulus and IYS are already calculated
         if self.youngs_modulus is not None and self.IYS is not None:
             return
+        
+        if self.specimen.processed_hysteresis_data  is None or  self.specimen.processed_hysteresis_data.empty:
+            self.stress = np.array(self.specimen.stress.values)  # MPa
+            self.strain = np.array(self.specimen.strain.values)  # %
 
-        self.stress = np.array(self.specimen.stress.values)  # MPa
-        self.strain = np.array(self.specimen.strain.values)  # %
+            self.calculate_shifted_strain(self.stress, self.strain)
+            self.calculate_next_decrease_index(self.stress)
+            self.calculate_youngs_modulus(self.stress, self.strain)
+            self.calculate_strength(self.stress, self.strain_shifted, OFFSET)
+        else:
+            self.youngs_modulus = self.specimen.data_manager.modulus 
+            self.strain_shifted = self.specimen.processed_data['shiftd strain']
+            self.strain_hyst_shifted = self.specimen.processed_hysteresis_data['shiftd strain']
 
-        self.calculate_shifted_strain(self.stress, self.strain)
-        self.calculate_next_decrease_index(self.stress)
-        self.calculate_youngs_modulus(self.stress, self.strain)
-        self.calculate_strength(self.stress, self.strain_shifted, OFFSET)
+    def plot_curves(self, ax=None, OFFSET=0.002, debugging=False):   
+            
+        print( f"\n{self.specimen.name}: IYS is {self.specimen.IYS}, ax is {ax}, offset is {OFFSET} , debug mode is {debugging}")
 
+        ESTIMATED_PLASTIC_INDEX_START = 'Start of Plastic Region'
+        ESTIMATED_PLASTIC_INDEX_END = 'End of Plastic Region'
 
-    def plot_curves(self, ax=None, OFFSET=0.002, debugging=False):       
-        print( f"IYS is {self.specimen.IYS}, ax is {ax}, offset is {OFFSET} , debug mode is {debugging}")
+        self.prepare_data()
+        ax = self.check_ax(ax)
+
+        self.plot_shifted_curve(ax)
+
+        if self.specimen.processed_hysteresis_data is None:
+            self.plot_offset_curve(ax, OFFSET)
+            self.plot_scatter_points(ax)
+            
+            if debugging:
+                self.plot_debugging_curves(ax, ESTIMATED_PLASTIC_INDEX_START, ESTIMATED_PLASTIC_INDEX_END)
+        else:
+            if not self.specimen.processed_hysteresis_data.empty:
+                self.youngs_modulus = self.specimen.data_manager.modulus 
+                self.strain_hyst_shifted = self.specimen.processed_hysteresis_data['shiftd strain']
+                self.plot_hysteresis_data(ax)
+    
+
+    def prepare_data(self):
         if self.youngs_modulus is None:
-            self.Calculate_IYS_Alignment()
+            self.Calculate_Strength_Alignment()
 
 
         self.stress = np.array(self.specimen.stress.values)  # MPa
         self.strain = np.array(self.specimen.strain.values)  # %
 
+    def check_ax(self, ax):
         if ax is None:
             ax = plt.gca()
-  
+        return ax
+    
+    def plot_shifted_curve(self, ax):
         ax.plot(self.strain_shifted, self.stress, label="Shifted Stress-Strain Curve")
-        ax.plot(self.strain_shifted, self.offset_line,
-                label=f"{OFFSET*100}% Offset Stress-Strain Curve")
-        if debugging:
-            ax.plot(self.strain, self.stress, linestyle=':', label="Original Stress-Strain Curve")
-            ax.axvline(self.strain_shifted[self.first_increase_index], color='r', linestyle='--', label='First Significant Increase')
-            if self.next_decrease_index is not None:
-                ax.axvline(self.strain_shifted[self.next_decrease_index],
-                        color='g', linestyle='--', label='Next Significant Decrease')
 
-        if self.IYS is not None:  
-            iys_strain, iys_stress = self.IYS
-            if iys_strain is not None and iys_stress is not None:
-                ax.scatter(iys_strain, iys_stress, c="red",
-                        label=f"IYS: ({iys_strain:.6f}, {iys_stress:.6f})")
-            
-        if self.YS is not None:
-            ys_strain, ys_stress = self.YS
-            if ys_strain is not None and ys_stress is not None:
-                ax.scatter(ys_strain, ys_stress, c="blue",
-                        label=f"YS: ({ys_strain:.6f}, {ys_stress:.6f})")        
+    def plot_offset_curve(self, ax, OFFSET):
+        ax.plot(self.strain_shifted, self.offset_line, alpha=0.7,  label=f"{OFFSET*100}% Offset Stress-Strain Curve")
+    
+    
+    def plot_debugging_curves(self, ax, ESTIMATED_PLASTIC_INDEX_START, ESTIMATED_PLASTIC_INDEX_END):
+        ax.plot(self.strain, self.stress, linestyle=':', alpha=0.5, label="Original Stress-Strain Curve")
+        ax.axvline(self.strain_shifted[self.first_increase_index], linestyle='--', label=ESTIMATED_PLASTIC_INDEX_START)
+        if self.next_decrease_index is not None:
+            ax.axvline(self.strain_shifted[self.next_decrease_index], linestyle='--', label=ESTIMATED_PLASTIC_INDEX_END)
+
+    def plot_hysteresis_data(self, ax):
+        ax.plot(self.specimen.processed_hysteresis_data['shiftd strain'], self.specimen.processed_hysteresis_data['stress'], alpha=0.5, color='navy', linestyle='--', label="Hysteresis Stress-Strain Curve")  
+        if self.specimen.data_manager.modulus is None:
+            self.specimen.data_manager.get_modulus_from_hysteresis()
+
+        slope = self.specimen.data_manager.modulus
+        self.plot_zero_slope_line(ax,slope)
+        self.plot_one_pnt_line(ax,slope)
+        self.plot_strength_points(ax)
+
+    def plot_zero_slope_line(self, ax,slope):
+          
+        y = slope * self.strain_hyst_shifted  
+        x = self.strain_hyst_shifted 
+
+        # Filter using boolean indexing
+        mask = y > 0
+        y_filtered = y[mask]
+        x_filtered = x[mask]
+
+        ax.plot(x_filtered , y_filtered,  alpha=0.4,color='greenyellow', label='Zere Slope Line')
+
+    def plot_one_pnt_line(self, ax, slope, offset=0.01):
+
+        max_strain = max(self.strain_shifted)
+        num_points = len(self.strain_shifted)
+
+        x = np.linspace(0, max_strain, num = num_points)
+        y = slope *(x - offset)
+
+        linear_plot = x,y
+        ss_plot = self.strain_shifted, self.stress
+
+        ps_strain, ps_stress = self.find_interaction_point(ss_plot, linear_plot)
+        self.compressive_proof_strength = ps_strain, ps_stress 
+        self.specimen.data_manager.compressive_proof_strength = ps_stress
+
+        # Filter using boolean indexing
+        max_stress = max(self.stress)
+        mask_1 = y > 0
+        mask_2 = y < max_stress
+        mask  = mask_1 & mask_2
+        y_filtered = y[mask]
+        x_filtered = x[mask]
+
+        ax.plot(x_filtered , y_filtered ,  alpha=0.6,color='red', label='1% Slope Line')
+
+    def plot_strength_points(self, ax,):
+        if self.compressive_proof_strength is not None:
+            ps_strain, ps_stress = self.compressive_proof_strength
+            ax.scatter(ps_strain, ps_stress, c="green", label=f"Compressive Proof Strength: ({ps_strain:.3f}, {ps_stress:.3f})") 
+
+    def plot_scatter_points(self, ax):
+        def plot_iys(ax):
+            if self.IYS is not None:
+                iys_strain, iys_stress = self.IYS
+                if iys_strain is not None and iys_stress is not None:
+                    ax.scatter(iys_strain, iys_stress, c="red", label=f"IYS: ({iys_strain:.3f}, {iys_stress:.3f})")
+
+        def plot_ys(ax):
+            if self.YS is not None:
+                ys_strain, ys_stress = self.YS
+                if ys_strain is not None and ys_stress is not None:
+                    ax.scatter(ys_strain, ys_stress, c="blue", label=f"YS: ({ys_strain:.3f}, {ys_stress:.3f})")
+        
+        plot_iys(ax)
+        plot_ys(ax)
+
 
     @classmethod
     def from_dict(cls, data, specimen, temp_dir=None):
@@ -452,79 +564,181 @@ class SpecimenGraphManager:
 class SpecimenDataManager:
     def __init__(self, specimen, raw_data, area, original_length):
         self.specimen = specimen
-        self.data = None
-        self.raw_data = raw_data
-        self.data_shiftd = None
+        self.hysteresis_data = None
+        self.raw_data = None
+        self.formatted_raw_data = None
+        self.formatted_hysteresis_data = None
+        self.raw_data_df = None
+        self.split_raw_data_df = None
         self.cross_sectional_area = area
         self.original_length = original_length
         self.headers = []
         self.units = []
+        self.modulus = None
+        self.pt_70_plt = None
         self._toughness = None
-        self._ductility = None
         self._resilience = None
+        self._ductility  = None
 
-    def clean_data(self,):
-        raw_data = self.raw_data
+        # Determine the type of data and assign appropriately
+        if raw_data:
+            if len(raw_data) == 1:
+                self.raw_data = raw_data[0]
+            else:
+                self.hysteresis_data = raw_data[0]
+                self.raw_data = raw_data[1]
 
-        # Find the row where 'Data Acquisition' starts
-        for index, line in enumerate(raw_data):
-            if line.startswith('Data Acquisition'):
-                time_row = index
-                break
+    def clean_data(self):
+        # Check if each type of data exists and clean accordingly
+        if self.raw_data:
+            self.clean_raw_data()
+        if self.hysteresis_data:
+            self.clean_hysteresis_data()
 
-        # Extract headers and units from raw data
-        headers_row = raw_data[time_row + 1].split()
-        units_row = raw_data[time_row + 2].split()
+    # add filtering and noise reduction
 
-        self.headers = [header for header in headers_row if header in [
-            'Displacement', 'Force', 'Time']]
-        self.units = [unit for unit, header in zip(
-            units_row, headers_row) if header in self.headers]
+    def clean_raw_data(self):
+        self.formatted_data = self.clean_specific_data(self.raw_data)
 
-        # Extract data rows from raw data
+        self.raw_data_df = pd.DataFrame({'Raw Data': self.raw_data})
+        delimiter = '\t|\\n'
+        self.split_raw_data_df = self.raw_data_df['Raw Data'].str.split(delimiter, expand=True)
+        self.split_raw_data_df.columns = ['Column 1', 'Column 2', 'Column 3', 'Column 4',
+                                          'Column 5', 'Column 6', 'Column 7', 'Column 8', 'Column 9', 'Column 10']
+        
+
+    def clean_hysteresis_data(self):
+        self.formatted_hysteresis_data = self.clean_specific_data(self.hysteresis_data)
+
+    def clean_specific_data(self, data):
+        time_row = self.find_time_row(data)
+        headers, units = self.extract_headers_and_units(data, time_row)
+        data_rows = self.extract_data_rows(data, time_row, headers)
+        return self.format_data(data_rows, headers)
+
+    @staticmethod
+    def find_time_row(data):
+        return next((index for index, line in enumerate(data) if line.startswith('Data Acquisition')), None)
+
+    @staticmethod
+    def extract_headers_and_units(data, time_row):
+        headers_row = data[time_row + 1].split()
+        units_row = data[time_row + 2].split()
+
+        headers = [header for header in headers_row if header in ['Displacement', 'Force', 'Time']]
+        units = [unit for unit, header in zip(units_row, headers_row) if header in headers]
+
+        return headers, units
+
+    @staticmethod
+    def extract_data_rows(data, time_row, headers):
         data_rows = []
-        for line in raw_data[time_row + 3:]:
+        for line in data[time_row + 3:]:
             if line.startswith('Data Acquisition'):
                 continue
             if line.strip():  # Check if the line is not empty or contains only white spaces
                 data_rows.append(line.split()[:3])
+        return pd.DataFrame(data_rows, columns=headers)
 
-        # Format data rows into a DataFrame
-        data = pd.DataFrame(data_rows, columns=self.headers)
+    @staticmethod
+    def format_data(data, headers):
         pattern = r'^\D*$'  # this pattern matches any string that does not contain digits
         mask = data['Displacement'].str.match(pattern)
-        data = data[~mask]
-        self.formatted_data = data.astype(
-            {'Displacement': float, 'Force': float, 'Time': float})
-
-        self.raw_data_df = pd.DataFrame({'Raw Data': raw_data})
-        delimiter = '\t|\\n'
-        self.split_raw_data_df = self.raw_data_df['Raw Data'].str.split(
-            delimiter, expand=True)
-        self.split_raw_data_df.columns = ['Column 1', 'Column 2', 'Column 3', 'Column 4',
-                                          'Column 5', 'Column 6', 'Column 7', 'Column 8', 'Column 9', 'Column 10']
+        return data[~mask].astype({header: float for header in headers})
 
     def add_stress_and_strain(self):
-        self.formatted_data['stress'] = (
-            self.formatted_data['Force'] / self.cross_sectional_area)*-1
-        self.formatted_data['strain'] = (  (self.formatted_data['Displacement']) / self.original_length)*-1
+        self.formatted_data['stress'] = ( self.formatted_data['Force'] / self.cross_sectional_area)*-1
+        self.formatted_data['strain'] = ( (self.formatted_data['Displacement']) / self.original_length)*-1
+        
+        if self.specimen.processed_hysteresis_data is not None:
+            self.formatted_hysteresis_data['stress'] = ( self.formatted_hysteresis_data['Force'] / self.cross_sectional_area)*-1
+            self.formatted_hysteresis_data['strain'] = ( (self.formatted_hysteresis_data ['Displacement']) / self.original_length)*-1
+
+
+    def align_hysteresis_data(self, max_stress_index):
+        max_stress_hysteresis = self.formatted_hysteresis_data["stress"].iloc[max_stress_index]
+
+        # Find the closest corresponding stress in raw data
+        closest_stress_index_raw = (self.formatted_data["stress"] - max_stress_hysteresis).abs().idxmin()
+
+        # Get the corresponding strain for closest stress in raw data
+        closest_strain_raw = self.formatted_data["strain"].iloc[closest_stress_index_raw]
+        closest_stress_raw = self.formatted_data["stress"].iloc[closest_stress_index_raw]
+
+        self.pt_70_plt = closest_strain_raw,closest_stress_raw
+        self.pt_20_plt = self.formatted_data["strain"].iloc[-1], self.formatted_data["stress"].iloc[-1]
+
+        # Calculate the offset between the strain of max stress point in hysteresis data and raw data
+        strain_offset = self.formatted_hysteresis_data["strain"].iloc[max_stress_index] - closest_strain_raw
+
+        # Adjust the strain data in hysteresis data by subtracting the offset
+        self.formatted_hysteresis_data["strain"] = self.formatted_hysteresis_data["strain"] - strain_offset
+
+    def get_modulus_from_hysteresis(self):
+        force = self.formatted_hysteresis_data['Force'].values
+        negative_force = force*-1
+        max_force_index = np.argmax(negative_force)
+        max_stress_index = np.argmax(self.formatted_hysteresis_data['stress'].values)
+
+        self.align_hysteresis_data(max_stress_index)
+
+        assert max_force_index == max_stress_index, 'The max force and max stress do not occur at the same index'
+        peak_pt_by_force = self.formatted_hysteresis_data["Displacement"].iloc[max_force_index], self.formatted_hysteresis_data["Force"].iloc[max_force_index]
+        peak_pt_by_stress = self.formatted_hysteresis_data["strain"].iloc[max_stress_index], self.formatted_hysteresis_data["stress"].iloc[max_stress_index]
+
+        end_pt_by_force = self.formatted_hysteresis_data["Displacement"].iloc[-1], self.formatted_hysteresis_data["Force"].iloc[-1]
+        end_pt_by_stress = self.formatted_hysteresis_data["strain"].iloc[-1], self.formatted_hysteresis_data["stress"].iloc[-1]
+
+        modulus_by_force = (peak_pt_by_force[1] - end_pt_by_force[1]) / (peak_pt_by_force[0] - end_pt_by_force[0])
+        modulus_by_stress = (peak_pt_by_stress[1] - end_pt_by_stress[1]) / (peak_pt_by_stress[0] - end_pt_by_stress[0])
+
+        self.modulus = modulus_by_stress
+        self.shift_data()
+
+    def get_b_intercept(self):
+        # y = mx + b 
+        slope = self.modulus
+
+        pt = self.pt_70_plt
+        x, y = pt
+        b = y - (slope * x)
+        print(b)
+        return b
+    
+    def shift_data(self):
+       
+        b = self.get_b_intercept()
+        slope = self.modulus
+        target_strain = -b / slope
+
+        print(f"Modulus: {slope} and the b intercept: {b} so x should be {b/slope}")
+
+        strain_shift  = abs(target_strain)
+
+        # Shift the strain data in both datasets
+        self.formatted_data['shiftd strain'] = self.formatted_data['strain'] - strain_shift
+        self.formatted_hysteresis_data['shiftd strain'] = self.formatted_hysteresis_data['strain'] - strain_shift
+        self.shift_offset = strain_shift
+
     @property
     def toughness(self):
         if self._toughness is None:
             self._toughness = self.calculate_toughness()
-        return self._toughness  
+        return self._toughness 
     
     @property
     def ductility(self):
         if self._ductility is None:
             self._ductility = self.calculate_ductility()
-        return self._ductility  
+        return self._ductility 
     
     @property
     def resilience(self):
         if self._resilience is None:
             self._resilience = self.calculate_resilience()
-        return self._resilience  
+        return self._resilience 
+    
+    
 
     def calculate_toughness(self):
         return np.trapz(self.specimen.stress, self.specimen.shifted_strain)
@@ -533,9 +747,10 @@ class SpecimenDataManager:
         return max(self.specimen.shifted_strain)
 
     def calculate_resilience(self):
+        if self.specimen.IYS is None:
+            return None
         yield_stress, yield_strain = self.specimen.IYS
         return 0.5 * yield_stress * yield_strain
-
 
     @classmethod
     def from_dict(cls, data, specimen, temp_dir=None):

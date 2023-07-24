@@ -27,7 +27,7 @@ class PlotManager:
         self.plots = {LEFT: None, MIDDLE: None, RIGHT: None}
         self.toolbars = {LEFT: None, MIDDLE: None, RIGHT: None}
         self.slider_managers = {LEFT: None, MIDDLE: None}
-        self.lines = {LEFT: {}, MIDDLE: {},RIGHT: {}}
+        self.lines = {LEFT: None, MIDDLE: {}}
 
         self.enable_click_event = False  # No click events on plots by default
         self.selected_points = []
@@ -65,44 +65,12 @@ class PlotManager:
     def update_plots_with_shift(self, shift):
         self.specimen.manual_strain_shift = shift
         self.update_lines()
-        
 
-    def plot_and_draw(self, plot_function, title, position, specimen):
-        self.specimen = specimen
-        fig, ax = plt.subplots(figsize=(5, 5))
-
-        plot_function(ax)
-        ax.set_title(title)
-        ax.set_xlabel("Strain")
-        ax.set_ylabel("Stress (MPa)")
-        self.ax = ax
-        self.fig = fig
-        
-        self.legend = self.create_legends( ax, position)
-        
-        ax.xaxis.set_major_formatter(mtick.PercentFormatter())
-        locator = mtick.MaxNLocator(nbins=6)
-        ax.xaxis.set_major_locator(locator)
-        ax.tick_params(axis='x', rotation=25)
-    
-        ax.axvspan(0, .2, facecolor='yellow', alpha=0.1)
-        ax.axvspan(0.2, .4, facecolor='green', alpha=0.1)
-        ax.text(0.1, ax.get_ylim()[-1]*0.95, 'Elastic \nRegion', ha='center', va='top', fontsize=8, color='black')
-        ax.text(0.3, ax.get_ylim()[-1]*0.95, 'Plastic \nRegion', ha='center', va='top', fontsize=8, color='black')  
-        
-        ax.axhline(0, color='black', linestyle='--')
-        ax.axvline(0, color='black', linestyle='--')
-        ax.grid()
-
-        self.fig.tight_layout()
-        self.create_figure_canvas(fig, position)
-        self.canvas.mpl_connect('button_press_event', self.on_plot_click)
-          
     def update_lines(self):
         # Update line data rather than recreating plot
-        if self.lines[LEFT]["Shifted Stress-Strain Curve"]:
-            self.lines[LEFT]["Shifted Stress-Strain Curve"].set_xdata(self.specimen.shifted_strain)
-            self.lines[LEFT]["Shifted Stress-Strain Curve"].set_ydata(self.specimen.stress)
+        if self.lines[LEFT]:
+            self.lines[LEFT].set_xdata(self.specimen.shifted_strain)
+            self.lines[LEFT].set_ydata(self.specimen.stress)
             self.plots[LEFT].draw()
 
         # Middle plot contains lines for all specimens. We need to find and update the line for the current specimen.
@@ -111,42 +79,45 @@ class PlotManager:
             line.set_xdata(self.specimen.shifted_strain)
             line.set_ydata(self.specimen.stress)
             self.plots[MIDDLE].draw()
-        
-    def create_legends(self, ax, position):
-     
-        self.get_plot_lines(position)
-            
+
+    def plot_and_draw(self, plot_function, title, position, specimen):
+        self.specimen = specimen
+        fig, ax = plt.subplots(figsize=(5, 4))
+
+        plot_function(ax)
+        ax.set_title(title)
+        ax.set_xlabel("Strain")
+        ax.set_ylabel("Stress (MPa)")
+        ax.xaxis.set_major_formatter(mtick.PercentFormatter())
+        legend = ax.legend(loc="upper left",framealpha=0.5)
+        # bbox_to_anchor=(0.5, 1.6)
+
+        ax.axhline(0, color='black', linestyle='--')
+        ax.axvline(0, color='black', linestyle='--')
+
+        self.ax = ax
+        self.fig = fig
+        self.fig.tight_layout()
+
         if position == LEFT:
-            #scatter
-            legend1_handles = [col for col in ax.collections]
-            # lines
-            legend2_handles = [line for line in ax.lines]
-            
-            legend1 = ax.legend(handles=legend1_handles, loc='upper left')
-            ax.add_artist(legend1)  # add legend1 manually
-            
-            legend2 = ax.legend(handles=legend2_handles, loc='upper center', bbox_to_anchor=(0.45, -0.1), ncol=3)
-            
-            ax.add_artist(legend2)
-            
-            for text in legend1.get_texts():
-                text.set_fontsize(6)
-            for text in legend2.get_texts():
-                text.set_fontsize(6)
-            legend = legend1,legend2
-            self.fig.subplots_adjust(bottom=0.3)
-        else:
-            # for the other positions, use the default legend
-            legend = ax.legend()
             for text in legend.get_texts():
                 text.set_fontsize(6)
 
-        return legend
+                lines = ax.get_lines()
+                for line in lines:
+                    if line.get_label() == "Shifted Stress-Strain Curve":
+                        self.lines[position] = line
+                        break
 
-    def get_plot_lines(self, position):
+        if position == MIDDLE:
+            self.create_lines()
+        self.create_figure_canvas(fig, position)
+        self.canvas.mpl_connect('button_press_event', self.on_plot_click)
+
+    def create_lines(self):
+        # Create a line for each specimen
         for line in self.ax.get_lines():
-            self.lines[position][line.get_label()] = line
-
+            self.lines[MIDDLE][line.get_label()] = line
                   
     def update_lines_with_selected_points(self, ax):
         self.selected_points.sort()
@@ -172,7 +143,6 @@ class PlotManager:
         
         
         for artist in ax.get_children()[:]: # create a copy of the list for iteration for removal
-            print(artist)
             if isinstance(artist, matplotlib.lines.Line2D):
                 if artist.get_label() == 'First Significant Increase':
                     artist.set_xdata([strain_shifted[self.selected_points[0]]])
