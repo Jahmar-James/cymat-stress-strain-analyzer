@@ -3,16 +3,39 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.ticker as mtick
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
-                                               NavigationToolbar2Tk)
+import matplotlib.ticker as ticker
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
+from tkinter import filedialog
 
-from widget_manager import SliderManager
+from core.widget_manager import SliderManager
+from matplotlib.path import Path
+from matplotlib.patches import PathPatch
 
 OFFSET =0.002
 LEFT = 'left'
 MIDDLE = "middle"
 RIGHT = 'right'
-# Line manger class
+
+
+class CustomToolbar(NavigationToolbar2Tk):
+    #Custom toolbar class to Save figure with new size and DPI
+    def save_figure(self, *args):
+        filetypes = self.canvas.get_supported_filetypes().items()
+        default_filetype = self.canvas.get_default_filetype()
+        
+        fname = filedialog.asksaveasfilename(
+            defaultextension=default_filetype,
+            filetypes=[*filetypes, ("All Files", "*.*")], )
+        if fname:
+              # Store original size
+            original_size = self.canvas.figure.get_size_inches()
+            # Set new size
+            self.canvas.figure.set_size_inches(8, 6)
+            # Save with new DPI and size
+            self.canvas.figure.savefig(fname, dpi=300)
+            # Restore original size
+            self.canvas.figure.set_size_inches(original_size)
+
 
 class PlotManager:
     def __init__(self, master, app):
@@ -27,10 +50,11 @@ class PlotManager:
         self.plots = {LEFT: None, MIDDLE: None, RIGHT: None}
         self.toolbars = {LEFT: None, MIDDLE: None, RIGHT: None}
         self.slider_managers = {LEFT: None, MIDDLE: None}
-        self.lines = {LEFT: None, MIDDLE: {}}
+        self.lines = {LEFT: {}, MIDDLE: {},RIGHT: {}}
 
         self.enable_click_event = False  # No click events on plots by default
         self.selected_points = []
+
 
     def create_figure_canvas(self, fig, position):
         tab = self.app.widget_manager.notebook.nametowidget(
@@ -44,7 +68,7 @@ class PlotManager:
         self.canvas = canvas
 
         toolbar_frame = tk.Frame(frame)
-        toolbar = NavigationToolbar2Tk(canvas, toolbar_frame)
+        toolbar = CustomToolbar(canvas, toolbar_frame)
         toolbar.update()
 
         if position in [LEFT,MIDDLE]:
@@ -64,13 +88,55 @@ class PlotManager:
 
     def update_plots_with_shift(self, shift):
         self.specimen.manual_strain_shift = shift
-        self.update_lines()
+        self.update_lines()       
 
+    def plot_and_draw(self, plot_function, title, position, specimen):
+        self.specimen = specimen
+        fig, ax = plt.subplots(figsize=(5, 4))
+
+        plot_function(ax)
+        ax.set_title(title)
+        ax.set_xlabel(r"Strain - $\varepsilon$ (%)")
+        ax.set_ylabel(r"Stress - $\sigma$ (MPa)")
+        self.ax = ax
+        self.fig = fig
+
+        self.legend = self.create_legends(ax, position)
+        
+        ax.xaxis.set_major_formatter(mtick.PercentFormatter(1))
+        locator = mtick.MaxNLocator(nbins=8)
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(0.1))
+        ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+        ax.tick_params(axis='x', rotation=25)
+
+        self.plateau_region_start_entry = self.app.widget_manager.prelim_group.range_entry_start
+        self.plateau_region_end_entry = self.app.widget_manager.prelim_group.range_entry_end
+        plateau_region_start = self.plateau_region_start_entry.get()
+        plateau_region_end  = self.plateau_region_end_entry.get()
+
+        if plateau_region_start and plateau_region_end:
+            if plateau_region_start ==  self.plateau_region_start_entry.placeholder:
+                plateau_region_start =0.2
+            if plateau_region_end ==  self.plateau_region_end_entry.placeholder:
+                plateau_region_end = 0.4    
+            # ax.axvspan(float(plateau_region_start), float(plateau_region_end), facecolor='green', alpha=0.1)
+            # ax.text((float(plateau_region_start) + float(plateau_region_end))/2, ax.get_ylim()[-1]*0.95, 'Plateau \nRegion', ha='center', va='top', fontsize=8, color='black')
+      
+        ax.axhline(0, color='black', linestyle='--')
+        ax.axvline(0, color='black', linestyle='--')
+        ax.grid()
+
+        if position is not LEFT:
+            self.fig.tight_layout()
+        self.create_figure_canvas(fig, position)
+        self.canvas.mpl_connect('button_press_event', self.on_plot_click)
+          
     def update_lines(self):
         # Update line data rather than recreating plot
-        if self.lines[LEFT]:
-            self.lines[LEFT].set_xdata(self.specimen.shifted_strain)
-            self.lines[LEFT].set_ydata(self.specimen.stress)
+        if self.lines[LEFT]["Shifted Stress-Strain Curve"]:
+            self.lines[LEFT]["Shifted Stress-Strain Curve"].set_xdata(self.specimen.shifted_strain)
+            self.lines[LEFT]["Shifted Stress-Strain Curve"].set_ydata(self.specimen.stress)
             self.plots[LEFT].draw()
 
         # Middle plot contains lines for all specimens. We need to find and update the line for the current specimen.
@@ -79,45 +145,41 @@ class PlotManager:
             line.set_xdata(self.specimen.shifted_strain)
             line.set_ydata(self.specimen.stress)
             self.plots[MIDDLE].draw()
-
-    def plot_and_draw(self, plot_function, title, position, specimen):
-        self.specimen = specimen
-        fig, ax = plt.subplots(figsize=(5, 4))
-
-        plot_function(ax)
-        ax.set_title(title)
-        ax.set_xlabel("Strain")
-        ax.set_ylabel("Stress (MPa)")
-        ax.xaxis.set_major_formatter(mtick.PercentFormatter())
-        legend = ax.legend(loc="upper left",framealpha=0.5)
-        # bbox_to_anchor=(0.5, 1.6)
-
-        ax.axhline(0, color='black', linestyle='--')
-        ax.axvline(0, color='black', linestyle='--')
-
-        self.ax = ax
-        self.fig = fig
-        self.fig.tight_layout()
-
+        
+    def create_legends(self, ax, position):
+     
+        self.get_plot_lines(position)
+            
         if position == LEFT:
+            #scatter
+            legend1_handles = [col for col in ax.collections]
+            # lines
+            legend2_handles = [line for line in ax.lines]
+            
+            legend2 = ax.legend(handles=legend2_handles, loc='upper center', bbox_to_anchor=(0.45, -0.3), ncol=2) 
+            ax.add_artist(legend2)
+
+            #Lengnd 1 must come after legend 2 to update the legend labels
+            legend1 = ax.legend(handles=legend1_handles, )
+            ax.add_artist(legend1)  
+            
+            for text in legend1.get_texts():
+                text.set_fontsize(6)
+            for text in legend2.get_texts():
+                text.set_fontsize(6)
+            legend = legend1,legend2
+            self.fig.subplots_adjust(bottom=0.32)
+        else:
+            # for the other positions, use the default legend
+            legend = ax.legend()
             for text in legend.get_texts():
                 text.set_fontsize(6)
 
-                lines = ax.get_lines()
-                for line in lines:
-                    if line.get_label() == "Shifted Stress-Strain Curve":
-                        self.lines[position] = line
-                        break
+        return legend
 
-        if position == MIDDLE:
-            self.create_lines()
-        self.create_figure_canvas(fig, position)
-        self.canvas.mpl_connect('button_press_event', self.on_plot_click)
-
-    def create_lines(self):
-        # Create a line for each specimen
+    def get_plot_lines(self, position):
         for line in self.ax.get_lines():
-            self.lines[MIDDLE][line.get_label()] = line
+            self.lines[position][line.get_label()] = line
                   
     def update_lines_with_selected_points(self, ax):
         self.selected_points.sort()
@@ -141,12 +203,14 @@ class PlotManager:
         if specimen.graph_manager.offset_line is not None:
             offset_line = specimen.graph_manager.offset_line
         
+        ESTIMATED_PLASTIC_INDEX_START = 'Start of Plastic Region'
+        ESTIMATED_PLASTIC_INDEX_END = 'End of Plastic Region'
         
         for artist in ax.get_children()[:]: # create a copy of the list for iteration for removal
             if isinstance(artist, matplotlib.lines.Line2D):
-                if artist.get_label() == 'First Significant Increase':
+                if artist.get_label() == ESTIMATED_PLASTIC_INDEX_START:
                     artist.set_xdata([strain_shifted[self.selected_points[0]]])
-                if artist.get_label() == 'Next Significant Decrease':
+                if artist.get_label() == ESTIMATED_PLASTIC_INDEX_END:
                     artist.set_xdata([strain_shifted[self.selected_points[1]]])
                 if artist.get_label() == f"{OFFSET*100}% Offset Stress-Strain Curve":
                     artist.set_xdata(strain_shifted)
@@ -164,12 +228,16 @@ class PlotManager:
         
         if iys_strain is not None and iys_stress is not None:
             print("IYS found")
-            ax.scatter(iys_strain, iys_stress, c="red",label=f"IYS: ({iys_strain:.6f}, {iys_stress:.6f})")
+            ax.scatter(iys_strain, iys_stress, c="red",label=f"IYS: ({iys_strain:.3f}, {iys_stress:.3f})")
         
         if ys_strain is not None and ys_stress is not None:
             print("YS found")
-            ax.scatter(ys_strain, ys_stress, c="blue",label=f"YS: ({ys_strain:.6f}, {ys_stress:.6f})")
+            ax.scatter(ys_strain, ys_stress, c="blue",label=f"YS: ({ys_strain:.3f}, {ys_stress:.3f})")
+
+        # update to work with split legend for left plot
             
+        # TODO: exclue non scatter plots from this
+
         # Store the old legend's properties
         old_legend = ax.legend_
         loc = old_legend._loc
@@ -181,7 +249,6 @@ class PlotManager:
         
         # Draw the new legend with the old properties
         ax.legend(loc=loc, bbox_to_anchor=bbox_to_anchor, fontsize=fontsize, framealpha=framealpha)
-
         
         # Clear the selected points list
         self.selected_points.clear()
@@ -221,3 +288,48 @@ class PlotManager:
         """Find the index of the nearest x value to 'clicked_x' in 'xdata'."""
         distances = np.abs(xdata - clicked_x)
         return np.argmin(distances)
+
+def draw_error_band_xy(ax, x, y, xerr, yerr, **kwargs):
+    # Calculate normals via centered finite differences
+    dx = np.concatenate([[x[1] - x[0]], x[2:] - x[:-2], [x[-1] - x[-2]]])
+    dy = np.concatenate([[y[1] - y[0]], y[2:] - y[:-2], [y[-1] - y[-2]]])
+    l = np.hypot(dx, dy)
+    nx = dy / l
+    ny = -dx / l
+
+    # End points of errors
+    xp = x + nx * xerr
+    yp = y + ny * yerr
+    xn = x[::-1] - nx[::-1] * xerr[::-1]
+    yn = y[::-1] - ny[::-1] * yerr[::-1]
+
+    vertices = np.block([[xp, xn], [yp, yn]]).T
+    codes = np.ones(vertices.shape[0], dtype=Path.code_type) * Path.LINETO
+    codes[0] = Path.MOVETO
+
+    path = Path(vertices, codes)
+    ax.add_patch(PathPatch(path, **kwargs))
+
+def draw_error_band_y(ax, x, y, err, **kwargs):
+    xp = np.concatenate([x, x[::-1]])  # Upper band then lower band
+    yp = np.concatenate([y + err, y[::-1] - err[::-1]])  # Positive error then negative error
+
+    vertices = np.column_stack([xp, yp])
+    codes = np.ones(vertices.shape[0], dtype=Path.code_type) * Path.LINETO
+    codes[0] = Path.MOVETO
+
+    path = Path(vertices, codes)
+    patch = PathPatch(path, **kwargs)
+    ax.add_patch(patch)
+
+def draw_error_band_y_modified(ax, x, upper_y, lower_y, **kwargs):
+    xp = np.concatenate([x, x[::-1]])  # Upper band then lower band for x axis
+    yp = np.concatenate([upper_y, lower_y[::-1]])  # Upper limit then lower limit
+
+    vertices = np.column_stack([xp, yp])
+    codes = np.ones(vertices.shape[0], dtype=Path.code_type) * Path.LINETO
+    codes[0] = Path.MOVETO
+
+    path = Path(vertices, codes)
+    patch = PathPatch(path, **kwargs)
+    ax.add_patch(patch)

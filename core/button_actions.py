@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import filedialog
 from pathlib import Path
 import os
-from .plot_manager import draw_error_band_xy, draw_error_band_y, draw_error_band_y_modified
+from core.plot_manager import draw_error_band_xy, draw_error_band_y, draw_error_band_y_modified
 from tabulate import tabulate
 
 
