@@ -779,13 +779,15 @@ class DataHandler:
             self.app.variables.average_E20, self.app.variables.average_E50, self.app.variables.average_E_dense = calculate_energy(self, strain, stress)
 
 
-    def export_average_to_excel(self,selected_indices, file_path):
+    def export_average_to_excel(self,selected_indices, file_path, track_export = False):
     
         self.update_properties_df(selected_indices)
 
         print("Starting export thread")
-        # export_thread = threading.Thread(target=self.excel_exporter.export_data_to_excel(selected_indices, file_path))
-        export_thread = threading.Thread(target=self.excel_exporter.profile_export_average_to_excel, args=(selected_indices, file_path))
+        if track_export is False:
+            export_thread = threading.Thread(target=self.excel_exporter.export_data_to_excel(selected_indices, file_path))
+        else:
+            export_thread = threading.Thread(target=self.excel_exporter.profile_export_average_to_excel, args=(selected_indices, file_path))
         export_thread.start()
         self.app.variables.export_in_progress = True
 
