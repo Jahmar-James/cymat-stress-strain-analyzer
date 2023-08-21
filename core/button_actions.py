@@ -211,6 +211,7 @@ class ButtonActions:
 
         if self.average_of_specimens_hysteresis.empty == False:
             self.plot_average_hysteresis(ax)
+
        
         if test == True:
             std_dev_stress = self.average_of_specimens["std Stress"].to_numpy()
@@ -230,7 +231,7 @@ class ButtonActions:
 
         #Add Module line and strength points
         df_summary = self.data_handler.create_summary_df(self.data_handler.properties_df)
-        self.data_handler.calculate_avg_KPI()
+        self.data_handler.calculate_avg_KPI(lower_strain = 0.2, upper_strain = 0.4)
         # print Energy values for use they dont need to be exported to excel
         dense_strain = strain[self.app.variables.average_plt_end_id]
         self.display_energy_values(df_summary, dense_strain)
@@ -304,7 +305,7 @@ class ButtonActions:
         
         y_filtered = y[mask]
         x_filtered = x[mask]
-        ax.plot(x_filtered,y_filtered, color =  'g', label=" 1% Modulus offset line", linestyle='--',linewidth =0.6)
+        ax.plot(x_filtered,y_filtered, color =  'g', label=" 0.9% Modulus offset line", linestyle='--',linewidth =0.6)
         ps_strain, ps_stress = self.app.variables.avg_compressive_proof_strength_from_hyst[0] if self.app.variables.hyst_avg_linear_plot_best_fit is None else self.app.variables.avg_compressive_proof_strength_from_hyst[3]
         # ps_strain, ps_stress = self.app.variables.avg_compressive_proof_strength_from_hyst[0]
         if  ps_strain and ps_stress:

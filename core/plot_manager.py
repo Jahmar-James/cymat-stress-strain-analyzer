@@ -10,13 +10,14 @@ from tkinter import filedialog
 from .widget_manager import SliderManager
 from matplotlib.path import Path
 from matplotlib.patches import PathPatch
+from matplotlib.patches import Patch
 
 OFFSET =0.002
 LEFT = 'left'
 MIDDLE = "middle"
 RIGHT = 'right'
 
-
+#set Lengend to top left corner when saving
 class CustomToolbar(NavigationToolbar2Tk):
     #Custom toolbar class to Save figure with new size and DPI
     def save_figure(self, *args):
@@ -333,3 +334,57 @@ def draw_error_band_y_modified(ax, x, upper_y, lower_y, **kwargs):
     path = Path(vertices, codes)
     patch = PathPatch(path, **kwargs)
     ax.add_patch(patch)
+
+
+class ProcessControlChart:
+    
+    def __init__(self, data, LCL, UCL):
+        self.data = data
+        self.LCL = LCL
+        self.UCL = UCL
+        self.center, self.sigma = self._calculate_process_parameters()
+        self.Cp, self.Cpk = self._calculate_capability_indices()
+
+    def _calculate_process_parameters(self):
+        center = np.mean(self.data)
+        sigma = np.std(self.data)
+        return center, sigma
+
+    def _calculate_capability_indices(self):
+        Cp = (self.UCL - self.LCL) / (6 * self.sigma)
+        Cpk = min((self.UCL - self.center) / (3 * self.sigma), (self.center - self.LCL) / (3 * self.sigma))
+        return Cp, Cpk
+
+    def plot_control_chart(self, title):
+        plt.figure(figsize=(10, 6))
+        plt.plot(self.data, marker='o', color='b', linestyle='None')
+        plt.axhline(y=self.center, color='r', linestyle='-')  # Center line
+        plt.axhline(y=self.UCL, color='g', linestyle='--')  # Upper Control Limit (UCL)
+        plt.axhline(y=self.LCL, color='g', linestyle='--')  # Lower Control Limit (LCL)
+        plt.ylim(bottom=0)
+        plt.title(title)
+        plt.xlabel('Sample')
+        plt.ylabel('Value')
+        plt.text(0, self.UCL + 0.5, f'Cp = {self.Cp:.2f}, Cpk = {self.Cpk:.2f}')
+        legend_elements = [Patch(facecolor='blue', edgecolor='blue', label='Data'),
+                           Patch(facecolor='red', edgecolor='red', label='Mean'),
+                           Patch(facecolor='green', edgecolor='green', label='Control Limits')]
+        plt.legend(handles=legend_elements, loc='upper right')
+        plt.show()
+
+
+# # Let's use the class for Compressive Strength and Density
+# # Set the random seed for reproducibility
+# np.random.seed(0)
+
+# # Generate synthetic data for Compressive Strength and Density
+# compressive_strength = np.random.normal(loc=50, scale=10, size=30)  # Mean = 50, Standard Deviation = 10
+# density = np.random.normal(loc=7, scale=1, size=30)  # Mean = 7, Standard Deviation = 1
+
+# # Assume specification limits for Compressive Strength are 70 and 30
+# pcc1 = ProcessControlChart(compressive_strength, 30, 70)
+# pcc1.plot_control_chart('Control Chart for Compressive Strength')
+
+# # Assume specification limits for Density are 9 and 5
+# pcc2 = ProcessControlChart(density, 5, 9)
+# pcc2.plot_control_chart('Control Chart for Density')
