@@ -21,7 +21,7 @@ def main():
     chart_plotter = ControlChartPlotter()
 
     new_chart = ControlChart(data_samples, data_prossecor, chart_plotter, )
-    new_chart.calculate_and_plot('Compressive Strength',tolerance_percentage=5, use_generated_ticks=True)
+    new_chart.calculate_and_plot('Compressive Strength',tolerance_percentage=5, use_generated_ticks=False)
     print(f"The Cp is {new_chart.Cp:.4f} and the Cpk is {new_chart.Cpk:.4f}")
     print(f"The UCL is {new_chart.UCL:.2f} and the LCL is {new_chart.LCL:.2f}")
     print(f"The USL is {new_chart.USL:.2f} and the LSL is {new_chart.LSL:.2f}")

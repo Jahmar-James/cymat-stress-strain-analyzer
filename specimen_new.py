@@ -56,11 +56,8 @@ class SpecimenMetricsDTO(BaseModel):
     """
     IYS: float = None
     YS: float = None
-    youung_modulus: float = None
+    young_modulus: float = None
     strength: float = None
-    strain_at_break: float = None
-    stress_at_break: float = None
-
    
 class ISO_1360_SpecimenMetricsDTO(BaseModel):
     """ DTO for a specific analysis type """
@@ -73,16 +70,18 @@ class SpecimenMetricsFactory:
     Factory to determine specimen creation based on analysis type or program model. 
     Encapsulates the logic for specimen instantiation.
     """
-    
+    _registry = {
+            "base": SpecimenMetricsDTO,
+            "ISO_1360": ISO_1360_SpecimenMetricsDTO
+        }
+
     @staticmethod
     def create_specimen(criteria: str = 'base'):
-        if criteria == "base":
-            return SpecimenMetricsDTO()
-        elif criteria == "analysis_type":
-            return ISO_1360_SpecimenMetricsDTO()
+        if criteria in SpecimenMetricsFactory._registry:
+            return SpecimenMetricsFactory._registry[criteria]()
         else:
             raise ValueError(f"Unknown criteria: {criteria}")
-
+        
 # Service Classes
 
 class SpecimenGraphManager:
@@ -91,7 +90,14 @@ class SpecimenGraphManager:
         pass
 
     def plot_stress_strain(self, ax):
-        # Handle plotting here
+        # Figure 1 Primary plot
+        pass
+
+    def plot_stress_strain_for_overlay(self, ax):
+        # Figure 2 Secondary plot
+        pass
+
+    def get_figures(self) -> (fig, fig):
         pass
 
 class SpecimenDataOperations:
@@ -124,16 +130,23 @@ class SpecimenDataOperations:
 
 class SpecimenAnalysisProtocol(Protocol):
     """ Perform calculations on specimen data depending on the desire analysis / ISO Standard"""
-    def __init__(self, specimen_properties_dto, SpecimenMetricsFactory):
+    def __init__(self,specimen_properties_dto):
+        pass
+    
+    def calculate_metrics(self, metrics):
+        """perform analysis specific computation on specimen metrics"""
         pass
 
-    def calculate_properties(self):
-        # Handle properties calculation here
+    def get_evaluation_metrics(criteria, metrics_factory = None):
+        if metrics_factory is None:
+            metrics_factory = SpecimenMetricsFactory(criteria)
+            return metrics_factory.create_specimen()
+    
+    def calculate_general_KPI(self):
+        # Handle KPI calculations here
         pass
+    
 
-    def _get_specimen_metrics(self):
-        # Handle metrics calculations here
-        pass
 
 class SpecimenDataManager:
     """ Manage import and export of specimen class from different sources"""
@@ -148,32 +161,69 @@ class SpecimenDataManager:
         return 
     
     @classmethod
-    def from_program_zip_file(cls, path) -> Specimen:
+    def from_program_zip_file(cls, path, data_formate:SpecimenIO()) -> Specimen:
         pass
     
 # Main Class
+
+unit_registry = UnitRegistry()
+
+def lazy_property(fn):
+    """Decorator to turn method into lazy property. Result is cached."""
+    attr_name = "_lazy_" + fn.__name__
+    
+    @property
+    def _lazy_property(self):
+        if not hasattr(self, attr_name):
+            setattr(self, attr_name, fn(self))
+        return getattr(self, attr_name)
+
+    return _lazy_property
+
 
 class Specimen:
     def __init__(self, name, length, width, thickness, weight, data = None, data_formater = None):
         self.name = name
         self.data_manager =  SpecimenDataManager(data, data_formater)
         self.properties = SpecimenPropertiesDTO(length=length, width=width, thickness=thickness, weight=weight)
-        self.metrics = SpecimenMetricsDTO()
+        self.metrics = None
+        self.analysis_protocol = SpecimenAnalysisProtocol(self.properties, self.metrics,)
         self.graph_manager = SpecimenGraphManager(self.properties, self.metrics)
-        self.analysis_service = SpecimenAnalysisService(self.properties, self.metrics)
-        self.unit_registry = UnitRegistry()
 
-        # ...
 
-        # Pint-powered properties for stress and strain with units.
-    @property
+
+    def calculate_metrics(self, criteria: str = 'base'):
+        metrics = self.analysis_protocol.get_specimen_metrics(criteria)
+        self.metrics = self.analysis_protocol.calculate_properties(metrics)
+
+        # Reset cached properties when metrics are recalculated
+        self._stress_with_unit = None
+        self._strain_with_unit = None
+
+        # Reset all lazy properties when metrics are recalculated
+        self.reset_lazy_properties()
+
+    def get_plots(self) -> (fig, fig):
+        pass
+
+    @lazy_property
     def stress_with_unit(self):
         return [s * unit_registry.pascal for s in self.data_manager.data.get('stress', [])]
 
-    @property
+    @lazy_property
     def strain_with_unit(self):
         return [s * unit_registry.pascal for s in self.data_manager.data.get('strain', [])]
-    
+
+    def reset_lazy_properties(self, *properties):
+        """Reset given lazy properties, or all if none specified."""
+        if properties:
+            for prop in properties:
+                if hasattr(self, "_lazy_" + prop):
+                    delattr(self, "_lazy_" + prop)
+        else:
+            for attr in list(vars(self)):
+                if attr.startswith("_lazy_"):
+                    delattr(self, attr)
 
 class SpecimenFromDB(Specimen):
     def __init__(self, name, data, length, width, thickness, weight, id):
