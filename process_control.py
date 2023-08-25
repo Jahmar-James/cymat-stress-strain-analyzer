@@ -161,9 +161,9 @@ class BaseControlSettings:
         center_relative_density = center_gcc / 2.7
         
         # Calculate relative density LSL and USL
-        relative_density_LSL = center_relative_density - tolerance_RD 
-        relative_density_USL = center_relative_density + tolerance_RD 
-        
+        relative_density_LSL = center_relative_density - (tolerance_RD /100)
+        relative_density_USL = center_relative_density + (tolerance_RD /100)
+            
         # Convert relative density LSL and USL to g/cc
         LSL = 2.7 * relative_density_LSL
         USL = 2.7 * relative_density_USL

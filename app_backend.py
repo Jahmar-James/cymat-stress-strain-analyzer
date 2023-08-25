@@ -87,7 +87,12 @@ project_root/
 │   ├── app_state.py                       # Holds the current state of the application
 │   └── app_backend.py                     # Backend logic for the application, and potential UI if using frameworks like Tkinter
 │
-├── tests/                                 # Test suites and test cases
+├── utils/
+│   ├── __init__.py
+|
+├── config/                                # Configuration files
+│
+├── tests/                                 # Test suites and test cases | mirror the structure of the main application
 │
 ├── static/                                # Static files like CSS, JS, images, etc. (if needed)
 │   
@@ -95,5 +100,7 @@ project_root/
 │   └── database/                          # Database files and related assets
 │
 └── docs/                                  # Documentation and related materials
+    ├── design/                            # Design documents
+    └── README.md                          # Project README
 
 """
