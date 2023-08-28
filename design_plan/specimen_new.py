@@ -1,4 +1,6 @@
 # specimen.py
+
+# Rename to sample to be consistent with the rest of the code base
 # DTOs
 
 from pydantic import BaseModel
