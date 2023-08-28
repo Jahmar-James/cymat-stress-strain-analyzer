@@ -17,12 +17,10 @@ from scipy.integrate import trapz
 from tabulate import tabulate
 from scipy.signal import medfilt
 from scipy.ndimage import gaussian_filter1d
-from scipy.signal import argrelextrema
 
 from ms_file_handling.excel_exporter import ExcelExporter
 from ms_file_handling.ms_word_exporter import WordExporter
 from specimens.specimen import Specimen, SpecimenDataManager, SpecimenGraphManager
-from standards.specimen_DIN import SpecimenDINAnalysis
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 
@@ -449,7 +447,7 @@ class DataHandler:
             # self.app.variables.average_of_specimens_hysteresis = data
         else:
             modulus_by_stress = self._calculate_modulus_by_stress(data, max_stress_index)
-            x, y = self._generate_linear_line(avg_data["Strain"].to_numpy(),modulus_by_stress, offset=0.009)
+            x, y = self._generate_linear_line(avg_data["Strain"].to_numpy(),modulus_by_stress)
         
         if test_filtering:
             data_set = {}
@@ -494,35 +492,9 @@ class DataHandler:
         max_stress_index = np.argmax(data['Stress'].values)
         return data["Stress"].iloc[max_stress_index], max_stress_index
 
-    def __find_closest_stress(self, data, stress_value):
+    def _find_closest_stress(self, data, stress_value):
         closest_stress_index = (data["Stress"] - stress_value).abs().idxmin()
         return closest_stress_index, data["Strain"].iloc[closest_stress_index], data["Stress"].iloc[closest_stress_index]
-    
-    def _find_closest_stress(self, data, stress_value):
-        first_stress_index_at_max = np.argwhere(data["Stress"] > stress_value)
-        
-        if first_stress_index_at_max.size > 0:
-            first_stress_index_at_max = first_stress_index_at_max[0][0]
-            
-            # Determine the local maximum stress after the point where the stress exceeds the input stress_value
-            local_maxima_indices = argrelextrema(data.iloc[first_stress_index_at_max:]["Stress"].values, np.greater)
-            if local_maxima_indices[0].size > 0:
-                # Adjust the index to match the original dataframe
-                local_max_index = local_maxima_indices[0][0] + first_stress_index_at_max
-            else:
-                # If there's no local maximum, find the closest stress index as before
-                local_max_index = (data["Stress"] - stress_value).abs().idxmin()
-            
-            # Find the closest corresponding stress in the masked raw data
-            closest_stress_index = (data.iloc[:local_max_index]["Stress"] - stress_value).abs().idxmin()
-        else:
-            # If there's no stress greater than the input stress_value, find the closest stress index as before
-            closest_stress_index = (data["Stress"] - stress_value).abs().idxmin()
-
-        closest_strain = data["Strain"].iloc[closest_stress_index]
-        closest_stress = data["Stress"].iloc[closest_stress_index]
-        
-        return closest_stress_index, closest_strain, closest_stress
 
     def _shift_strain(self, data, max_stress_index, closest_strain):
         strain_offset = data["Strain"].iloc[max_stress_index] - closest_strain
@@ -534,7 +506,7 @@ class DataHandler:
         end_pt_by_stress = data["Strain"].iloc[-1], data["Stress"].iloc[-1]
         return (peak_pt_by_stress[1] - end_pt_by_stress[1]) / (peak_pt_by_stress[0] - end_pt_by_stress[0])
  
-    def _generate_linear_line(self, strain_range, modulus, offset=0.009):
+    def _generate_linear_line(self, strain_range, modulus, offset=0.01):
         max_strain = max(strain_range)
         num_points = len(strain_range)
         x = np.linspace(0, max_strain, num = num_points)
@@ -601,11 +573,6 @@ class DataHandler:
             mean_stresses['20%'] = mean_stress_20
             mean_stresses['60%'] = self.app.variables.avg_pleatue_stress * 0.6
             mean_stresses['30%'] = self.app.variables.avg_pleatue_stress * 0.3
-        else:
-            mean_stresses['20%'] = self.app.variables.avg_pleatue_stress * 0.2
-            mean_stresses['30%'] = self.app.variables.avg_pleatue_stress * 0.3
-            mean_stresses['60%'] = self.app.variables.avg_pleatue_stress * 0.6
-            mean_stresses['70%'] = self.app.variables.avg_pleatue_stress * 0.7
 
         return mean_stresses
 
@@ -668,7 +635,6 @@ class DataHandler:
         min_stress = np.min(interpolated_stresses, axis=0)
         UCL_stress = average_stress + (control_limit_L * std_dev_stress)
         LCL_stress = average_stress - (control_limit_L * std_dev_stress)
-        # Cpk = np.min(((average_stress-LCL_stress)/(3*std_dev_stress)),((UCL_stress-average_stress)/(3*std_dev_stress)))
 
         average_strain = common_strain
 
@@ -783,7 +749,7 @@ class DataHandler:
         # Update specimen properties DataFrame
         self.properties_df = self.create_properties_df(selected_specimens)
 
-    def calculate_avg_KPI(self, lower_strain = 0.2, upper_strain = 0.4):
+    def calculate_avg_KPI(self, lower_strain = 0.2, upper_strain = 0.3):
         def calculate_plt(strain, lower_strain, upper_strain):
             idx_lower = (np.abs(strain - lower_strain)).argmin()
             idx_upper = (np.abs(strain - upper_strain)).argmin()
@@ -911,9 +877,7 @@ class SpecimenDataEncoder(json.JSONEncoder):
         Returns:
         dict or list or str or int or float or bool or None: The JSON-serializable representation of obj.
         """
-        if isinstance(obj, SpecimenDINAnalysis):
-            return  # return None or skip if the object is an instance of SpecimenDINAnalysis
-        elif isinstance(obj, SpecimenDataManager) or isinstance(obj, SpecimenGraphManager):
+        if isinstance(obj, SpecimenDataManager) or isinstance(obj, SpecimenGraphManager):
             return self.encode_dict(obj.__dict__)
         else:
             return super().default(obj)

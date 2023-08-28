@@ -1,10 +1,7 @@
-#add pint 
-
 import os
 from datetime import datetime
 from scipy.optimize import curve_fit
 from scipy.integrate import trapz
-from scipy.signal import argrelextrema
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -50,7 +47,7 @@ class Specimen:
         self.data_manager.add_stress_and_strain()
         if  self.processed_hysteresis_data is not None:
             self.calculate_shift_from_hysteresis()
-        
+        self.calculate_general_KPI()
 
     def calculate_general_KPI(self):
         self.calculate_energy()
@@ -85,7 +82,6 @@ class Specimen:
 
     def plot_curves(self, ax, OFFSET=0.002, debugging=True):
         self.graph_manager.plot_curves(ax, OFFSET, debugging)
-        self.calculate_general_KPI()
 
     @property
     def strain(self):
@@ -390,18 +386,10 @@ class SpecimenGraphManager:
     def calculate_youngs_modulus(self, stress, strain):
         start, end = self.first_increase_index, self.next_decrease_index
         if start is not None and end is not None:
-            if end - start < 5:
-                print("Not enough data points to calculate Young's Modulus accurately.")
-                print(f"It was calculated between the strain values {strain[start]} and {strain[end]}")
-                print("It is advised to mannually select the region by selecting 'Enable Selection Mode' in the menu bar. ")
-                slope = (stress[end] - stress[start]) / (strain[end] - strain[start])
-                self.youngs_modulus = slope
-                return
-            else:
-                def linear_func(x, a, b):
-                    return a * x + b
-                popt, _ = curve_fit(linear_func, strain[start:end], stress[start:end])
-                self.youngs_modulus = popt[0]  # slope of the line
+            def linear_func(x, a, b):
+                return a * x + b
+            popt, _ = curve_fit(linear_func, strain[start:end], stress[start:end])
+            self.youngs_modulus = popt[0]  # slope of the line
 
     def calculate_strength(self, stress, strain, offset=0.002):
         start, end = self.first_increase_index, self.next_decrease_index
@@ -465,6 +453,7 @@ class SpecimenGraphManager:
         if self.youngs_modulus is None:
             self.Calculate_Strength_Alignment()
 
+
         self.stress = np.array(self.specimen.stress.values)  # MPa
         self.strain = np.array(self.specimen.strain.values)  # %
 
@@ -477,11 +466,7 @@ class SpecimenGraphManager:
         ax.plot(self.strain_shifted, self.stress, label="Shifted Stress-Strain Curve")
 
     def plot_offset_curve(self, ax, OFFSET):
-        # filter using boolean indexing, such that offset line is only plotted to the max stress
-        mask = self.offset_line < max(self.stress)
-        offset_line_masked = self.offset_line[mask]
-        strain_shifted_masked = self.strain_shifted[mask]
-        ax.plot(strain_shifted_masked,offset_line_masked, alpha=0.7,  label=f"{OFFSET*100}% Offset Stress-Strain Curve")
+        ax.plot(self.strain_shifted, self.offset_line, alpha=0.7,  label=f"{OFFSET*100}% Offset Stress-Strain Curve")
     
     
     def plot_debugging_curves(self, ax, ESTIMATED_PLASTIC_INDEX_START, ESTIMATED_PLASTIC_INDEX_END):
@@ -673,25 +658,8 @@ class SpecimenDataManager:
     def align_hysteresis_data(self, max_stress_index):
         max_stress_hysteresis = self.formatted_hysteresis_data["stress"].iloc[max_stress_index]
 
-        first_stress_index_raw_at_max = np.argwhere(self.formatted_data["stress"] > max_stress_hysteresis)
-
-        if first_stress_index_raw_at_max.size > 0:
-            first_stress_index_raw_at_max = first_stress_index_raw_at_max[0][0]
-            
-            # Determine the local maximum stress after the point where the stress exceeds max_stress_hysteresis
-            local_maxima_indices = argrelextrema(self.formatted_data.iloc[first_stress_index_raw_at_max:]["stress"].values, np.greater)
-            if local_maxima_indices[0].size > 0:
-                # Adjust the index to match the original dataframe
-                local_max_index = local_maxima_indices[0][0] + first_stress_index_raw_at_max
-            else:
-                # If there's no local maximum, find the closest stress index as before
-                local_max_index = (self.formatted_data["stress"] - max_stress_hysteresis).abs().idxmin()
-            
-            # Find the closest corresponding stress in the masked raw data
-            closest_stress_index_raw = (self.formatted_data.iloc[:local_max_index]["stress"] - max_stress_hysteresis).abs().idxmin()
-        else:
-            # If there's no stress greater than max_stress_hysteresis, find the closest stress index as before
-            closest_stress_index_raw = (self.formatted_data["stress"] - max_stress_hysteresis).abs().idxmin()
+        # Find the closest corresponding stress in raw data
+        closest_stress_index_raw = (self.formatted_data["stress"] - max_stress_hysteresis).abs().idxmin()
 
         # Get the corresponding strain for closest stress in raw data
         closest_strain_raw = self.formatted_data["strain"].iloc[closest_stress_index_raw]
