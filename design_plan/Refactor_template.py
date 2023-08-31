@@ -168,7 +168,7 @@ class AppVariables:
         self.specimens = []
         self.average_of_specimens = None
         self.average_of_specimens_hysteresis = pd.DataFrame()
-        self.avg_pleatue_stress = None
+        self.avg_pleatue_stress = None 
         self.selected_indices = None
         self.selected_specimen_names = []
         self.current_specimen = None

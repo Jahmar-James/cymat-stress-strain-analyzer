@@ -1,5 +1,6 @@
 
 from specimen_new import Specimen, SpecimenFromDB, SpecimenRepository, SpecimenIO, SpecimenDataManager, SpecimenPropertiesDTO, SpecimenMetricsDTO, SpecimenGraphManager, SpecimenAnalysisProtocol
+from analyzable_entity import AnalyzableEntity
 from pint import UnitRegistry
 import numpy as np
 from process_control import ControlChart, ControlProcessMetrics
@@ -12,14 +13,14 @@ class SampleGroupCharacteristics(BaseModel):
     analysis_type: str
     strength: float
 
-class SampleGroup:
+class SampleGroup(AnalyzableEntity):
     """The main class that holds a collection of Specimen objects. Methods might include adding/removing specimens, iterating over specimens, and so on."""
     def __init__(self, characteristics: SampleGroupCharacteristics = None, data_manager = None, graph_manager = None ):
         self.specimens = []
         self.type = None
         self.characteristics = characteristics
         self.data_manager = data_manager or  SampleGroupDataManager()
-        self.graoh_manager = graph_manager or SampleGroupGraphManager()
+        self.graph_manager = graph_manager or SampleGroupGraphManager()
         self.stress = None
         self.strain = None
 

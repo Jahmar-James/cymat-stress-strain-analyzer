@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 from pint import UnitRegistry
 from typing_extensions import Protocol
+from bases import BaseRepository, ExcelExporter
+from analyzable_entity import AnalyzableEntity
 
 
 # DAO
@@ -102,6 +104,7 @@ class SpecimenGraphManager:
     def get_figures(self) -> (fig, fig):
         pass
 
+# sperate from specimen class but injected into app backend controller to perform operations on the specimen classes ie. SpecimenMetricsDTO, SpecimenPropertiesDTO, Specimen 
 class SpecimenDataOperations:
     """ Perform general operations on specimen data"""
     @staticmethod
@@ -183,7 +186,7 @@ def lazy_property(fn):
     return _lazy_property
 
 
-class Specimen:
+class Specimen(AnalyzableEntity):
     def __init__(self, name, length, width, thickness, weight, data = None, data_formater = None):
         self.name = name
         self.data_manager =  SpecimenDataManager(data, data_formater)
