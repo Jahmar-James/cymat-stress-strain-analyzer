@@ -4,12 +4,15 @@ from functools import cached_property
 
 import numpy as np
 
-from data_layer.models import AnalyzableEntity, SpecimenPropertiesDTO, SpecimenMetricsDTO
+from pydantic import BaseModel
+
+from data_layer.models import AnalyzableEntity, SpecimenPropertiesDTO, Property
 from data_layer.IO import SpecimenDataManager
+from data_layer.metrics import SpecimenMetricsDTO, Metric
 from service_layer.analysis import SpecimenAnalysisProtocol
 
 class Specimen(AnalyzableEntity):
-    def __init__(self, name, length, width, thickness, weight, data = None, data_formater = None):
+    def __init__(self, name : str, length : Property, width : Property, thickness : Property, weight : Property, data = None, data_formater = None):
         super().__init__()
         self.name = name
         self.data_manager =  SpecimenDataManager(data, data_formater)
@@ -20,9 +23,26 @@ class Specimen(AnalyzableEntity):
     def calculate_metrics(self, criteria: str = 'base'):
         metrics = self.analysis_protocol.get_specimen_metrics(criteria)
         self.metrics = self.analysis_protocol.calculate_properties(metrics)
+        self._set_metric_properties(self.metrics)
 
         # Reset all lazy properties when metrics are recalculated
         self.reset_cached_properties()
+
+    def _set_metric_properties(self, metrics: BaseModel):
+        """Set specimen properties based on metrics analysis results"""
+        dynamic_prop_names = []
+        new_unit_map = {}
+        for metric_name, metric_tuple in metrics.dict().items():  # type: str, Metric
+            if metric_name.endswith('_p'):
+                specimen_property_name = metric_name[:-2]
+                setattr(self, f"_{specimen_property_name}", metric_tuple.value)
+                dynamic_prop_names.append(specimen_property_name)
+                
+                new_unit_map[specimen_property_name] = metric_tuple.default_unit
+                
+        # Register anlaysis specific properties with Analyzable Entity and update unit mapping        
+        self._register_dynamic_properties(dynamic_prop_names)
+        self._set_unit_mapping(new_unit_map)
 
     def get_plots(self) -> (fig, fig):
         pass

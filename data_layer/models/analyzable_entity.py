@@ -1,28 +1,32 @@
 # app/data_layer/models/analyzable_entity.py
 
 from abc import ABC, abstractmethod
+from functools import partial
+from typing import Dict
 
-from pint import UnitRegistry
-
-unit_registry = UnitRegistry()
+from data_layer import unit_registry 
 
 class AnalyzableEntity(ABC):
     """
     An abstract class representing any entity that can be analyzed.
     This can be a Specimen or a SampleGroup.
     """
-    def __init__(self, default_unit_map=None):
+    def __init__(self, default_unit_map: Dict = None):
         self._set_unit_mapping(default_unit_map)
 
-    def _set_unit_mapping(self, unit_map):
+    def _set_unit_mapping(self, unit_map: Dict):
         if unit_map:
-            self.default_unit_map = unit_map
-        else:
+            if self.default_unit_map:
+                self.default_unit_map.update(unit_map)
+            else:
+                self.default_unit_map = unit_map
+                
+        elif not self.default_unit_map:
             self.default_unit_map = {
                 'strength': unit_registry.megapascal,
                 'stress': unit_registry.megapascal,
-                'strain': unit_registry.dimensionless, 
-        }
+                'strain': unit_registry.dimensionless,
+            }
    
     def strength(self, unit=None):
             return self._get_value_in_unit(self._strength, 'strength', unit)
@@ -32,6 +36,15 @@ class AnalyzableEntity(ABC):
 
     def strain(self, unit=None):
         return self._get_value_in_unit(self._strain, 'strain', unit)
+    
+    def _dynamic_property(self, name, unit=None):
+        value = getattr(self, f"_{name}")
+        return self._get_value_in_unit(value, name, unit)
+
+    def _register_dynamic_properties(self, prop_names):
+        for name in prop_names:
+            dynamic_prop = partial(self._dynamic_property, name)
+            setattr(self, name, dynamic_prop)
 
     def _get_value_in_unit(self, value, unit_type, unit=None):
         default_unit = self.default_unit_map[unit_type]
