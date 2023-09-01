@@ -213,6 +213,8 @@ project_root/
 │   ├── metrics/                           # Metrics computation related to specimens
 │   |    └── specimen_metrics.py
 │   └── IO/                               # Input/Output operations
+│      ├── __init__.py
+│      ├── data_manager.py                # Manage data for specimens and groups
 |      ├── repositories/                  # Storage and retrieval of data
 |      │   ├── base_repository.py         # Base class for database repository operations
 |      │   └── specimen_repository.py     # Specimen-specific database operations
