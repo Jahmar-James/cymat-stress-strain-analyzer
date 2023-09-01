@@ -230,11 +230,13 @@ project_root/
 │   │   ├── specimen_analysis_protocol.py  # Analysis specific to specimens
 │   │   └── sample_group_analysis_protocol.py # Analysis for groups of specimens
 │   ├── plotting/                          # Graph plotting and visualization
+│   |   ├── visualization_service.py       # 
 │   │   ├── specimen_graph_manager.py      # Manage specimen-specific graphs
 │   │   ├── sample_group_graph_manager.py  # Manage group-specific graphs
 │   │   ├── control_chart.py               # Generate control charts for data
 │   │   └── control_process_metrics.py     # Metrics for control process charts
 │   ├── operations/                        # Aggregate operations
+|   |   ├── data_processing_service.py     # 
 │   │   ├── specimen_operations.py         # Specimen-specific operations
 │   │   └── sample_group_operations.py     # Group-specific operations
 │   └── sample_group_facade.py             # A simplified interface for complex operations on SampleGroups
