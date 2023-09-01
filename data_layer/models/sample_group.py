@@ -1,7 +1,18 @@
 # app/data_layer/models/sample_group.py
 
-from data_layer.models import AnalyzableEntity
 from functools import cached_property
+from typing import TYPE_CHECKING
+
+import matplotlib.figure
+import numpy as np
+
+from data_layer.models import AnalyzableEntity
+from data_layer.models.sample_group_characteristics import SampleGroupCharacteristics
+
+if TYPE_CHECKING:
+
+    from data_layer.models.specimen import Specimen
+
 
 class SampleGroup(AnalyzableEntity):
     """The main class that holds a collection of Specimen objects. Methods might include adding/removing specimens, iterating over specimens, and so on."""
@@ -22,7 +33,7 @@ class SampleGroup(AnalyzableEntity):
     def __repr__(self) -> str:
         pass
     
-    def get_plots(self) -> (fig, fig):
+    def get_plots(self) -> (matplotlib.figure, matplotlib.figure):
         pass
     
     @cached_property

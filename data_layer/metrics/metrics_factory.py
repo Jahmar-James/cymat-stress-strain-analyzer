@@ -1,6 +1,6 @@
 # app/data_layer/metrics/metrics_factory.py
 
-from data_layer.metrics import SpecimenMetricsDTO, ISO_1360_SpecimenMetricsDTO
+from data_layer.metrics import SpecimenMetricsDTO, ISO_13314_SpecimenMetricsDTO
 
 
 class SpecimenMetricsFactory:
@@ -10,7 +10,7 @@ class SpecimenMetricsFactory:
     """
     _registry = {
             "base": SpecimenMetricsDTO,
-            "ISO_1360": ISO_1360_SpecimenMetricsDTO
+            "ISO_1360": ISO_13314_SpecimenMetricsDTO
         }
 
     @staticmethod

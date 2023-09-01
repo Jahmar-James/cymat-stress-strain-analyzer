@@ -1,9 +1,11 @@
 # app/data_layer/models/specimen_properties.py
 
 from pydantic import BaseModel
+from collections import namedtuple
 
 from data_layer import unit_registry
-from data_layer.models import Property
+
+Property = namedtuple('Property', ['value', 'default_unit'])
 
 # DTO
 # Specimen Subclasses

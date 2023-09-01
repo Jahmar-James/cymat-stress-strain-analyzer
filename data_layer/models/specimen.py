@@ -1,15 +1,19 @@
 # app/data_layer/models/specimen.py
 
 from functools import cached_property
+from typing import TYPE_CHECKING
 
 import numpy as np
-
 from pydantic import BaseModel
 
-from data_layer.models import AnalyzableEntity, SpecimenPropertiesDTO, Property
 from data_layer.IO import SpecimenDataManager
-from data_layer.metrics import SpecimenMetricsDTO, Metric
+from data_layer.models.analyzable_entity import AnalyzableEntity
+from data_layer.models.specimen_properties import (Property, SpecimenPropertiesDTO)
 from service_layer.analysis import SpecimenAnalysisProtocol
+
+if TYPE_CHECKING:
+    from data_layer.metrics import Metric, SpecimenMetricsDTO
+    import matplotlib.figure
 
 class Specimen(AnalyzableEntity):
     def __init__(self, name : str, length : Property, width : Property, thickness : Property, weight : Property, data = None, data_formater = None):
@@ -18,7 +22,7 @@ class Specimen(AnalyzableEntity):
         self.data_manager =  SpecimenDataManager(data, data_formater)
         self.properties = SpecimenPropertiesDTO(length=length, width=width, thickness=thickness, weight=weight)
         self.metrics = None
-        self.analysis_protocol = SpecimenAnalysisProtocol(self.properties, self.metrics,)
+        self.analysis_protocol = SpecimenAnalysisProtocol(self.properties, self.metrics)
 
     def calculate_metrics(self, criteria: str = 'base'):
         metrics = self.analysis_protocol.get_specimen_metrics(criteria)
@@ -44,7 +48,7 @@ class Specimen(AnalyzableEntity):
         self._register_dynamic_properties(dynamic_prop_names)
         self._set_unit_mapping(new_unit_map)
 
-    def get_plots(self) -> (fig, fig):
+    def get_plots(self) -> ('matplotlib.figure', 'matplotlib.figure'):
         pass
     
     @cached_property

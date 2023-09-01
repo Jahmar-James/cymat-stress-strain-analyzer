@@ -1,6 +1,6 @@
 # app/data_layer/models/specimen_DB.py
 
-from data_layer.models.specimen_DB import Specimen
+from data_layer.models.specimen import Specimen
 
 class SpecimenDB(Specimen):
     def __init__(self, name, length, width, thickness, weight, data = None, data_formater = None):
