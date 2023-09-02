@@ -11,6 +11,7 @@ from data_layer.models.analyzable_entity import AnalyzableEntity
 from data_layer.models.specimen_properties import (Property, SpecimenPropertiesDTO)
 from service_layer.analysis import SpecimenAnalysisProtocol
 
+
 if TYPE_CHECKING:
     from data_layer.metrics import Metric, SpecimenMetricsDTO
     import matplotlib.figure
@@ -21,8 +22,8 @@ class Specimen(AnalyzableEntity):
         self.name = name
         self.data_manager =  SpecimenDataManager(data, data_formater)
         self.properties = SpecimenPropertiesDTO(length=length, width=width, thickness=thickness, weight=weight)
-        self.metrics = None
-        self.analysis_protocol = SpecimenAnalysisProtocol(self.properties, self.metrics)
+        self.metrics = SpecimenMetricsDTO
+        self.analysis_protocol = SpecimenAnalysisProtocol(self.properties, self.metrics, self.data_manager)
 
     def calculate_metrics(self, criteria: str = 'base'):
         metrics = self.analysis_protocol.get_specimen_metrics(criteria)

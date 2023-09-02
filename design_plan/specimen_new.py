@@ -109,7 +109,7 @@ class SpecimenDataOperations:
     """ Perform general operations on specimen data"""
     @staticmethod
     def calculate_strength(specimen: Specimen) -> float:
-        return specimen.metrics.YS
+        pass
     
     @staticmethod
     def calculate_young_modulus(specimen: Specimen) -> float:

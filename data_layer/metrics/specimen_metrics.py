@@ -17,8 +17,8 @@ class SpecimenMetricsDTO(BaseModel):
 
     Metric is a named tuple with value and defualt unit.
     """
-    IYS: Metric = None
-    YS: Metric = None
-    young_modulus: Metric = None
-    strength: Metric = None
+    IYS: Metric = Metric(None, unit_registry.megapascal)
+    YS: Metric = Metric(None, unit_registry.megapascal)
+    young_modulus: Metric = Metric(None, unit_registry.megapascal)
+    strength: Metric = Metric(None, unit_registry.megapascal)
 
