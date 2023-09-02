@@ -10,12 +10,19 @@ import string
 
 import numpy as np
 
-from typing import TYPE_CHECKING
+from abc import ABC, abstractmethod
 
-if TYPE_CHECKING:
-    from data_layer.models import Specimen
+from ..models.specimen import Specimen
+from ..IO.specimen_data_manager import SpecimenDataManager
     
-class SpecimenIO:
+    
+
+class Idataformatter(ABC):
+    @abstractmethod
+    def read_and_clean_data() -> pd.DataFrame:
+        pass
+    
+class SpecimenIO(Idataformatter):
     """
     Import Raw Data: Read and clean data from a specimen file
     Import Processed Data: Read custom zip file and load data into a specimen object
@@ -143,7 +150,7 @@ class SpecimenDataEncoder(json.JSONEncoder):
         Returns:
         dict or list or str or int or float or bool or None: The JSON-serializable representation of obj.
         """
-        if isinstance(obj, SpecimenDataManager) or isinstance(obj, SpecimenGraphManager):
+        if isinstance(obj, 'SpecimenDataManager') or isinstance(obj, 'SpecimenGraphManager'):
             return self.encode_dict(obj.__dict__)
         else:
             return super().default(obj)

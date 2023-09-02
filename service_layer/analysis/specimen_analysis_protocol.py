@@ -1,6 +1,6 @@
 # app/service_layer/analysis/specimen_analysis_protocol.py
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from typing_extensions import Protocol
 
 from data_layer.IO.specimen_data_manager import SpecimenDataManager
@@ -10,7 +10,6 @@ from service_layer.operations.specimen_operations import SpecimenOperations
 if TYPE_CHECKING:
     from data_layer.models.specimen_properties import SpecimenPropertiesDTO
     from data_layer.metrics.specimen_metrics import SpecimenMetricsDTO
-    from pydantic import BaseModel
 
 class BaseSpecimenAnalysisProtocol(Protocol):
     """ Perform calculations on specimen data depending on the desire analysis / ISO Standard"""
@@ -34,19 +33,28 @@ class BaseSpecimenAnalysisProtocol(Protocol):
 class SpecimenAnalysisProtocol(BaseSpecimenAnalysisProtocol):
     """ Perform calculations on specimen data for defualt analysis SpecimenMetricsDTO """
     
-    def __init__(self, specimen_properties_dto: 'SpecimenPropertiesDTO', specimen_metrics_dto: 'SpecimenMetricsDTO', data_manager : 'SpecimenDataManager') :
+    def __init__(self, specimen_properties_dto: 'SpecimenPropertiesDTO', specimen_metrics_dto: 'SpecimenMetricsDTO',
+                 data_manager : 'SpecimenDataManager', specimen_operations : Optional['SpecimenOperations'] = None) :
         self.specimen_properties_dto = specimen_properties_dto
         self.specimen_metrics_dto = specimen_metrics_dto
         self.data_manager = data_manager
+        self.specimen_operations = specimen_operations or SpecimenOperations()
         
     def calculate_metrics(self, metrics: 'SpecimenMetricsDTO'):
         """perform analysis specific computation on specimen metrics"""
-        offset = 0.002 # 0.2% offset
-        start_idx_along_strain, end_idx_along_strain = self.data_manager.points_of_interest['start_idx_along_strain_youngs_modulus'], self.data_manager.points_of_interest['end_idx_along_strain_youngs_modulus']
-        young_modulus = SpecimenOperations.calculate_young_modulus(start_idx_along_strain, end_idx_along_strain, slope_algorithm)
-        IYS = SpecimenOperations.calculate_IY_strength(self.data_manager.data, young_modulus, self.data_manager.PointsOFInterest.intercept_algorithm)
-        YS = SpecimenOperations.calculate_Y_strength(self.data_manager.data, young_modulus, offset ,self.data_manager.PointsOFInterest.intercept_algorithm)
-        strength = SpecimenOperations.calculate_strength(self.data_manager.data, young_modulus, offset, scipy_local_minima_algorithm)
+        if self.data_manager.data is not None:
+            start_idx_along_strain, end_idx_along_strain = self.data_manager.points['start_idx_along_strain_youngs_modulus'], self.data_manager.points['end_idx_along_strain_youngs_modulus']
+            young_modulus = self.specimen_operations.calculate_young_modulus(start_idx_along_strain, end_idx_along_strain, slope_algorithm = None)
+            IYS = self.specimen_operations.calculate_IY_strength(self.data_manager, index = None)
+            
+            if young_modulus is not None:
+                offset = 0.002 # 0.2% offset
+                YS = self.specimen_operations.calculate_strength(self.data_manager, young_modulus, offset = offset ,intercept_algorithm = self.data_manager.PointsOFInterest.intercept_algorithm)
+        else:
+            #Data must be loaded before metrics can be calculated
+            raise ValueError("Data must be loaded before metrics can be calculated")
+        
+
         
     def calculate_general_KPI(self):
         # Handle KPI calculations here
