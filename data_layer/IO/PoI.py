@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Callable, Optional
 
 class PointsOfInterest(ABC):
-    def __init__(self, data: Any, config: Dict = None):
+    def __init__(self, data: Any, config: Optional[Dict] = None):
         """
         Initialize the PointsOfInterest object with specimen data and optional configuration.
         

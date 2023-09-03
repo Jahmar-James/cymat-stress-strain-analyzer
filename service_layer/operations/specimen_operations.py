@@ -2,11 +2,13 @@
 
 import inspect
 import logging
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Optional, Tuple, List
 
 import numpy as np
 import pandas as pd
 import scipy.optimize
+import scipy.integrate
+import scipy.interpolate 
 from scipy.optimize import OptimizeWarning
 
 from ...data_layer.IO.specimen_data_manager import SpecimenDataManager
@@ -39,12 +41,12 @@ class SpecimenOperations(DataProcessingService):
         try:
             # Calculate Stress and Strain
             data = specimen_data.copy()
-            Area = specimen_properties.cross_sectional_area
-            data['Stress'] = specimen_data['Force'] / Area
-            data['Strain'] = specimen_data['Displacement'] / specimen_properties.original_length
+            Area = specimen_properties.cross_sectional_area # mm^2
+            data['Stress'] = specimen_data['Force'] / Area # MPa (N/mm^2)
+            data['Strain'] = specimen_data['Displacement'] / specimen_properties.original_length # mm/mm (unitless)
             return data
         except Exception as e:
-            logging.error(f"Server_layer: {current_function_name} | Failed to calculate stress and strain: {e}. ")
+            logging.error(f"Server_layer: {current_function_name} | Failed to calculate stress and strain: {e}.")
             return None
         
     @staticmethod
@@ -166,14 +168,59 @@ class SpecimenOperations(DataProcessingService):
         end = index or data_manager.next_decrease_index
         return (strain[end], stress[end])
         
-             
+    @staticmethod
+    def calculate_energy_absorption(data: pd.DataFrame, strain_precentage: float) -> None:
+        """Calculate the energy absorbed by the specimen up to a given strain percentage (in MPa and %)."""
+        required_columns = {'Stress', 'Strain'}
+        if not required_columns.issubset(data.columns):
+            missing_columns = required_columns - set(data.columns)
+            logging.error(f"calculate_energy_absorption: Missing required columns in DataFrame: {', '.join(missing_columns)}. Sugested Action: Ensure data has the required columns.")
+            return None
+        
+        # check if the strain percentage is valid
+        # if between 0 and 1 then okay
+        # else if between 0 and 100 then convert to 0 and 1 and warn user
+        # else raise error
+        
+        if 0 < strain_precentage <= 1:
+            pass
+        elif 0 < strain_precentage <= 100:
+            strain_precentage = strain_precentage / 100
+            logging.warning(f"Strain precentage is not between 0 and 1. Converted to {strain_precentage}")
+        else:
+            raise ValueError(f"Strain precentage must be between 0 and 1 or between 0 and 100. Provided value: {strain_precentage}")
+        
+        strain = data['Strain'] 
+        stress = data['Stress'] # MPa
+        
+        index = (np.abs(strain - strain_precentage)).argmin()
+        return scipy.integrate.trapz(stress[:index], strain[:index]) * 1000  # convert to kJ from J
+    
+    @staticmethod
+    def calculate_specific_energy_absorption(energy_volumetic_kJ_m3: List[float], density: float) -> Optional[List[float]]:
+        """Calculate the specific energy absorption of the specimen.""" 
+        
+        # convert Density to kg/m^3 from g/cm^3
+        density_kg_meters = density * 1000  # kg/m^3
+        
+        return [energy_volumetic_kJ_m3 / density_kg_meters for energy_volumetic_kJ_m3 in energy_volumetic_kJ_m3]
+    
+    @staticmethod
+    def calculate_stress_at_strain(data: pd.DataFrame, strain_target: float) -> Optional[float]:
+        """Calculate the stress at a given strain."""
+        required_columns = {'Stress', 'Strain'}
+        if not required_columns.issubset(data.columns):
+            missing_columns = required_columns - set(data.columns)
+            logging.error(f"calculate_stress_at_strain: Missing required columns in DataFrame: {', '.join(missing_columns)}. Sugested Action: Ensure data has the required columns.")
+            return None
+        
+        stress = data['Stress']
+        strain = data['Strain']
+        
+        #  interpolate the stress at the given strain
+        return scipy.interpolate.interp1d(strain, stress)(strain_target)
 
     @staticmethod
-    def calculate_energy_absorption(specimen: 'Specimen', strain_precentage: float) -> None:
-        """Calculate the energy absorbed by the specimen up to a given strain percentage."""
-        pass
-
-    @staticmethod
-    def shift_data(shift, data ) -> pd.DataFrame:
+    def shift_data(shift , data : pd.DataFrame ) -> pd.DataFrame:
         """Shift the data by a specified value."""
-        pass
+        return data

@@ -1,7 +1,7 @@
 # app/data_layer/models/specimen.py
 
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 from pydantic import BaseModel
@@ -11,9 +11,11 @@ from data_layer.models.analyzable_entity import AnalyzableEntity
 from data_layer.models.specimen_properties import (Property, SpecimenPropertiesDTO)
 from service_layer.analysis import SpecimenAnalysisProtocol
 
+from ..metrics import SpecimenMetricsDTO
+from ...service_layer.analysis.specimen_analysis_protocol import BaseSpecimenAnalysisProtocol
 
 if TYPE_CHECKING:
-    from data_layer.metrics import Metric, SpecimenMetricsDTO
+    from data_layer.metrics import Metric
     import matplotlib.figure
 
 class Specimen(AnalyzableEntity):
@@ -23,11 +25,18 @@ class Specimen(AnalyzableEntity):
         self.data_manager =  SpecimenDataManager(data, data_formater)
         self.properties = SpecimenPropertiesDTO(length=length, width=width, thickness=thickness, weight=weight)
         self.metrics = SpecimenMetricsDTO
-        self.analysis_protocol = SpecimenAnalysisProtocol(self.properties, self.metrics, self.data_manager)
+        self.analysis_protocol = SpecimenAnalysisProtocol(specimen_properties = self.properties, data_manager = self.data_manager)
+        
+    def set_analysis_type(self, analysis_type , analysis_protocol : Optional['BaseSpecimenAnalysisProtocol'] = None):
+        self.analysis_type = analysis_type
+        self.analysis_protocol = analysis_protocol or SpecimenAnalysisProtocol( self.properties, self.data_manager)
+        self.analysis_protocol.calculate_metrics(analysis_type)
 
     def calculate_metrics(self, criteria: str = 'base'):
-        metrics = self.analysis_protocol.get_specimen_metrics(criteria)
-        self.metrics = self.analysis_protocol.calculate_properties(metrics)
+        metrics = self.analysis_protocol.get_evaluation_metrics(criteria)
+        metrics = self.analysis_protocol.calculate_metrics(metrics)
+        key_points = self.analysis_protocol.get_key_points()
+        self.metrics = self.analysis_protocol.calculate_general_KPI(existing_metrics = metrics, key_points=key_points)
         self._set_metric_properties(self.metrics)
 
         # Reset all lazy properties when metrics are recalculated
