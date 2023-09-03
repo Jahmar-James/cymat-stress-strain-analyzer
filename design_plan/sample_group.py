@@ -86,7 +86,7 @@ class SampleGroupAnalysisProtocol:
 
 class SampleGroupGraphManager:
     """A service class for all graphical operations related to SampleGroups, including plotting aggregated data or overlaying individual specimen plots."""
-    def __init__(self, sample_group: SampleGroup, plotter: SampleGroupPlotter = None, contol_chart: ControlChart = None):
+    def __init__(self, sample_group: SampleGroup, plotter: 'SampleGroupPlotter' = None, contol_chart: ControlChart = None):
         self.sample_group = sample_group 
         self.control_chart = contol_chart or ControlChart()
         self.plotter = plotter or  SampleGroupPlotter()

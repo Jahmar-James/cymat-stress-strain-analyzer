@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from data_layer.IO.repositories import BaseRepository
+from .base_repository import BaseRepository
 
 if TYPE_CHECKING:
     from data_layer.models import SpecimenDB
