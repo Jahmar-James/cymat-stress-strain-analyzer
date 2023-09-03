@@ -70,11 +70,11 @@ class Specimen(AnalyzableEntity):
     
     @cached_property
     def _strength(self) -> float:
-        return self.metrics.strength
+        return self.metrics.get_value('strength', 0)
     
     @cached_property
     def _stress(self) -> np.ndarray:
-        return  self.data_manager.data.get('stress', np.array([]))
+        return self.data_manager.data.get('stress', np.array([]))
 
     @cached_property
     def _strain(self) -> np.ndarray:

@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
+from typing import Optional
+
 def main():
     # User visual Test functions - Comment out when not in use
     # Unit and Integration tests to be added
@@ -31,7 +33,7 @@ def main():
 class ControlProcessMetrics:
     """Class responsible for calculating mean, standard deviation, capability indices, and specification limits."""
     
-    def __init__(self, data=None, LSL=None, USL=None):
+    def __init__(self, data  = None, LSL=None, USL=None):
         self.original_data = data
         self.data = data[~np.isnan(data)]  # Ignore NaN values
         self.mean = self.calculate_mean() if data is not None else None
@@ -52,6 +54,8 @@ class ControlProcessMetrics:
 
     def set_control_limits(self):
         """Calculate control limits based on data's statistical properties."""
+        if self.mean is None or self.sigma is None:
+            raise ValueError("Mean and standard deviation must be calculated first.")
         self.LCL = self.mean - 3 * self.sigma
         self.UCL = self.mean + 3 * self.sigma
 
