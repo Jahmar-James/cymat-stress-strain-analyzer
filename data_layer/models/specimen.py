@@ -1,12 +1,13 @@
 # app/data_layer/models/specimen.py
 
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 from pydantic import BaseModel
 
 from data_layer.IO import SpecimenDataManager
+from ..IO.cross_section_manager import CrossSectionManager
 from data_layer.models.analyzable_entity import AnalyzableEntity
 from data_layer.models.specimen_properties import (Property, SpecimenPropertiesDTO)
 from service_layer.analysis import SpecimenAnalysisProtocol
@@ -39,7 +40,7 @@ class Specimen(AnalyzableEntity):
         new_unit_map = {}
         for metric_name, metric_tuple in metrics.dict().items():  # type: str, Metric
             if metric_name.endswith('_p'):
-                specimen_property_name = metric_name[:-2]
+                specimen_property_name = metric_name[:-2] # Remove '_p' from metric name
                 setattr(self, f"_{specimen_property_name}", metric_tuple.value)
                 dynamic_prop_names.append(specimen_property_name)
                 
@@ -48,6 +49,11 @@ class Specimen(AnalyzableEntity):
         # Register anlaysis specific properties with Analyzable Entity and update unit mapping        
         self._register_dynamic_properties(dynamic_prop_names)
         self._set_unit_mapping(new_unit_map)
+
+    def analyze_cross_section(self,  image_path: str, cross_section_manager: Optional['CrossSectionManager'] =  None):
+        """Analyze the cross-section of the specimen."""
+        self.cross_section_manager = cross_section_manager or CrossSectionManager(image_path)
+        self.cross_section_manager.analyze_image()
 
     def get_plots(self) -> ('matplotlib.figure', 'matplotlib.figure'):
         pass
@@ -63,4 +69,8 @@ class Specimen(AnalyzableEntity):
     @cached_property
     def _strain(self) -> np.ndarray:
         return self.data_manager.data.get('strain', np.array([]))
+    
+    @cached_property
+    def _cross_section_analysis(self) -> dict:
+        return self.cross_section_manager.analysis_results if self.cross_section_manager else None
 
