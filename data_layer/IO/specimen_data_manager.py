@@ -22,7 +22,7 @@ class SpecimenDataManager:
         
         self.data = data
         self.data_formatter = data_formatter or SpecimenIO()
-        self.repository  =  repository or SpecimenRepository( ORM ) # placeholder for ORM
+        self.repository  =  repository or SpecimenRepository()
         self.points_of_interest = points_of_interest or YoungModulusPointsOfInterest(data) 
         self.specimen_operations = specimen_operations or SpecimenOperations()
         
@@ -51,11 +51,11 @@ class SpecimenDataManager:
             raise ValueError("Either shift or data_marker must be provided")
         
     @classmethod
-    def from_database(cls, id,  repository_instance:SpecimenRepository) -> 'SpecimenDB': 
+    def from_database(cls, id,  repository_instance:'SpecimenRepository') -> 'SpecimenDB': 
         pass
     
     @classmethod
-    def from_program_zip_file(cls, path, data_formate:SpecimenIO()) -> 'Specimen':
+    def from_program_zip_file(cls, path, data_formatter:'SpecimenIO') -> 'Specimen':
         pass
     
     @property

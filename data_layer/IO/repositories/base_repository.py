@@ -97,6 +97,6 @@ class BaseRepository:
         with provide_session(current_session) as active_session:
             count_query = select(func.count()).select_from(self.model)
             entity_count = active_session.scalar(count_query)
-            return entity_count
+            return entity_count if entity_count else 0
         
  

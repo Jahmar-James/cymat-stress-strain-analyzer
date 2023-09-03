@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from functools import partial
-from typing import Dict
+from typing import Dict, Optional
 
 from data_layer import unit_registry 
 
@@ -11,10 +11,10 @@ class AnalyzableEntity(ABC):
     An abstract class representing any entity that can be analyzed.
     This can be a Specimen or a SampleGroup.
     """
-    def __init__(self, default_unit_map: Dict = None):
+    def __init__(self, default_unit_map: Optional[Dict] = None):
         self._set_unit_mapping(default_unit_map)
 
-    def _set_unit_mapping(self, unit_map: Dict):
+    def _set_unit_mapping(self, unit_map: Optional[Dict]):
         if unit_map:
             if self.default_unit_map:
                 self.default_unit_map.update(unit_map)

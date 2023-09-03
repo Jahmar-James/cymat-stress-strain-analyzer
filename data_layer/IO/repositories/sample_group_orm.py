@@ -1,10 +1,10 @@
 from datetime import datetime
-from sqlalchemy import Integer, String, DateTime, Enum, Column, ForeignKey, Table, Boolean, Float, Text, JSON, JSONB, LargeBinary
+from sqlalchemy import Integer, String, DateTime, Enum, Column, ForeignKey, Table, Boolean, Float, Text, JSON, LargeBinary
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from .base_orm import BaseORMVersioned
 
-class SampleGroupTable(BaseORMVersioned):
+class SampleGroup_Table(BaseORMVersioned):
     """A SQLAlchemy table for storing SampleGroup data in a database."""
     __tablename__ = "sample_groups"
     __table_args__ = {'extend_existing': True}
