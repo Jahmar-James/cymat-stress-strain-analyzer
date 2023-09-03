@@ -11,6 +11,7 @@ from ..IO.cross_section_manager import CrossSectionManager
 from data_layer.models.analyzable_entity import AnalyzableEntity
 from data_layer.models.specimen_properties import (Property, SpecimenPropertiesDTO)
 from service_layer.analysis import SpecimenAnalysisProtocol
+from ...service_layer.plotting.specimen_graph_manager import SpecimenGraphManager
 
 
 if TYPE_CHECKING:
@@ -55,8 +56,8 @@ class Specimen(AnalyzableEntity):
         self.cross_section_manager = cross_section_manager or CrossSectionManager(image_path)
         self.cross_section_manager.analyze_image()
 
-    def get_plots(self) -> ('matplotlib.figure', 'matplotlib.figure'):
-        pass
+    def get_plots(self,graph_mangaer: Optional['SpecimenGraphManager'] = None) -> ('matplotlib.figure', 'matplotlib.figure'):
+        self.graph_mangaer = graph_mangaer or SpecimenGraphManager(self)
     
     @cached_property
     def _strength(self) -> float:
