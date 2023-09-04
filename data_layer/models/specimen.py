@@ -6,15 +6,18 @@ from typing import TYPE_CHECKING, Optional
 import numpy as np
 from pydantic import BaseModel
 
-from data_layer.IO import SpecimenDataManager
+
+from .analyzable_entity import AnalyzableEntity
+from .specimen_properties import (Property, SpecimenPropertiesDTO)
+from ..metrics import SpecimenMetricsDTO
+
+from ..IO import SpecimenDataManager
+from ...service_layer.analysis import SpecimenAnalysisProtocol
+from ...service_layer.analysis.specimen_analysis_protocol import BaseSpecimenAnalysisProtocol
+
 from ..IO.cross_section_manager import CrossSectionManager
-from data_layer.models.analyzable_entity import AnalyzableEntity
-from data_layer.models.specimen_properties import (Property, SpecimenPropertiesDTO)
-from service_layer.analysis import SpecimenAnalysisProtocol
 from ...service_layer.plotting.specimen_graph_manager import SpecimenGraphManager
 
-from ..metrics import SpecimenMetricsDTO
-from ...service_layer.analysis.specimen_analysis_protocol import BaseSpecimenAnalysisProtocol
 
 if TYPE_CHECKING:
     from data_layer.metrics import Metric

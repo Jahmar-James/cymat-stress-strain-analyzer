@@ -6,10 +6,9 @@ from typing import TYPE_CHECKING
 import matplotlib.figure
 import numpy as np
 
-from data_layer.models import AnalyzableEntity
-from data_layer.models.sample_group_characteristics import SampleGroupCharacteristics
-
+from .analyzable_entity import AnalyzableEntity
 from ..IO.group_data_manager import SampleGroupDataManager
+from .sample_group_characteristics import SampleGroupCharacteristics
 from ...service_layer.plotting.sample_group_graph_manager import SampleGroupGraphManager
 
 if TYPE_CHECKING:

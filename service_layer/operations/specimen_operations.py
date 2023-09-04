@@ -11,7 +11,6 @@ import scipy.integrate
 import scipy.interpolate 
 from scipy.optimize import OptimizeWarning
 
-from ...data_layer.IO.specimen_data_manager import SpecimenDataManager
 from .data_processing_service import DataProcessingService
 
 # Configure logging
@@ -21,6 +20,7 @@ if TYPE_CHECKING:
     from data_layer.metrics.specimen_metrics import SpecimenMetricsDTO
     from data_layer.models.specimen import Specimen
     from data_layer.models.specimen_properties import SpecimenPropertiesDTO
+    from data_layer.IO.specimen_data_manager import SpecimenDataManager
 
 class SpecimenOperations(DataProcessingService):
     """ Perform general operations on specimen data"""

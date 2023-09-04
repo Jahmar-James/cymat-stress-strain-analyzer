@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from data_layer.models.specimen import Specimen
+from .specimen import Specimen
 from ..IO.repositories.specimen_repository import SpecimenRepository
 
 

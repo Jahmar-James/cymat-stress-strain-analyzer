@@ -1,6 +1,6 @@
 # app/data_layer/metrics/metrics_factory.py
 
-from data_layer.metrics import SpecimenMetricsDTO, ISO_13314_SpecimenMetricsDTO
+from . import SpecimenMetricsDTO, ISO_13314_SpecimenMetricsDTO
 
 
 class SpecimenMetricsFactory:

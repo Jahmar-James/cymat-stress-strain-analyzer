@@ -2,7 +2,7 @@
 
 from .data_processing_service import DataProcessingService
 
-from ...data_layer.models.sample_group import SampleGroup
+from data_layer.models.sample_group import SampleGroup
 
 class SampleGroupOperations(DataProcessingService):
     """

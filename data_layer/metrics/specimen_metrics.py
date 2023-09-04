@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, Any
 
 from data_layer import unit_registry
-from data_layer.metrics import Metric
+from . import Metric
 
 """
 Properties that need to be set to specimen must end with '_p' suffix

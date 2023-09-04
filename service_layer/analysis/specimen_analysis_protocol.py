@@ -7,8 +7,8 @@ from data_layer.IO.specimen_data_manager import SpecimenDataManager
 from data_layer.metrics.metrics_factory import SpecimenMetricsFactory
 from service_layer.operations.specimen_operations import SpecimenOperations
 
-from ...data_layer import unit_registry
-from ...data_layer.metrics import Metric
+from data_layer import unit_registry
+from data_layer.metrics import Metric
 
 if TYPE_CHECKING:
     from data_layer.models.specimen_properties import SpecimenPropertiesDTO
@@ -71,7 +71,7 @@ class SpecimenAnalysisProtocol(BaseSpecimenAnalysisProtocol):
             raise ValueError("Data must be loaded before metrics can be calculated")
             return existing_metrics
         
-    def calculate_general_KPI(self, existing_metrics: 'SpecimenMetricsDTO', , key_points: dict, properties: Optional['SpecimenPropertiesDTO']  = None) -> 'SpecimenMetricsDTO':
+    def calculate_general_KPI(self, existing_metrics: 'SpecimenMetricsDTO', key_points: dict, properties: Optional['SpecimenPropertiesDTO']  = None) -> 'SpecimenMetricsDTO':
         # Energy absorption at key points
         if self.data_manager.data is not None:
             

@@ -12,11 +12,6 @@ import numpy as np
 
 from abc import ABC, abstractmethod
 
-from ..models.specimen import Specimen
-from ..IO.specimen_data_manager import SpecimenDataManager
-    
-    
-
 class Idataformatter(ABC):
     @abstractmethod
     def read_and_clean_data() -> pd.DataFrame:
@@ -72,6 +67,7 @@ class SpecimenIO(Idataformatter):
     
     # Archived Implementation till specimen is refactored
     def load_specimen_data(self, file_path):
+        from ..models import Specimen
         """
         Loads the specimen data from a zipped file.
 
@@ -141,6 +137,7 @@ class SpecimenDataEncoder(json.JSONEncoder):
         super().__init__(*args, **kwargs)
 
     def default(self, obj):
+        from ..models import SpecimenDataManager, SpecimenGraphManager
         """
         Overrides the default method of json.JSONEncoder.
 

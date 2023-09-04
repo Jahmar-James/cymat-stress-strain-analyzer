@@ -4,16 +4,19 @@ from typing import TYPE_CHECKING, Optional
 
 import pandas as pd
 
-from ...service_layer.operations.specimen_operations import SpecimenOperations
-from ..IO.repositories.specimen_repository import SpecimenRepository
-from .PoI import (PointsOfInterest, YoungModulusPointsOfInterest,
-                  ZeroPointsOfInterest)
+from service_layer.operations.specimen_operations import SpecimenOperations
+
 from .specimenIO import Idataformatter, SpecimenIO
+from ..IO.repositories.specimen_repository import SpecimenRepository
+from .PoI import (PointsOfInterest, YoungModulusPointsOfInterest, ZeroPointsOfInterest)
+
+
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from data_layer.models import Specimen, SpecimenDB
 
-class SpecimenDataManager:
+class SpecimenDataManager():
     """Manage import and export of specimen class from different sources"""
     def __init__(self, data=None, data_formatter : Optional['Idataformatter'] = None, 
                  repository : Optional['SpecimenRepository'] = None,
