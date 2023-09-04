@@ -6,22 +6,21 @@ from typing import TYPE_CHECKING, Optional
 import numpy as np
 from pydantic import BaseModel
 
-
-from .analyzable_entity import AnalyzableEntity
-from .specimen_properties import (Property, SpecimenPropertiesDTO)
-from ..metrics import SpecimenMetricsDTO
+from service_layer.analysis import SpecimenAnalysisProtocol
 
 from ..IO import SpecimenDataManager
-from ...service_layer.analysis import SpecimenAnalysisProtocol
-from ...service_layer.analysis.specimen_analysis_protocol import BaseSpecimenAnalysisProtocol
-
 from ..IO.cross_section_manager import CrossSectionManager
-from ...service_layer.plotting.specimen_graph_manager import SpecimenGraphManager
-
+from ..metrics import SpecimenMetricsDTO
+from .analyzable_entity import AnalyzableEntity
+from .specimen_properties import Property, SpecimenPropertiesDTO
+from data_layer.metrics import Metric
 
 if TYPE_CHECKING:
-    from data_layer.metrics import Metric
     import matplotlib.figure
+
+    from service_layer.analysis.specimen_analysis_protocol import \
+        BaseSpecimenAnalysisProtocol
+    from service_layer.plotting.specimen_graph_manager import SpecimenGraphManager
 
 class Specimen(AnalyzableEntity):
     def __init__(self, name : str, length : Property, width : Property, thickness : Property, weight : Property, data = None, data_formater = None):

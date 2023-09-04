@@ -1,12 +1,14 @@
 # app/data_layer/IO/excel/excel_exporter.py
 
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from openpyxl.utils import get_column_letter
-from openpyxl import Workbook
 
-from .base_objects import SpreadsheetExporter, Events, IFormatter
-from .excel_objects import ExcelSheet, ExcelTable, ExcelChart, SheetLayoutModel, Position
+from .base_objects import Events, IFormatter, SpreadsheetExporter
+
+if TYPE_CHECKING:
+    from .excel_objects import (ExcelChart, ExcelSheet, ExcelTable, Position,
+                                SheetLayoutModel)
 
 
 class ExcelExporter(SpreadsheetExporter):

@@ -1,8 +1,11 @@
 from datetime import datetime
-from sqlalchemy import Integer, String, DateTime, Enum, Column, ForeignKey, Table, Boolean, Float, Text, JSON, JSONB, LargeBinary
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+
+from sqlalchemy import (JSON, Boolean, Column, DateTime, Enum, Float,
+                        ForeignKey, Integer, LargeBinary, String, Table, Text)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base_orm import BaseORMVersioned
+
 
 class Specimen_Table(BaseORMVersioned):
     """ORM class for Specimen table."""

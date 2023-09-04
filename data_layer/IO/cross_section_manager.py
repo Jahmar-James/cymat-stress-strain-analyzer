@@ -1,4 +1,5 @@
 # app/data_layer/IO/cross_section_manager.py
+
 class CrossSectionManager:
     def __init__(self, image_path: str):
         self.image_path = image_path

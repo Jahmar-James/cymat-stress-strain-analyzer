@@ -5,7 +5,10 @@ import matplotlib.figure
 
 
 from .visualization_service import VisualizationService
-from ...data_layer.models.specimen import Specimen
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from data_layer.models.specimen import Specimen
 
 class SpecimenGraphManager(VisualizationService):
     """
@@ -17,12 +20,13 @@ class SpecimenGraphManager(VisualizationService):
     1. Detailed plot for indivdual Examination.
     2. Simplfied plot for overlaying multiple specimens.`
     """
-    def __init__(self, analysis_entity: 'Specimen' ):
-        super().__init__(analysis_entity)
+    def __init__(self, specimen: 'Specimen' ):
+        super().__init__(specimen)
+        self.speciem = specimen
 
     def plot_stress_strain_for_overlay(self, axes, opacity = 0.6) -> 'matplotlib.axes':
         """Plot stress-strain curve for the specimen, Simplfied plot for overlaying multiple specimens."""
-        axes.plot(self.analysis_entity.stress, self.analysis_entity.strain, label=self.analysis_entity.name, alpha = opacity)
+        axes.plot(self.specimen.stress, self.specimen.strain, label=self.specimen.name, alpha = opacity)
         return axes
     
     def plot_stress_strain_for_detailed_profile(self) -> ('matplotlib.figure', 'matplotlib.axes'):

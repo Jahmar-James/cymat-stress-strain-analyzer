@@ -1,7 +1,11 @@
 # app/data_layer/IO/excel/custom_excel_export.py
 
+from typing import TYPE_CHECKING
+
 from .excel_exporter import ExcelExporter
-from ...models.sample_group import SampleGroup
+
+if TYPE_CHECKING:
+    from models.sample_group import SampleGroup
 
 class SampleGroupExcelExporter(ExcelExporter):
     """Exports a SampleGroup to an Excel file"""

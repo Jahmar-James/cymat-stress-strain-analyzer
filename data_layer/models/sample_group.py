@@ -1,24 +1,26 @@
 # app/data_layer/models/sample_group.py
 
+from datetime import datetime
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import matplotlib.figure
 import numpy as np
 
-from .analyzable_entity import AnalyzableEntity
+from service_layer.plotting.sample_group_graph_manager import \
+    SampleGroupGraphManager
+
 from ..IO.group_data_manager import SampleGroupDataManager
+from .analyzable_entity import AnalyzableEntity
 from .sample_group_characteristics import SampleGroupCharacteristics
-from ...service_layer.plotting.sample_group_graph_manager import SampleGroupGraphManager
 
 if TYPE_CHECKING:
-
     from data_layer.models.specimen import Specimen
 
 
 class SampleGroup(AnalyzableEntity):
     """The main class that holds a collection of Specimen objects. Methods might include adding/removing specimens, iterating over specimens, and so on."""
-    def __init__(self, data_manager = None, graph_manager = None ):
+    def __init__(self, data_manager : Optional['SampleGroupDataManager'] = None, graph_manager = None ):
         super().__init__()
         self.specimens = []
         self.type = None
@@ -27,7 +29,13 @@ class SampleGroup(AnalyzableEntity):
         self.graph_manager = graph_manager or SampleGroupGraphManager()
         self.stress = None
         self.strain = None
-
+        self.custom_name = None
+        
+    def add_specimen(self, specimen: 'Specimen'):
+        self.created_at = datetime.utcnow()
+        
+        pass
+    
     def __iter__(self):
         for specimen in self.specimens:
             yield specimen
@@ -49,3 +57,11 @@ class SampleGroup(AnalyzableEntity):
     @cached_property
     def _strain(self) -> np.ndarray:
         return self.data_manager.data.get('strain', np.array([]))
+    
+    @property
+    def name(self) -> str:
+        # use the first specimen's name, type, and dtaetime as the sample group's defualt name otherwise return "Sample Group"
+        if len(self.specimens) > 0:
+            return f"{self.specimens[0].name} {self.type}  {self.created_at}" if self.custom_name is None else self.custom_name
+        else:
+            return f"Sample Group"

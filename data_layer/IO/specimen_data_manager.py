@@ -29,6 +29,10 @@ class SpecimenDataManager():
         self.points_of_interest = points_of_interest or YoungModulusPointsOfInterest(data) 
         self.specimen_operations = specimen_operations or SpecimenOperations()
         
+    def get(self, data_manager_attribute: str, default = None):
+        """Get an attribute from the data manager"""   
+        return getattr(self, data_manager_attribute, default)
+        
     def set_points_of_interest(self, points_of_interest: 'PointsOfInterest'):
         self.points_of_interest = points_of_interest
         

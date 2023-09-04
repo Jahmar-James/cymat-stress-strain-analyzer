@@ -1,12 +1,14 @@
 # app/data_layer/I0/excel/base_objects.py
 
-import tqdm
-from contextlib import contextmanager
 from abc import ABC, abstractmethod
-from typing import List
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, List
+
+import tqdm
 from openpyxl import Workbook
 
-from .excel_objects import ExcelSheet
+if TYPE_CHECKING:
+    from .excel_objects import ExcelSheet
 
 class Events:
     def __init__(self):
