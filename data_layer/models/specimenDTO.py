@@ -49,11 +49,11 @@ class SpecimenDTO(BaseModel):
 
         properties = (specimen.properties.model_copy() 
                   if isinstance(specimen.properties, SpecimenPropertiesDTO) 
-                  else SpecimenPropertiesDTO(**specimen.properties.dict())) or None
+                  else SpecimenPropertiesDTO(**specimen.properties.model_dump())) or None
     
         metrics = (specimen.metrics.model_copy() 
                 if isinstance(specimen.metrics, SpecimenMetricsDTO) 
-               else SpecimenMetricsDTO(**specimen.metrics.dict())) or None
+               else SpecimenMetricsDTO(**specimen.metrics.model_dump())) or None
         
         attributes = {
             "name": specimen.name,
@@ -83,10 +83,10 @@ class SpecimenDTO(BaseModel):
             status=self.status,
             name=self.name,
             type=self.type,
-            properties=self.properties.dict(),
-            data=self.data_content.to_csv().encode() if self.data_content is not None else None,
+            properties=self.properties.model_dump_json(),
+            data=self.data_content,
             analysis_type=self.analysis_type,
-            metrics=self.metrics.dict(),
+            metrics=self.metrics.model_dump_json(),
             analysis_date=self.analysis_date,
             production_date=self.production_date,
             cross_sectional_image=self.cross_sectional_image.encode() if self.cross_sectional_image else None,

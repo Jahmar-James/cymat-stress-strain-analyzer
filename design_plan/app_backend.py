@@ -314,6 +314,8 @@ def main():
         app_backend = StreamlitAppBackend(widget_manager, ..., app_state)  # Fill in the ...
         app_controller = AppController(app_backend)
         app_controller.run_streamlit()  # or however you start your Streamlit app
+    else:
+        raise ValueError(f"Unsupported frontend: {args.frontend}")
 
 if __name__ == "__main__":
     main()

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 from pydantic import BaseModel
+import pandas as pd
 
 from service_layer.analysis import SpecimenAnalysisProtocol
 
@@ -87,3 +88,6 @@ class Specimen(AnalyzableEntity):
     def _cross_section_analysis(self) -> dict:
         return self.cross_section_manager.analysis_results if self.cross_section_manager else None
 
+    @property
+    def data(self) -> pd.DataFrame:
+        return self.data_manager.data
