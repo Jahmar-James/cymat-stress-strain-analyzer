@@ -21,14 +21,15 @@ if TYPE_CHECKING:
     from service_layer.analysis.specimen_analysis_protocol import \
         BaseSpecimenAnalysisProtocol
     from service_layer.plotting.specimen_graph_manager import SpecimenGraphManager
+    from ..IO.specimenIO import SpecimenIO
 
 class Specimen(AnalyzableEntity):
-    def __init__(self, name : str, length : Property, width : Property, thickness : Property, weight : Property, data = None, data_formater = None):
+    def __init__(self, name : str, length : Property, width : Property, thickness : Property, weight : Property, data = None, data_formater : Optional['SpecimenIO'] = None, metrics : Optional['SpecimenMetricsDTO'] = None):
         super().__init__()
         self.name = name
         self.data_manager =  SpecimenDataManager(data, data_formater)
         self.properties = SpecimenPropertiesDTO(length=length, width=width, thickness=thickness, weight=weight)
-        self.metrics = SpecimenMetricsDTO
+        self.metrics = metrics or SpecimenMetricsDTO
         self.analysis_protocol = SpecimenAnalysisProtocol(specimen_properties = self.properties, data_manager = self.data_manager)
         
     def set_analysis_type(self, analysis_type , analysis_protocol : Optional['BaseSpecimenAnalysisProtocol'] = None):
