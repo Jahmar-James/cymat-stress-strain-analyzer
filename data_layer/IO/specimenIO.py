@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 
 class Idataformatter(ABC):
     @abstractmethod
-    def read_and_clean_data() -> pd.DataFrame:
+    def read_and_clean_data(self, file_path: str) -> pd.DataFrame:
         pass
     
 class SpecimenIO(Idataformatter):
