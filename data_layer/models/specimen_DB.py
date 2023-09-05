@@ -26,7 +26,7 @@ class SpecimenDB(Specimen):
             status=db_object.status,
             name=db_object.name,
             type=db_object.type,
-            property=db_object.property,
+            properties=db_object.properties,
             analysis_type=db_object.analysis_type,
             metrics=db_object.metrics,
             analysis_date=db_object.analysis_date,
@@ -39,5 +39,6 @@ class SpecimenDB(Specimen):
     def convert_from_ORM( cls, orm_object: 'Specimen_Table') -> 'SpecimenDB':
         """Convert a Specimen ORM object to a DB object."""
         pass
+
 
 

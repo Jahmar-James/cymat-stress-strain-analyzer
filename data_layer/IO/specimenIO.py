@@ -1,20 +1,32 @@
 # app/data_layer/IO/specimenIO.py
 
-import pandas as pd
 import glob
 import json
 import os
-import zipfile
-import tempfile
 import string
+import tempfile
+import zipfile
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 import numpy as np
+import pandas as pd
+from pydantic import parse_raw_as
 
-from abc import ABC, abstractmethod
+if TYPE_CHECKING:
+    from ..models import SpecimenDTO
 
 class Idataformatter(ABC):
     @abstractmethod
     def read_and_clean_data() -> pd.DataFrame:
+        pass
+
+    @abstractmethod
+    def deserialize() -> 'SpecimenDTO':
+        pass
+
+    @abstractmethod
+    def serialize() -> str:
         pass
     
 class SpecimenIO(Idataformatter):
@@ -64,120 +76,83 @@ class SpecimenIO(Idataformatter):
         return data_rows
     
     # import processed data
-    
-    # Archived Implementation till specimen is refactored
-    def load_specimen_data(self, file_path):
-        from ..models import Specimen
+
+    def deserialize(self, zip_file_path: str) -> SpecimenDTO:
         """
-        Loads the specimen data from a zipped file.
+        Deserialize a zip file back to a SpecimenDTO.
 
         Args:
-        file_path (str): The path to the zipped file containing the specimen data.
+        zip_file_path (str): Path to the serialized SpecimenDTO zip file.
+
+        Returns:
+        SpecimenDTO: The reconstructed SpecimenDTO object.
         """
-        # Create a temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Unzip the file
-            with zipfile.ZipFile(file_path, 'r') as zipf:
+            # Extract the zip to a temp directory
+            with zipfile.ZipFile(zip_file_path, 'r') as zipf:
                 zipf.extractall(temp_dir)
+            
+            # Load DTO from JSON
+            with open(os.path.join(temp_dir, 'specimen_dto.json'), 'r') as json_file:
+                dto_json = json_file.read()
+                specimen_dto = parse_raw_as(SpecimenDTO, dto_json)
 
-            # Load properties from the JSON file
-            with open(os.path.join(temp_dir, 'specimen_properties.json'), 'r') as fp:
-                properties_dict = json.load(fp)
-
-            # Reconstruct the Specimen object
-            specimen = Specimen.from_dict(properties_dict, temp_dir=temp_dir)
-            # Add to GUI
- 
-        return specimen
-     
-    # export processed data
+            # Load data content based on the file extension present returns a dataframe
+            if os.path.exists(os.path.join(temp_dir, 'data_content.h5')):
+                specimen_dto.data_content = pd.read_hdf(os.path.join(temp_dir, 'data_content.h5')) 
+            elif os.path.exists(os.path.join(temp_dir, 'data_content.csv')):
+                specimen_dto.data_content = pd.read_csv(os.path.join(temp_dir, 'data_content.csv'))
+        
+        return specimen_dto
     
-     # Archived Implementation till specimen is refactored
-    def save_specimen_data(self, specimen, output_directory):
-        """
-        Saves the specimen data to a temporary directory and then zips the files.
+    # export processed data
 
-        Args:
-        specimen (Specimen): The specimen to save.
-        output_directory (str): The directory where to save the zipped file.
-        """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Serialize specimen properties to JSON
-            properties_dict = specimen.__dict__
-            with open(os.path.join(temp_dir, 'specimen_properties.json'), 'w') as json_file:
-                json.dump(properties_dict, json_file, cls=SpecimenDataEncoder, export_dir=temp_dir)
+    def serialize(self, specimen_dto: SpecimenDTO, output_directory: str, data_format: str = 'hdf5') -> str:
+            """
+            Serialize the SpecimenDTO to a zip file.
 
-            # Zip all generated files
-            specimen_file_name =  self._format_specimen_name_for_file(specimen.name)
-            zip_file_path = os.path.join(output_directory, f'{specimen_file_name}_analyzer_data.zip')
-            with zipfile.ZipFile(zip_file_path, 'w') as zip_file:
-                for file in glob.glob(os.path.join(temp_dir, '*')):
-                    zip_file.write(file, os.path.basename(file))
-                    
-    def _format_specimen_name_for_file(self, specimen_name):
-        valid_chars = "-_.() %s%s" % (string.ascii_letters, string.digits)
-        filename = ''.join(c for c in specimen_name if c in valid_chars)
-        specimen_filename  = filename.replace(' ', '_')  # replace spaces with underscore
-        if len(filename) > 50:  # check if filename is too long
-            specimen_filename = filename[:50]
-        return specimen_filename 
+            Args:
+            specimen_dto (SpecimenDTO): The DTO to serialize.
+            output_dir (str): Directory to save the serialized zip.
+            data_format (str): Either 'hdf5' or 'csv' to decide the format of saving data content.
+            """
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Serialize DTO to JSON
+                dto_json = specimen_dto.json()
 
- 
+                # Save the data content based on chosen format
+                data_file_path = None
+                if specimen_dto.data_content is not None:
+                    if data_format == 'hdf5':
+                        data_file_path = os.path.join(temp_dir, 'data_content.h5')
+                        specimen_dto.data_content.to_hdf(data_file_path, 'data')
+                    elif data_format == 'csv':
+                        data_file_path = os.path.join(temp_dir, 'data_content.csv')
+                        specimen_dto.data_content.to_csv(data_file_path)
+                    else:
+                        raise ValueError("Unsupported format. Please choose either 'hdf5' or 'csv'.")
 
-class SpecimenDataEncoder(json.JSONEncoder):
-    """
-    Custom JSONEncoder subclass that knows how to encode custom specimen data types.
+                # Define the zip file name based on some naming convention
+                # Here, we'll just use the specimen name and a timestamp, but you can adjust as needed
+                from datetime import datetime
 
-    Attributes:
-    export_dir (str): Directory where data files are exported.
-    """
-    def __init__(self, *args, **kwargs):
-        # accept the export directory as an argument
-        self.export_dir = kwargs.pop("export_dir", ".")
-        super().__init__(*args, **kwargs)
+                formatted_name = specimen_dto.name.replace(" ", "_") + "_" + datetime.now().strftime('%Y%m%d%H%M%S') + ".zip"
 
-    def default(self, obj):
-        from ..models import SpecimenDataManager, SpecimenGraphManager
-        """
-        Overrides the default method of json.JSONEncoder.
+                valid_chars = "-_.() %s%s" % (string.ascii_letters, string.digits)
+                filename = ''.join(c for c in formatted_name if c in valid_chars)
 
-        Args:
-        obj (object): The object to convert to JSON.
+                zip_file_path = os.path.join(output_directory, formatted_name)
 
-        Returns:
-        dict or list or str or int or float or bool or None: The JSON-serializable representation of obj.
-        """
-        if isinstance(obj, 'SpecimenDataManager') or isinstance(obj, 'SpecimenGraphManager'):
-            return self.encode_dict(obj.__dict__)
-        else:
-            return super().default(obj)
+                # Add JSON and Data file (if present) to ZIP
+                with zipfile.ZipFile(zip_file_path, 'w') as zipf:
+                    # Use the writestr method to write the JSON string to the ZIP
+                    zipf.writestr('specimen_dto.json', dto_json)
 
-    def encode_dict(self, obj_dict):
-        """
-        Encodes a dictionary into a JSON-friendly format.
+                    # If data file exists, add it to the ZIP
+                    if data_file_path:
+                        zipf.write(data_file_path, os.path.basename(data_file_path))
 
-        Args:
-        obj_dict (dict): The dictionary to encode.
+            return zip_file_path  # return the path to the created zip for reference
 
-        Returns:
-        dict: The encoded dictionary.
-        """
-        encoded_dict = {}
-        for attr, value in obj_dict.items():
-            if attr == "raw_data" or attr == "specimen":
-                continue  # Skip raw_data and specimen
-            elif isinstance(value, dict):
-                encoded_dict[attr] = self.encode_dict(value)  # recursively handle nested dictionaries
-            elif isinstance(value, np.int64) or isinstance(value, pd.Int64Dtype):
-                encoded_dict[attr] = int(value)  # Convert np.int64 to int
-            elif isinstance(value, (pd.DataFrame,pd.Series, np.ndarray)):
-                csv_filename = f'{attr}_data.csv'
-                csv_filepath = os.path.join(self.export_dir, csv_filename)
-                if isinstance(value, pd.DataFrame):
-                    value.to_csv(csv_filepath, index=False)
-                else:
-                    np.savetxt(csv_filepath, value, delimiter=",")
-                encoded_dict[attr] = os.path.basename(csv_filename)
-            else:
-                encoded_dict[attr] = value
-        return encoded_dict
+   
+    

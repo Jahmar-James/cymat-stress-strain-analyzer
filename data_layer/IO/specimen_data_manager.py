@@ -14,7 +14,7 @@ from .PoI import (PointsOfInterest, YoungModulusPointsOfInterest, ZeroPointsOfIn
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from data_layer.models import Specimen, SpecimenDB
+    from data_layer.models import Specimen, SpecimenDB, SpecimenDTO
 
 class SpecimenDataManager():
     """Manage import and export of specimen class from different sources"""
@@ -57,13 +57,18 @@ class SpecimenDataManager():
         else:
             raise ValueError("Either shift or data_marker must be provided")
         
-    @classmethod
-    def from_database(cls, id,  repository_instance:'SpecimenRepository') -> 'SpecimenDB': 
+    def from_database( id, repository_instance:'SpecimenRepository') -> 'SpecimenDB': 
         pass
     
-    @classmethod
-    def from_program_zip_file(cls, path, data_formatter:'SpecimenIO') -> 'Specimen':
+    def to_database(self, specimen:'Specimen', repository_instance:'SpecimenRepository'):
         pass
+
+    def from_program_zip_file(self, path, data_formatter:'SpecimenIO') -> 'SpecimenDTO':
+        return data_formatter.deserialize(path)
+
+    def to_program_zip_file(self, SpecimenDTO :'SpecimenDTO', directory, data_formatter:'SpecimenIO'):
+        return data_formatter.serialize(SpecimenDTO, directory)
+
     
     @property
     def points(self):
