@@ -14,7 +14,11 @@ class DataIOManager:
     """
     Manage data input and output
     """
-    def __init__(self, specimen_data_manager: 'SpecimenDataManager', sample_group_data_manager: 'SampleGroupDataManager'):
+    def initialize_IO(self, specimen_data_manager: Optional['SpecimenDataManager'] = None,
+                      sample_group_data_manager: Optional['SampleGroupDataManager'= None]):
+        if specimen_data_manager is None and sample_group_data_manager is None:
+            raise ValueError("Must provide at least one data manager")
+        
         self.specimen_data_manager = specimen_data_manager
         self.sample_group_data_manager = sample_group_data_manager
         

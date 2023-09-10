@@ -7,9 +7,13 @@ from .graphics_manager import GraphicsManager
 from .data_io_manager import DataIOManager
 
 class Service_layer():
-    def __init__(self, data_io_manager: DataIOManager, graphics_manager: GraphicsManager, excel_exporter: ExcelExporter):
-        self.data_io_manager = data_io_manager
-        self.graphics_manager = graphics_manager
+    def __init__(self, data_io_manager: 'DataIOManager' = DataIOManager(), 
+                 graphics_manager: GraphicsManager = GraphicsManager(), 
+                 excel_exporter: ExcelExporter = ExcelExporter()):
+        
+        self.data_io_manager = data_io_manager  
+        self.graphics_manager = graphics_manager  
         self.excel_exporter = excel_exporter
         
+
         

@@ -1,6 +1,6 @@
 # app/app_layer/managers/graphics_manager.py
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Union
 
 if TYPE_CHECKING:
     from data_layer.models.specimen import Specimen
@@ -11,10 +11,13 @@ if TYPE_CHECKING:
 class GraphicsManager:
     """
     Manage all graphics-related services and operations: 
-    """
-    def __init__(self, specimen_graph_manager: 'SpecimenGraphManager', sample_group_graph_manager: 'SampleGroupGraphManager'):
-        self.specimen_graph_manager = specimen_graph_manager
-        self.sample_group_graph_manager = sample_group_graph_manager
+    """    
+    def initialize_graphics(self, specimen_graph_manager: Optional['SpecimenGraphManager'] = None, sample_group_graph_manager:  Optional['SampleGroupGraphManager'] = None):
+        if specimen_graph_manager is None and sample_group_graph_manager is None:
+            raise ValueError("Must provide at least one graph manager")
+
+        self.specimen_graph_manager = specimen_graph_manager 
+        self.sample_group_graph_manager = sample_group_graph_manager 
     
     def plot_current_specimen(self) -> None:
         # Plot the current specimen

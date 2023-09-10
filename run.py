@@ -1,15 +1,16 @@
 import argparse
 
 # Import your classes and services
-from app_layer.app_controller import AppContorller
+from app_layer.app_controller import AppController
 from app_layer.action_handler import ActionHandler
 from app_layer.managers.tk_widget_manager import TkWidgetManager
 from app_layer.managers.streamlit_widget_manager import StreamlitWidgetManager
 from app_layer.app_state import AppState
-from app_layer.frontends import AppBackend, TkAppBackend, StreamlitAppBackend
+from app_layer.frontends import  UI
+from app_layer.frontends.app_backend_factory import AppBackendFactory
 
 
-from service_layer.your_service_layer import YourServiceLayer  # Replace with your actual service layer
+from service_layer.services import Service_layer 
 
 def main():
     parser = argparse.ArgumentParser(description="Launch the app with a specific frontend.")
@@ -18,25 +19,16 @@ def main():
     args = parser.parse_args()
 
     # Initialize service layer and handlers
-    service_layer = YourServiceLayer()  # Replace with your actual service layer
+    service_layer = Service_layer()  
     action_handler = ActionHandler(service_layer)
 
     # Initialize app state
     app_state = AppState()
-
-    # Create the appropriate widget manager based on the frontend choice
-    if args.frontend == "tkinter":
-        widget_manager = TkWidgetManager()
-        app_backend = TkAppBackend(widget_manager, ..., app_state)  # Fill in the ...
-        app_controller = AppController(app_backend)
-        app_controller.run()  # or however you start your Tkinter loop
-    elif args.frontend == "streamlit":
-        widget_manager = StreamlitWidgetManager()
-        app_backend = StreamlitAppBackend(widget_manager, ..., app_state)  # Fill in the ...
-        app_controller = AppController(app_backend)
-        app_controller.run_streamlit()  # or however you start your Streamlit app
-    else:
-        raise ValueError(f"Unsupported frontend: {args.frontend}")
+    ui = UI()
+    
+    app_backend = AppBackendFactory.create_backend(args.frontend, ui)
+    app_controller = AppController(app_backend, action_handler, app_state)
+    app_controller.run()
 
 if __name__ == "__main__":
     main()
