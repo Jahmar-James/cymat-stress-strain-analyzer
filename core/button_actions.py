@@ -8,6 +8,7 @@ from pathlib import Path
 import os
 from .plot_manager import draw_error_band_xy, draw_error_band_y, draw_error_band_y_modified
 from tabulate import tabulate
+import matplotlib.pyplot as plt
 
 
 class ButtonActions:
@@ -204,7 +205,7 @@ class ButtonActions:
             _
         )
     
-    def plot_average_and_error_band(self, ax, test = True):
+    def plot_average_and_error_band(self, ax, test = True): ############################################# SET to FALSE for external ploting
         strain = self.average_of_specimens["Strain"].to_numpy()  
         stress = self.average_of_specimens["Stress"].to_numpy()
         ax.plot(strain, stress, label="Average Stress-Strain Curve") 
@@ -242,7 +243,7 @@ class ButtonActions:
         if  self.app.variables.average_plt_end_id:
              plt_end = self.average_of_specimens["Stress"].to_numpy()[self.app.variables.average_plt_end_id]
             #  ax.axhline(y=plt_end, color='r', linestyle='--', label=f"Plateau Stress End: {plt_end:.2f} Mpa")
-             ax.scatter(dense_strain, plt_end, color='r', marker='x', s=50, label=f"Densification Strain ({dense_strain*100:.1f} %)")
+             ax.scatter(dense_strain, plt_end, color='r', marker='^', s=50, label=f"Densification Strain ({dense_strain*100:.1f} %)")
             #  ax.annotate(f"Densification Strain ({dense_strain*100:.1f} %)", (dense_strain, plt_end), xytext=(dense_strain+0.01, plt_end+0.01), arrowprops=dict(facecolor='black', shrink=0.05))
 
         self.app.variables.DIN_Mode = False
@@ -305,7 +306,11 @@ class ButtonActions:
         
         y_filtered = y[mask]
         x_filtered = x[mask]
-        ax.plot(x_filtered,y_filtered, color =  'g', label=" 0.9% Modulus offset line", linestyle='--',linewidth =0.6)
+        ax.plot(x_filtered,y_filtered, color =  'g', label="1% Modulus offset line", linestyle='--',linewidth =0.6) ########################################################### 1% Modulus  Need to change with the OFFSET value
+
+        # print the slope of the modulus line :  Linear only need the two points
+        print("Average Plot: Slope of the modulus line: ", (y_filtered[-1] - y_filtered[0]) / (x_filtered[-1] - x_filtered[0]))
+
         ps_strain, ps_stress = self.app.variables.avg_compressive_proof_strength_from_hyst[0] if self.app.variables.hyst_avg_linear_plot_best_fit is None else self.app.variables.avg_compressive_proof_strength_from_hyst[3]
         # ps_strain, ps_stress = self.app.variables.avg_compressive_proof_strength_from_hyst[0]
         if  ps_strain and ps_stress:
