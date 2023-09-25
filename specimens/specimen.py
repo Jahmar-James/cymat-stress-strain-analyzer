@@ -459,6 +459,7 @@ class SpecimenGraphManager:
                 self.youngs_modulus = self.specimen.data_manager.modulus 
                 self.strain_hyst_shifted = self.specimen.processed_hysteresis_data['shiftd strain']
                 self.plot_hysteresis_data(ax)
+        return ax
     
 
     def prepare_data(self):

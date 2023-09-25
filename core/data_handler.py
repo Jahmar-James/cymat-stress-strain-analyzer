@@ -449,6 +449,7 @@ class DataHandler:
             # self.app.variables.average_of_specimens_hysteresis = data
         else:
             modulus_by_stress = self._calculate_modulus_by_stress(data, max_stress_index)
+            print(f"Modulus is: {modulus_by_stress}")
             x, y = self._generate_linear_line(avg_data["Strain"].to_numpy(),modulus_by_stress, offset=0.009)
         
         if test_filtering:
@@ -463,6 +464,7 @@ class DataHandler:
                 modulus_set[key] = self._calculate_modulus_by_stress(truncated_data[key], max_stress_index)
                 modulus_set[f'plot pts of {key}'] = self._generate_linear_line(avg_data["Strain"].to_numpy(), modulus_set[key])
             self.app.variables.hyst_avg_linear_plot_filtered = modulus_set
+            print(f"Modulus is: {modulus_set}")
         else:
             self.app.variables.hyst_avg_linear_plot_filtered = None
         
@@ -534,7 +536,12 @@ class DataHandler:
         end_pt_by_stress = data["Strain"].iloc[-1], data["Stress"].iloc[-1]
         return (peak_pt_by_stress[1] - end_pt_by_stress[1]) / (peak_pt_by_stress[0] - end_pt_by_stress[0])
  
-    def _generate_linear_line(self, strain_range, modulus, offset=0.009):
+    def _generate_linear_line(self, strain_range, modulus, offset=0.01): ######################################################## SET OFFSET TO 0.01 1% of strain  ########################################## 
+        # if offset is not specified from widget manager, use the default offset of 0.01 based on the ISO standard
+        if self.widget_manager.offset_value is not None:
+            offset = float(self.widget_manager.offset_value)
+            print(f"Warning: None ISO compliant Offset of: {offset}")
+
         max_strain = max(strain_range)
         num_points = len(strain_range)
         x = np.linspace(0, max_strain, num = num_points)
@@ -683,10 +690,13 @@ class DataHandler:
             self.specimens_with_hysteresis_data =  specimens_with_hysteresis_data
             self.process_hysteresis_data(specimens_with_hysteresis_data)
 
+        # get the shift value for widget manager
+        shift_value = float(self.widget_manager.shift_value) if self.widget_manager.shift_value else 0
+
         self.app.variables.average_of_specimens = pd.DataFrame({
         "Displacement": average_displacement,
         "Force": average_force,
-        "Strain": average_strain,
+        "Strain": average_strain + shift_value ,# is the offset when needed
         "Stress": average_stress,
         "std Stress":std_dev_stress,
         "std Strain":std_strain,
