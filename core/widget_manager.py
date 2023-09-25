@@ -16,6 +16,8 @@ class WidgetManager:
         self.app = app
         self.slider_enabled = tk.BooleanVar(value=False)
         self.select_mode_enabled = tk.BooleanVar(value=False)
+        self.internal_plot_enabled = tk.BooleanVar(value=False)  
+        self.external_plot_enabled = tk.BooleanVar(value=False) 
         self.notebook = None
         self.reset_button = None
         self.buttons = []
@@ -63,7 +65,7 @@ class WidgetManager:
                                        ['normal' if i == 0 else 'disabled' for i in range(len(data_analysis_names))]))
 
         self.data_analysis_button_group = ButtonGroup(self.app.master, data_analysis_specs)
-        self.data_analysis_button_group.grid(row=0, column=2, rowspan=5, sticky='ns')
+        self.data_analysis_button_group.grid(row=0, column=2, rowspan=4, sticky='ns')
         self.data_analysis_buttons = self.data_analysis_button_group.buttons
         self.data_analysis_buttons[0].bind("<Return>", self.button_actions.submit)
 
@@ -77,7 +79,7 @@ class WidgetManager:
                                          ['disabled' if i != 0 else 'normal' for i in range(len(data_management_names))]))
 
         self.data_management_button_group = ButtonGroup(self.app.master, data_management_specs)
-        self.data_management_button_group.grid(row=0, column=3, rowspan=5, sticky='ns')
+        self.data_management_button_group.grid(row=0, column=3, rowspan=4, sticky='ns')
         self.data_management_buttons = self.data_management_button_group.buttons
 
     def create_list_box_group(self):
@@ -93,15 +95,19 @@ class WidgetManager:
                                               enable_select_callback=self.toggle_select_mode,
                                               ms_word_callback=self.button_actions.export_ms_data,    
                                               slider_enabled=self.slider_enabled,
-                                              select_mode_enabled=self.select_mode_enabled
+                                              select_mode_enabled=self.select_mode_enabled,
+                                              internal_plot_enabled=self.internal_plot_enabled, 
+                                             external_plot_enabled=self.external_plot_enabled 
                                               )
-        self.fifth_row_group.grid(row=5, column=0, columnspan=4, sticky='nsew')
+        self.fifth_row_group.grid(row=5, column=0, columnspan=6, sticky='nsew')
         self.slider_checkbutton = self.fifth_row_group.toggle_button
         self.select_mode_checkbutton = self.fifth_row_group.select_mode_toggle_button
+        self.offset_entry = self.fifth_row_group.offset_entry
+        self.shift_entry = self.fifth_row_group.shift_entry
     
     def create_prelim_group(self):
         self.prelim_group = PrelimGroup(self.app.master,  app = self.app)
-        self.prelim_group.grid(row=0, column=5, rowspan=5, sticky='ns')
+        self.prelim_group.grid(row=0, column=5, rowspan=4, sticky='ns')
         
     # Creation
     def create_notebook(self):
@@ -203,6 +209,17 @@ class WidgetManager:
                                             filetypes=(("Excel files", "*.xlsx"), ("All files", "*.*")),
                                             defaultextension=".xlsx",
                                             initialfile=f"{today}_Specimens_{default_file_name}_.xlsx")
+    
+    @property
+    def offset_value(self):
+        value = self.fifth_row_group.offset_entry.get()
+        return value if value != "Set Offset" else None
+
+    @property
+    def shift_value(self):
+        value = self.fifth_row_group.shift_entry.get()
+        return value if value != "Set Shift" else None
+
         
 class SliderManager(tk.Frame):
     """A class to create custom widget"""
@@ -338,15 +355,25 @@ class ListBoxGroup(tk.Frame):
         self.specimen_listbox.grid(row=1, column=0, rowspan=2, padx=10, pady=2, sticky='ns')
 
 class FifthRowGroup(tk.Frame):
-    def __init__(self, master=None, reset_callback=None, import_callback=None, enable_strain_callback=None, enable_select_callback=None, ms_word_callback =None, slider_enabled = None, select_mode_enabled = None, **kwargs ):
+    def __init__(self, master=None, reset_callback=None, import_callback=None, 
+                 enable_strain_callback=None, enable_select_callback=None, 
+                 ms_word_callback=None, slider_enabled=None, 
+                 select_mode_enabled=None, internal_plot_enabled=None, 
+                 external_plot_enabled=None, **kwargs ):
         super().__init__(master, **kwargs)
         self.strain_variable = slider_enabled
         self.select_variable = select_mode_enabled
+        self.internal_plot_variable = internal_plot_enabled  
+        self.external_plot_variable = external_plot_enabled
         self.create_reset_button(reset_callback)
         self.create_import_button(import_callback)
         self.create_strain_checkbox(enable_strain_callback)
         self.create_select_checkbox(enable_select_callback)
         self.create_word_button( ms_word_callback)
+        self.create_internal_plot_checkbox()
+        self.create_external_plot_checkbox()
+        self.create_offset_entry()
+        self.create_shift_entry()
 
     def create_reset_button(self, callback):
         self.reset_button = tk.Button(self, text="Reset Strain Shift", command=callback)
@@ -367,6 +394,22 @@ class FifthRowGroup(tk.Frame):
     def create_word_button(self, callback):
         self.ms_button = tk.Button(self, text="MS word", command=callback)
         self.ms_button.grid(row=0, column=4, padx=10, pady=5, sticky='n')
+
+    def create_internal_plot_checkbox(self):
+        self.internal_plot_toggle_button = tk.Checkbutton(self, text="Internal Plot", variable=self.internal_plot_variable)
+        self.internal_plot_toggle_button.grid(row=0, column=5, padx=10, pady=4, sticky='n')
+
+    def create_external_plot_checkbox(self):
+        self.external_plot_toggle_button = tk.Checkbutton(self, text="External Plot", variable=self.external_plot_variable)
+        self.external_plot_toggle_button.grid(row=0, column=6, padx=10, pady=4, sticky='n')
+
+    def create_offset_entry(self):
+        self.offset_entry = PlaceholderEntry(self, placeholder="Set Offset")
+        self.offset_entry.grid(row=0, column=7, padx=10, pady=4, sticky='n')
+
+    def create_shift_entry(self):
+        self.shift_entry = PlaceholderEntry(self, placeholder="Set Shift")
+        self.shift_entry.grid(row=0, column=8, padx=10, pady=4, sticky='n')
 
 
 class PrelimGroup(tk.Frame):

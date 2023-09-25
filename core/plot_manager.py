@@ -5,8 +5,10 @@ import numpy as np
 import matplotlib.ticker as mtick
 import matplotlib.ticker as ticker
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
+from matplotlib.offsetbox import OffsetImage
 from tkinter import filedialog
 
+from PIL import Image
 from .widget_manager import SliderManager
 from matplotlib.path import Path
 from matplotlib.patches import PathPatch
@@ -32,10 +34,16 @@ class CustomToolbar(NavigationToolbar2Tk):
             original_size = self.canvas.figure.get_size_inches()
             # Set new size
             self.canvas.figure.set_size_inches(8, 6)
+            
+            LogoHelper.place_logo_with_inside(self.ax)
+            LogoHelper.place_logo_outside(self.ax)
             # Save with new DPI and size
             self.canvas.figure.savefig(fname, dpi=300)
             # Restore original size
             self.canvas.figure.set_size_inches(original_size)
+
+    def set_ax(self,ax):
+        self.ax = ax
 
 
 class PlotManager:
@@ -105,12 +113,10 @@ class PlotManager:
         self.legend = self.create_legends(ax, position)
         
         ax.xaxis.set_major_formatter(mtick.PercentFormatter(1))
-        locator = mtick.MaxNLocator(nbins=8)
-        ax.xaxis.set_major_locator(locator)
-        ax.xaxis.set_major_locator(ticker.MultipleLocator(0.1))
         ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
-        ax.tick_params(axis='x', rotation=25)
 
+        ax.tick_params(axis='x', rotation=25)
+        
         self.plateau_region_start_entry = self.app.widget_manager.prelim_group.range_entry_start
         self.plateau_region_end_entry = self.app.widget_manager.prelim_group.range_entry_end
         plateau_region_start = self.plateau_region_start_entry.get()
@@ -130,8 +136,54 @@ class PlotManager:
 
         if position is not LEFT:
             self.fig.tight_layout()
+        
+        
         self.create_figure_canvas(fig, position)
+        # Adjust styles based on toggle states
+        self.set_plot_styles(self.ax, position)
+
         self.canvas.mpl_connect('button_press_event', self.on_plot_click)
+
+
+    def set_plot_styles(self, ax, position):
+        # Access the states of the toggle buttons
+        is_internal_enabled = self.app.widget_manager.internal_plot_enabled.get()
+        is_external_enabled = self.app.widget_manager.external_plot_enabled.get()
+
+        def common_plot_styles(ax):
+            locator = mtick.MaxNLocator(nbins=8)
+            ax.xaxis.set_major_locator(locator)
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(0.1))
+
+        # Apply styles based on the toggle states
+        if position in [MIDDLE, RIGHT]:
+            if is_internal_enabled and not is_external_enabled:
+                common_plot_styles(ax)
+            
+            elif is_external_enabled and not is_internal_enabled:
+                common_plot_styles(ax)
+
+                # X-axis customization
+                ax.set_xlim(0, 0.6)  # 0 to 60% strain
+                ax.xaxis.set_major_locator(ticker.MultipleLocator(0.1))  # 10% major ticks
+                ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.02))  # 2% minor ticks
+
+                # Y-axis customization
+                ax.set_ylim(0, 20)  # 0 to 20 MPa stress
+                ax.yaxis.set_major_locator(ticker.MultipleLocator(2))  # 2 MPa major ticks
+                ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.5))  # 0.5 MPa minor ticks
+
+                # Add logo
+                if position == RIGHT:
+                    LogoHelper.place_logo_outside(ax)
+                else: # MIDDLE
+                    LogoHelper.place_logo_with_inside(ax)
+                          
+                # set the canvas ax to the current ax 
+                self.toolbars[position].set_ax(ax)
+
+                # Add address in footer
+                ax.figure.text(0.5, 0.02, 'Cymat Technologies Ltd. 6320-2 Danville Road Mississauga, Ontario, Canada, L5T 2L7', ha='center', va='bottom', fontsize=6, color='black')
           
     def update_lines(self):
         # Update line data rather than recreating plot
@@ -139,6 +191,7 @@ class PlotManager:
             self.lines[LEFT]["Shifted Stress-Strain Curve"].set_xdata(self.specimen.shifted_strain)
             self.lines[LEFT]["Shifted Stress-Strain Curve"].set_ydata(self.specimen.stress)
             self.plots[LEFT].draw()
+
 
         # Middle plot contains lines for all specimens. We need to find and update the line for the current specimen.
         if self.specimen.name in self.lines[MIDDLE]:
@@ -170,6 +223,7 @@ class PlotManager:
                 text.set_fontsize(6)
             legend = legend1,legend2
             self.fig.subplots_adjust(bottom=0.32)
+            self.display_modulus_values(ax, OFFSET=OFFSET)
         else:
             # for the other positions, use the default legend
             legend = ax.legend()
@@ -254,6 +308,33 @@ class PlotManager:
         # Clear the selected points list
         self.selected_points.clear()
         self.plots[LEFT].draw()
+    
+    def display_modulus_values(self, ax, OFFSET=0.02):
+        # Label to identify the offset stress-strain curve
+        offset_label = f"{OFFSET*100}% Offset Stress-Strain Curve"
+
+        # Iterate over all lines in the ax to find the one labeled with offset_label
+        for artist in ax.get_children():
+            if isinstance(artist, matplotlib.lines.Line2D) and artist.get_label() == offset_label:
+                # Get the x and y data from the line
+                x_data, y_data = artist.get_xdata(), artist.get_ydata()
+                
+                # Get two points from the data to calculate the slope (modulus value)
+                x1, y1 = x_data[0], y_data[0]
+                x2, y2 = x_data[1], y_data[1]
+
+                # Calculate and print the slope (modulus value)
+                try:
+                    slope = (y2 - y1) / (x2 - x1)
+                    print(f"The modulus value (slope) is: {slope}")
+                    return
+                except ZeroDivisionError:
+                    print("The two points have the same x value; cannot calculate slope.")
+                    return
+
+        # If we reach here, the line with the offset label was not found
+        print(f"No line found with label: {offset_label}")
+
 
     def on_plot_click(self, event):
         if self.enable_click_event:
@@ -334,6 +415,127 @@ def draw_error_band_y_modified(ax, x, upper_y, lower_y, **kwargs):
     path = Path(vertices, codes)
     patch = PathPatch(path, **kwargs)
     ax.add_patch(patch)
+
+class LogoHelper:
+    @staticmethod
+    def resize_logo(image_path, figure_area, area_fraction):
+        # Load the original image and get its size
+        original_image = Image.open(image_path)
+        orig_width, orig_height = original_image.size
+        
+        # Determine the target area based on fraction of figure's area
+        target_area = figure_area * area_fraction
+        
+        # Calculate the scaling factor
+        scaling_factor = (target_area / (orig_width * orig_height)) ** 0.5
+        
+        # Resize the image
+        new_width = int(orig_width * scaling_factor)
+        new_height = int(orig_height * scaling_factor)
+        resized_image = original_image.resize((new_width, new_height))
+        
+        # Convert to numpy array for figimage
+        img_array = np.asarray(resized_image)
+        
+        return img_array
+    
+    def resize_logo_HW(image_path, target_width, target_height):
+        original_image = Image.open(image_path)
+        resized_image = original_image.resize((target_width, target_height))
+        img_array = np.asarray(resized_image)
+        return img_array
+    
+
+    @staticmethod
+    def place_logo_with_inside(ax, area_fraction=0.05):
+        logo_path = 'templates\CYM004-Cymat-logo.png'
+        
+        # Get the figure area for the resizing
+        figure_area = ax.figure.bbox.width * ax.figure.bbox.height
+        img_array = LogoHelper.resize_logo(logo_path, figure_area, area_fraction)
+
+        # Check for existing logo and remove it
+        existing_logo_axes = [a for a in ax.figure.get_axes() if a.get_label() == 'logo_axes']
+        for logo_axes in existing_logo_axes:
+            ax.figure.delaxes(logo_axes)
+        
+        x_left_limit = ax.get_xlim()[0]
+        x_right_limit = ax.get_xlim()[1]
+        y_bottom_limit = ax.get_ylim()[0]
+        y_top_limit = ax.get_ylim()[1]
+        
+        x_range = x_right_limit - x_left_limit
+        y_range = y_top_limit - y_bottom_limit
+        
+        logo_margin_x = x_range * 0.01
+        logo_margin_y = y_range * 0.01
+        
+        logo_width_data = x_range * 0.15
+        logo_height_data = y_range * 0.15
+
+        ax.imshow(img_array, aspect='auto', 
+                  extent=[x_left_limit + logo_margin_x, x_left_limit + logo_width_data + logo_margin_x, 
+                          y_top_limit - logo_height_data - logo_margin_y, y_top_limit - logo_margin_y], 
+                  zorder=1, alpha=1, label='logo_axes')
+    
+    @staticmethod
+    def place_logo_outside(ax, area_fraction=0.08):
+        logo_path = 'templates\CYM004-Cymat-logo.png'
+                
+        dpi = ax.figure.dpi
+        target_width = int(ax.figure.get_figwidth() * dpi * area_fraction)
+        target_height = int(ax.figure.get_figheight() * dpi * area_fraction)
+        
+        img_array = LogoHelper.resize_logo_HW(logo_path, target_width, target_height)
+
+         # Check for existing logo and remove it
+        existing_logo_axes = [a for a in ax.figure.get_axes() if a.get_label() == 'logo_title']
+        for logo_axes in existing_logo_axes:
+            ax.figure.delaxes(logo_axes)
+        
+        # Margins to move the logo a bit from the top left corner
+        left_margin = 0.01
+        top_margin = 0.05
+        
+        # Adjusted axes for the logo
+        ax_logo = ax.figure.add_axes([left_margin, 
+                                      1 - (target_height / dpi + top_margin) / ax.figure.get_figheight(), 
+                                      target_width / dpi / ax.figure.get_figwidth(), 
+                                      target_height / dpi / ax.figure.get_figheight()], 
+                                     zorder=1, anchor='NW', label='logo_title')
+        
+        ax_logo.imshow(img_array)
+        ax_logo.axis('off')
+
+    
+    @staticmethod
+    def place_logo_top_left(ax, area_fraction=0.05):
+        logo_path = 'templates\CYM004-Cymat-logo.png'
+        
+        # Calculate the desired pixel size for the logo
+        dpi = ax.figure.dpi
+        target_width = int(ax.figure.get_figwidth() * dpi * area_fraction)
+        target_height = int(ax.figure.get_figheight() * dpi * area_fraction)
+        
+        img_array = LogoHelper.resize_logo(logo_path, target_width, target_height)
+
+        # Create new axes for the logo
+        ax_logo = ax.figure.add_axes([0, 1 - (target_height / dpi) / ax.figure.get_figheight(), 
+                                      target_width / dpi / ax.figure.get_figwidth(), 
+                                      target_height / dpi / ax.figure.get_figheight()], zorder=5, anchor='NW')
+        
+        ax_logo.imshow(img_array)
+        ax_logo.axis('off')
+
+    @staticmethod
+    def _align_logo_top_left(fig, img_array):
+        dpi = fig.dpi
+        fig_width = fig.get_figwidth() * dpi
+        fig_height = fig.get_figheight() * dpi
+        x_placement = 0
+        y_placement = fig_height - 1.5 * img_array.shape[0]
+        return x_placement, y_placement
+    
 
 
 class ProcessControlChart:
