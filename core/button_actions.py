@@ -9,7 +9,7 @@ import os
 from .plot_manager import draw_error_band_xy, draw_error_band_y, draw_error_band_y_modified
 from tabulate import tabulate
 import matplotlib.pyplot as plt
-
+import numpy as np
 
 class ButtonActions:
     def __init__(self, app: Any, data_handler: Any) -> None:
@@ -205,7 +205,7 @@ class ButtonActions:
             _
         )
     
-    def plot_average_and_error_band(self, ax, test = True): ############################################# SET to FALSE for external ploting
+    def plot_average_and_error_band(self, ax): ############################################# SET to FALSE for external ploting
         strain = self.average_of_specimens["Strain"].to_numpy()  
         stress = self.average_of_specimens["Stress"].to_numpy()
         ax.plot(strain, stress, label="Average Stress-Strain Curve") 
@@ -213,10 +213,18 @@ class ButtonActions:
         if self.average_of_specimens_hysteresis.empty == False:
             self.plot_average_hysteresis(ax)
 
-       
-        if test == True:
-            std_dev_stress = self.average_of_specimens["std Stress"].to_numpy()
-            std_dev_strain = self.average_of_specimens["std Strain"].to_numpy()
+        internal_plot = self.widget_manager.internal_plot_enabled.get()
+        external_plot = self.widget_manager.external_plot_enabled.get()
+        
+        std_dev_stress = self.average_of_specimens["std Stress"].to_numpy()
+        std_dev_strain = self.average_of_specimens["std Strain"].to_numpy()
+
+        if internal_plot == True or external_plot == True:
+            # plot the error band based on the std dev of the stress and strain
+            draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
+
+        if not internal_plot and not external_plot:
+
             draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
             # draw_error_band_xy(ax, strain, stress,xerr=std_dev_strain, yerr=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
 
@@ -229,13 +237,14 @@ class ButtonActions:
 
             # self.plot_control_limits(ax, ucl, lcl, strain)
     
-
         #Add Module line and strength points
         df_summary = self.data_handler.create_summary_df(self.data_handler.properties_df)
         self.data_handler.calculate_avg_KPI(lower_strain = 0.2, upper_strain = 0.4)
         # print Energy values for use they dont need to be exported to excel
         dense_strain = strain[self.app.variables.average_plt_end_id]
+        dense_stress = stress[self.app.variables.average_plt_end_id]
         self.display_energy_values(df_summary, dense_strain)
+        self.display_key_strain_values(stress, strain, dense_stress)
 
         if self.app.variables.average_plt:
              plt = self.app.variables.average_plt
@@ -287,56 +296,100 @@ class ButtonActions:
         print("\nEnergy Values:")
         print(tabulate(energy_data, headers, tablefmt="grid"))
 
+    def display_key_strain_values(self, stress, strain, dense_stress = "N/A"):
+        # calculate stress at key strian values and round to 2 decimal places for readability
+        # key strain values are 20%, 50%, and densification strain
+
+        # Find the closest stress values for the key strain values
+        stress_20 = round(stress[np.abs(strain - 0.20).argmin()], 2)
+        stress_50 = round(stress[np.abs(strain - 0.50).argmin()], 2)
+        
+        if dense_stress != "N/A":
+            stress_dense = round(dense_stress, 2)
+        else:
+            stress_dense = "N/A"
+
+        # Prepare data to display in tabulated form
+        strain_data = [
+            ["20 %", f"{stress_20} MPa"],
+            ["50 %", f"{stress_50} MPa"],
+            [f"Densification", f"{stress_dense} MPa"]
+        ]
+
+        headers = ["Strain (%)", "Stress"]
+
+        print("\nKey Strain Values:")
+        print(tabulate(strain_data, headers, tablefmt="grid"))
+
     def plot_control_limits(self, ax, ucl, lcl, strain):
         ax.plot(strain, ucl, color = 'r', label="UCL", linestyle='--',linewidth =0.6)
         ax.plot(strain, lcl, color = 'r', label="LCL", linestyle='--',linewidth =0.6)
 
     def plot_average_hysteresis(self, ax, testing = False) -> None:
-        ax.plot(self.average_of_specimens_hysteresis["Strain"].to_numpy(), self.average_of_specimens_hysteresis["Stress"].to_numpy(), color = 'tab:purple', label="Average Hysteresis Curve", alpha=0.5)
+        internal_plot = self.widget_manager.internal_plot_enabled.get()
+        external_plot = self.widget_manager.external_plot_enabled.get()
+        offset_value = float(self.widget_manager.offset_value)*100 if self.app.widget_manager.offset_value else 1 
 
-        # x,y  = self.app.variables.hyst_avg_linear_plot
-        # ax.plot(x,y, color =  'b', label=" test 1% Modulus offset line", linestyle='--',linewidth =0.8)
-
+         # Modulus line
         x,y  = self.app.variables.hyst_avg_linear_plot if self.app.variables.hyst_avg_linear_plot_best_fit is None else self.app.variables.hyst_avg_linear_plot_best_fit
-  
-        max_stress = max(self.average_of_specimens["Stress"].to_numpy())
-        mask_1 = x > 0
-        mask_2 = y < max_stress
-        mask = mask_1 & mask_2  
-        
-        y_filtered = y[mask]
-        x_filtered = x[mask]
-        ax.plot(x_filtered,y_filtered, color =  'g', label="1% Modulus offset line", linestyle='--',linewidth =0.6) ########################################################### 1% Modulus  Need to change with the OFFSET value
+        x_filtered, y_filtered, mask = self._filter_xy(x, y)
+        print("\nAverage Plot: Slope of the modulus line: ", (y_filtered[-1] - y_filtered[0]) / (x_filtered[-1] - x_filtered[0]))
+        ax.plot(x_filtered,y_filtered, color =  'g', label=f"{offset_value}% Modulus offset line", linestyle='--',linewidth =0.6) 
 
-        # print the slope of the modulus line :  Linear only need the two points
-        print("Average Plot: Slope of the modulus line: ", (y_filtered[-1] - y_filtered[0]) / (x_filtered[-1] - x_filtered[0]))
-
+        # Plot strength points
         ps_strain, ps_stress = self.app.variables.avg_compressive_proof_strength_from_hyst[0] if self.app.variables.hyst_avg_linear_plot_best_fit is None else self.app.variables.avg_compressive_proof_strength_from_hyst[3]
-        # ps_strain, ps_stress = self.app.variables.avg_compressive_proof_strength_from_hyst[0]
         if  ps_strain and ps_stress:
                 ax.scatter(ps_strain, ps_stress, color='g', label=f"Compressive Proof Strength ({ps_stress:.3f} MPa)")
 
-        if testing == True:
-            colours = ['r', 'y', 'm', 'c', 'k']
-         
-            for c, (ps_strain, ps_stress) in zip( colours, self.app.variables.avg_compressive_proof_strength_from_hyst[1:]):
-            
-                if  ps_strain and ps_stress:
-                    ax.scatter(ps_strain, ps_stress, color=c, label=f"Compressive Proof Strength ({ps_stress:.3f} MPa)")
-            
-            if self.app.variables.hyst_avg_linear_plot_by_mod: 
-                for c, plot in  zip( colours,[self.app.variables.hyst_avg_linear_plot_by_mod, self.app.variables.hyst_avg_linear_plot_secant, self.app.variables.hyst_avg_linear_plot_best_fit]):
-                    x,y = plot
-                    y_filtered = y[mask]
-                    x_filtered = x[mask]
-                    ax.plot(x_filtered,y_filtered, color=c, label=" 1% Modulus offset line", linestyle='--',linewidth =0.6)
+        if internal_plot and not external_plot:
+            self._plot_hysteresis_curve(ax)
+        elif not internal_plot and external_plot:
+            # plot only the modulus line
+            pass
+        else: # default plot everything
+            self._plot_hysteresis_curve(ax)
 
-            if self.app.variables.hyst_avg_linear_plot_filtered:
-                for key in self.app.variables.average_of_specimens_hysteresis_sm:
-                    x,y = self.app.variables.hyst_avg_linear_plot_filtered[f'plot pts of {key}']
-                    y_filtered = y[mask]
-                    x_filtered = x[mask]
-                    ax.plot(x_filtered,y_filtered, label=f" 1% with {key} and filter", linestyle='--',linewidth =0.6)
+            if testing == True:
+                colours = ['r', 'y', 'm', 'c', 'k']
+            
+                for c, (ps_strain, ps_stress) in zip( colours, self.app.variables.avg_compressive_proof_strength_from_hyst[1:]):
+                
+                    if  ps_strain and ps_stress:
+                        ax.scatter(ps_strain, ps_stress, color=c, label=f"Compressive Proof Strength ({ps_stress:.3f} MPa)")
+                
+                if self.app.variables.hyst_avg_linear_plot_by_mod: 
+                    for c, plot in  zip( colours,[self.app.variables.hyst_avg_linear_plot_by_mod, self.app.variables.hyst_avg_linear_plot_secant, self.app.variables.hyst_avg_linear_plot_best_fit]):
+                        x,y = plot
+                        y_filtered = y[mask]
+                        x_filtered = x[mask]
+                        ax.plot(x_filtered,y_filtered, color=c, label=" 1% Modulus offset line", linestyle='--',linewidth =0.6)
+
+                if self.app.variables.hyst_avg_linear_plot_filtered:
+                    for key in self.app.variables.average_of_specimens_hysteresis_sm:
+                        x,y = self.app.variables.hyst_avg_linear_plot_filtered[f'plot pts of {key}']
+                        y_filtered = y[mask]
+                        x_filtered = x[mask]
+
+                        ax.plot(x_filtered,y_filtered, label=f" 1% with {key} and filter", linestyle='--',linewidth =0.6)
+
+    def _filter_xy(self, x, y):
+        max_stress = max(self.average_of_specimens["Stress"].to_numpy())
+        mask_1 = x > 0
+        mask_2 = y < max_stress
+        mask = mask_1 & mask_2
+        return x[mask], y[mask], mask
+    
+    def _plot_hysteresis_curve(self, ax) -> None:
+        ax.plot(
+            self.average_of_specimens_hysteresis["Strain"].to_numpy(),
+            self.average_of_specimens_hysteresis["Stress"].to_numpy(),
+            color='tab:purple',
+            label="Average Hysteresis Curve",
+            alpha=0.5
+        )
+
+
+
 
      
 ##### Not implemented ############

@@ -475,10 +475,11 @@ class DataHandler:
         ss_plot =  avg_data["Strain"].to_numpy(), avg_data["Stress"].to_numpy()
     
         ps_method = self._calculate_strength_from_intercept(ss_plot, (x, y))
+        print(f"\nThe first method of finding the proof strength is: {ps_method}")
 
-        if ps_method is not [(None,None)]:
-        # if any(ps_method):
-            print("\nNo intercept found, trying to simplify the calculation")
+        if ps_method is [(None,None)]:
+        # if any(ps_method):      
+            print("No intercept found, trying to simplify the calculation")
             self.simplify_modulus_calculation_by_avg(x)
             self.simplify_modulus_calculation_secant(x)
             self.simplify_modulus_calculation_best_fit(x)
@@ -588,7 +589,7 @@ class DataHandler:
         stress_range = self.app.variables.average_of_specimens["Stress"][closest_30_stress_index:closest_60_stress_index]
 
         self.avg_modulus_best_fit = self._fit_linear_model(strain_range, stress_range)
-        print(f"Average modulus: {self.avg_modulus_best_fit} from simplified calculation by linear best fit")
+        print(f"Average modulus: {self.avg_modulus_best_fit} from simplified calculation by linear best fit\n")
         
         self.app.variables.hyst_avg_linear_plot_best_fit = self._generate_linear_line(x, self.avg_modulus_best_fit)
 
@@ -652,6 +653,8 @@ class DataHandler:
         return selected_specimens
 
     def average_of_selected_specimens(self, selected_indices=None, control_limit_L = 3 ):
+        """Calculate the average of the selected specimens."""
+        print("\nCalculating Average of the selected specimens, please wait...")
         selected_specimens = self.get_selected_specimens(selected_indices)
         if not selected_specimens:
             return

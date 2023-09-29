@@ -30,20 +30,42 @@ class CustomToolbar(NavigationToolbar2Tk):
             defaultextension=default_filetype,
             filetypes=[*filetypes, ("All Files", "*.*")], )
         if fname:
+            fname = self._ensure_supported_filetype(fname)
               # Store original size
             original_size = self.canvas.figure.get_size_inches()
             # Set new size
             self.canvas.figure.set_size_inches(8, 6)
+
+            # Check if logo is inside or outside
+            if self.ax.get_label() == 'logo_axes':
+                LogoHelper.place_logo_with_inside(self.ax)
+            elif self.ax.get_label() == 'logo_title':
+                LogoHelper.place_logo_outside(self.ax)
             
-            LogoHelper.place_logo_with_inside(self.ax)
-            LogoHelper.place_logo_outside(self.ax)
             # Save with new DPI and size
             self.canvas.figure.savefig(fname, dpi=300)
             # Restore original size
             self.canvas.figure.set_size_inches(original_size)
 
+            # successfull save message
+            tk.messagebox.showinfo("Info", f"Successfully saved as {fname}")
+
     def set_ax(self,ax):
         self.ax = ax
+
+    def _ensure_supported_filetype(self, fname):
+        """
+        Ensure that the file extension is supported. Default to .png if not.
+        """
+        # Get the file extension
+        file_extension = fname.split('.')[-1]
+
+        # Check if the file extension is in the supported file types or if it's not specified
+        if not file_extension or file_extension not in self.canvas.get_supported_filetypes():
+            fname += ".png"
+            tk.messagebox.showinfo("Info", f"Unsupported file type. Saving as PNG.")
+        
+        return fname
 
 
 class PlotManager:
@@ -157,8 +179,13 @@ class PlotManager:
 
         # Apply styles based on the toggle states
         if position in [MIDDLE, RIGHT]:
+            # set the canvas ax to the current ax 
+            self.toolbars[position].set_ax(ax)
+            
             if is_internal_enabled and not is_external_enabled:
                 common_plot_styles(ax)
+
+                
             
             elif is_external_enabled and not is_internal_enabled:
                 common_plot_styles(ax)
@@ -173,15 +200,14 @@ class PlotManager:
                 ax.yaxis.set_major_locator(ticker.MultipleLocator(2))  # 2 MPa major ticks
                 ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.5))  # 0.5 MPa minor ticks
 
+                ax.legend(loc='upper center', ncol=1, fontsize=6)
+
                 # Add logo
                 if position == RIGHT:
                     LogoHelper.place_logo_outside(ax)
                 else: # MIDDLE
                     LogoHelper.place_logo_with_inside(ax)
-                          
-                # set the canvas ax to the current ax 
-                self.toolbars[position].set_ax(ax)
-
+                        
                 # Add address in footer
                 ax.figure.text(0.5, 0.02, 'Cymat Technologies Ltd. 6320-2 Danville Road Mississauga, Ontario, Canada, L5T 2L7', ha='center', va='bottom', fontsize=6, color='black')
           
@@ -237,6 +263,7 @@ class PlotManager:
             self.lines[position][line.get_label()] = line
                   
     def update_lines_with_selected_points(self, ax):
+        
         self.selected_points.sort()
         _, specimen = self.app.button_actions.get_current_tab()
 
@@ -441,7 +468,7 @@ class LogoHelper:
     
     def resize_logo_HW(image_path, target_width, target_height):
         original_image = Image.open(image_path)
-        resized_image = original_image.resize((target_width, target_height))
+        resized_image = original_image.resize((target_width, target_height), Image.LANCZOS)
         img_array = np.asarray(resized_image)
         return img_array
     
@@ -455,9 +482,8 @@ class LogoHelper:
         img_array = LogoHelper.resize_logo(logo_path, figure_area, area_fraction)
 
         # Check for existing logo and remove it
-        existing_logo_axes = [a for a in ax.figure.get_axes() if a.get_label() == 'logo_axes']
-        for logo_axes in existing_logo_axes:
-            ax.figure.delaxes(logo_axes)
+        LogoHelper._remove_existing_logo(ax.figure, 'logo_axes')
+        LogoHelper._remove_existing_logo(ax.figure, 'logo_title')
         
         x_left_limit = ax.get_xlim()[0]
         x_right_limit = ax.get_xlim()[1]
@@ -477,9 +503,11 @@ class LogoHelper:
                   extent=[x_left_limit + logo_margin_x, x_left_limit + logo_width_data + logo_margin_x, 
                           y_top_limit - logo_height_data - logo_margin_y, y_top_limit - logo_margin_y], 
                   zorder=1, alpha=1, label='logo_axes')
-    
+
     @staticmethod
-    def place_logo_outside(ax, area_fraction=0.08):
+    def place_logo_outside(ax, area_fraction=1):
+        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
         logo_path = 'templates\CYM004-Cymat-logo.png'
                 
         dpi = ax.figure.dpi
@@ -488,54 +516,31 @@ class LogoHelper:
         
         img_array = LogoHelper.resize_logo_HW(logo_path, target_width, target_height)
 
-         # Check for existing logo and remove it
-        existing_logo_axes = [a for a in ax.figure.get_axes() if a.get_label() == 'logo_title']
+        # Remove existing logos
+        LogoHelper._remove_existing_logo(ax.figure, 'logo_axes')
+        LogoHelper._remove_existing_logo(ax.figure, 'logo_title')
+
+        # Adjust positioning based on feedback
+        axins = inset_axes(ax, 
+                           width="10%", 
+                           height="10%", 
+                           loc='upper left',
+                           bbox_to_anchor=(-0.16, 0.1, 1, 1),  
+                           bbox_transform=ax.transAxes, 
+                           borderpad=0)
+        
+        axins.imshow(img_array)
+        axins.axis('off')
+
+    @staticmethod
+    def _remove_existing_logo(figure, logo_label):
+        """
+        Helper method to remove existing logos based on their label.
+        """
+        existing_logo_axes = [a for a in figure.get_axes() if a.get_label() == logo_label]
         for logo_axes in existing_logo_axes:
-            ax.figure.delaxes(logo_axes)
-        
-        # Margins to move the logo a bit from the top left corner
-        left_margin = 0.01
-        top_margin = 0.05
-        
-        # Adjusted axes for the logo
-        ax_logo = ax.figure.add_axes([left_margin, 
-                                      1 - (target_height / dpi + top_margin) / ax.figure.get_figheight(), 
-                                      target_width / dpi / ax.figure.get_figwidth(), 
-                                      target_height / dpi / ax.figure.get_figheight()], 
-                                     zorder=1, anchor='NW', label='logo_title')
-        
-        ax_logo.imshow(img_array)
-        ax_logo.axis('off')
-
-    
-    @staticmethod
-    def place_logo_top_left(ax, area_fraction=0.05):
-        logo_path = 'templates\CYM004-Cymat-logo.png'
-        
-        # Calculate the desired pixel size for the logo
-        dpi = ax.figure.dpi
-        target_width = int(ax.figure.get_figwidth() * dpi * area_fraction)
-        target_height = int(ax.figure.get_figheight() * dpi * area_fraction)
-        
-        img_array = LogoHelper.resize_logo(logo_path, target_width, target_height)
-
-        # Create new axes for the logo
-        ax_logo = ax.figure.add_axes([0, 1 - (target_height / dpi) / ax.figure.get_figheight(), 
-                                      target_width / dpi / ax.figure.get_figwidth(), 
-                                      target_height / dpi / ax.figure.get_figheight()], zorder=5, anchor='NW')
-        
-        ax_logo.imshow(img_array)
-        ax_logo.axis('off')
-
-    @staticmethod
-    def _align_logo_top_left(fig, img_array):
-        dpi = fig.dpi
-        fig_width = fig.get_figwidth() * dpi
-        fig_height = fig.get_figheight() * dpi
-        x_placement = 0
-        y_placement = fig_height - 1.5 * img_array.shape[0]
-        return x_placement, y_placement
-    
+            figure.delaxes(logo_axes)
+            print(f"Removed existing {logo_label} logo")
 
 
 class ProcessControlChart:

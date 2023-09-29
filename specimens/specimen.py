@@ -198,7 +198,7 @@ class SpecimenGraphManager:
 
         stress_diff = np.diff(stress)
         strain_diff = np.diff(strain)
-        print(f" Specimen{self.specimen.name}\n")
+        print(f"\n\nSpecimen{self.specimen.name}:\n")
 
         strain_diff_masked = np.ma.masked_where(strain_diff == 0, strain_diff)
         rate_of_change = np.ma.divide(stress_diff, strain_diff_masked)
@@ -341,7 +341,7 @@ class SpecimenGraphManager:
                         break
 
                 if valid_intersection is not None:
-                    print(valid_intersection.geom_type)
+                    #print(valid_intersection.geom_type)
                     # shapely migration from 1.8 to 2.0
                     try:
                         if valid_intersection.geom_type == 'MultiPoint':
@@ -735,7 +735,6 @@ class SpecimenDataManager:
         pt = self.pt_70_plt
         x, y = pt
         b = y - (slope * x)
-        print(b)
         return b
     
     def shift_data(self):
