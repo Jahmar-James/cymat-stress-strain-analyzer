@@ -213,7 +213,7 @@ class WidgetManager:
     @property
     def offset_value(self):
         value = self.fifth_row_group.offset_entry.get()
-        return value if value != "Set Offset" else None
+        return value if value != "Set Offset (%) Default 1" else None
 
     @property
     def shift_value(self):
@@ -404,7 +404,7 @@ class FifthRowGroup(tk.Frame):
         self.external_plot_toggle_button.grid(row=0, column=6, padx=10, pady=4, sticky='n')
 
     def create_offset_entry(self):
-        self.offset_entry = PlaceholderEntry(self, placeholder="Set Offset")
+        self.offset_entry = PlaceholderEntry(self, placeholder="Set Offset (%) Default 1")
         self.offset_entry.grid(row=0, column=7, padx=10, pady=4, sticky='n')
 
     def create_shift_entry(self):

@@ -221,17 +221,19 @@ class ButtonActions:
 
         if internal_plot == True or external_plot == True:
             # plot the error band based on the std dev of the stress and strain
-            draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
+            error_band_label = "Stress Standard Deviation Band"
+            draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3, label=error_band_label)
 
         if not internal_plot and not external_plot:
-
-            draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
+            error_band_label = "Stress Standard Deviation Band"
+            draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3,label=error_band_label)
             # draw_error_band_xy(ax, strain, stress,xerr=std_dev_strain, yerr=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3)
 
             max_stress = self.average_of_specimens["max Stress"].to_numpy()
             min_stress = self.average_of_specimens["min Stress"].to_numpy()
             
-            draw_error_band_y_modified(ax, strain, max_stress, min_stress, facecolor="C3", edgecolor="none", alpha=.3)
+            error_band_label_2 = "Stress Max/Min Band"
+            draw_error_band_y_modified(ax, strain, max_stress, min_stress, facecolor="C3", edgecolor="none", alpha=.3, label=error_band_label_2)
             ucl = self.average_of_specimens["UCL Stress"].to_numpy()
             lcl = self.average_of_specimens["LCL Stress"].to_numpy()
 
@@ -328,13 +330,14 @@ class ButtonActions:
     def plot_average_hysteresis(self, ax, testing = False) -> None:
         internal_plot = self.widget_manager.internal_plot_enabled.get()
         external_plot = self.widget_manager.external_plot_enabled.get()
-        offset_value = float(self.widget_manager.offset_value)*100 if self.app.widget_manager.offset_value else 1 
+        offset_value = float(self.widget_manager.offset_value) if self.app.widget_manager.offset_value else 1 
 
          # Modulus line
         x,y  = self.app.variables.hyst_avg_linear_plot if self.app.variables.hyst_avg_linear_plot_best_fit is None else self.app.variables.hyst_avg_linear_plot_best_fit
         x_filtered, y_filtered, mask = self._filter_xy(x, y)
         print("\nAverage Plot: Slope of the modulus line: ", (y_filtered[-1] - y_filtered[0]) / (x_filtered[-1] - x_filtered[0]))
-        ax.plot(x_filtered,y_filtered, color =  'g', label=f"{offset_value}% Modulus offset line", linestyle='--',linewidth =0.6) 
+        # round offse to 3 decimal places for readability
+        ax.plot(x_filtered,y_filtered, color =  'g', label=f"{round(offset_value,3 )}% Modulus offset line", linestyle='--',linewidth =0.6) 
 
         # Plot strength points
         ps_strain, ps_stress = self.app.variables.avg_compressive_proof_strength_from_hyst[0] if self.app.variables.hyst_avg_linear_plot_best_fit is None else self.app.variables.avg_compressive_proof_strength_from_hyst[3]

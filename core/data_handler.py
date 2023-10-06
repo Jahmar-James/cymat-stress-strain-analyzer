@@ -450,7 +450,7 @@ class DataHandler:
         else:
             modulus_by_stress = self._calculate_modulus_by_stress(data, max_stress_index)
             print(f"Modulus is: {modulus_by_stress}")
-            x, y = self._generate_linear_line(avg_data["Strain"].to_numpy(),modulus_by_stress, offset=0.009)
+            x, y = self._generate_linear_line(avg_data["Strain"].to_numpy(),modulus_by_stress, offset=0.01)
         
         if test_filtering:
             data_set = {}
@@ -540,7 +540,7 @@ class DataHandler:
     def _generate_linear_line(self, strain_range, modulus, offset=0.01): ######################################################## SET OFFSET TO 0.01 1% of strain  ########################################## 
         # if offset is not specified from widget manager, use the default offset of 0.01 based on the ISO standard
         if self.widget_manager.offset_value is not None:
-            offset = float(self.widget_manager.offset_value)
+            offset = float(self.widget_manager.offset_value)/100
             print(f"Warning: None ISO compliant Offset of: {offset}")
 
         max_strain = max(strain_range)

@@ -419,7 +419,7 @@ def draw_error_band_xy(ax, x, y, xerr, yerr, **kwargs):
     path = Path(vertices, codes)
     ax.add_patch(PathPatch(path, **kwargs))
 
-def draw_error_band_y(ax, x, y, err, **kwargs):
+def draw_error_band_y(ax, x, y, err, label=None, **kwargs):
     xp = np.concatenate([x, x[::-1]])  # Upper band then lower band
     yp = np.concatenate([y + err, y[::-1] - err[::-1]])  # Positive error then negative error
 
@@ -428,10 +428,10 @@ def draw_error_band_y(ax, x, y, err, **kwargs):
     codes[0] = Path.MOVETO
 
     path = Path(vertices, codes)
-    patch = PathPatch(path, **kwargs)
+    patch = PathPatch(path,label=label, **kwargs)
     ax.add_patch(patch)
 
-def draw_error_band_y_modified(ax, x, upper_y, lower_y, **kwargs):
+def draw_error_band_y_modified(ax, x, upper_y, lower_y,label=None, **kwargs):
     xp = np.concatenate([x, x[::-1]])  # Upper band then lower band for x axis
     yp = np.concatenate([upper_y, lower_y[::-1]])  # Upper limit then lower limit
 
@@ -440,7 +440,7 @@ def draw_error_band_y_modified(ax, x, upper_y, lower_y, **kwargs):
     codes[0] = Path.MOVETO
 
     path = Path(vertices, codes)
-    patch = PathPatch(path, **kwargs)
+    patch = PathPatch(path,label=label, **kwargs)
     ax.add_patch(patch)
 
 class LogoHelper:
