@@ -40,8 +40,9 @@ class WidgetManager:
         self.create_fifth_row_group()
         self.create_notebook()
         self.create_prelim_group()
-        self.plot_title_entry_group = PlotTitleEntryGroup(self.app.master)
-        self.plot_title_entry_group.grid(row=0, column=6,rowspan=5, sticky='ns')
+        self.create_plot_title_entry_group()
+        self.create_ticker_widgets()
+        self.create_axis_set_widgets()
 
     def create_entry_group(self):
         labels_texts = [("Specimen Name:",''), ("Length:","mm"), ("Width:","mm"), ("Thickness:","mm") ,("Weight:","grams")]
@@ -71,10 +72,9 @@ class WidgetManager:
 
     def create_data_management_button_group(self):
         data_management_names = ["Import Specimen Properties","Save Specimen", "Export Average to Excel", 
-                                 "MS Word", "Custom Skew Cards"]
+                                 "Update Plot", "Individual Excel Files"]
         data_management_functions = [self.button_actions.import_properties, self.button_actions.save_selected_specimens, self.button_actions.export_average_to_excel, 
-                                     self.button_actions.export_ms_data,
-                                     self.button_actions.custom_skew_cards]
+                                     self.button_actions.update_plot, self.button_actions.export_indivdual_data]
         data_management_specs = list(zip(data_management_names, data_management_functions, 
                                          ['disabled' if i != 0 else 'normal' for i in range(len(data_management_names))]))
 
@@ -83,9 +83,15 @@ class WidgetManager:
         self.data_management_buttons = self.data_management_button_group.buttons
 
     def create_list_box_group(self):
+
         self.list_box_group = ListBoxGroup(self.app.master, "Select specimens:", width=100)
-        self.list_box_group.grid(row=0, column=4, rowspan=2, sticky='ns')
+        self.list_box_group.grid(row=0, column=4, rowspan=3, sticky='ns')
+
         self.specimen_listbox = self.list_box_group.specimen_listbox
+
+        self.update_plot_dropdown_var = self.list_box_group.update_plot_dropdown_var
+        self.PLOT_MAPPING_OPTIONS = self.list_box_group.PLOT_MAPPING
+        self.specimen_dropdown = self.list_box_group.specimen_dropdown
 
 
     def create_fifth_row_group(self):
@@ -99,7 +105,7 @@ class WidgetManager:
                                               internal_plot_enabled=self.internal_plot_enabled, 
                                              external_plot_enabled=self.external_plot_enabled 
                                               )
-        self.fifth_row_group.grid(row=5, column=0, columnspan=6, sticky='nsew')
+        self.fifth_row_group.grid(row=5, column=0, columnspan=7, sticky='nsew')
         self.slider_checkbutton = self.fifth_row_group.toggle_button
         self.select_mode_checkbutton = self.fifth_row_group.select_mode_toggle_button
         self.offset_entry = self.fifth_row_group.offset_entry
@@ -107,7 +113,19 @@ class WidgetManager:
     
     def create_prelim_group(self):
         self.prelim_group = PrelimGroup(self.app.master,  app = self.app)
-        self.prelim_group.grid(row=0, column=5, rowspan=4, sticky='ns')
+        self.prelim_group.grid(row=0, column=5, rowspan=3, sticky='ns')
+
+    def create_plot_title_entry_group(self):
+        self.plot_title_entry_group = PlotTitleEntryGroup(self.app.master)
+        self.plot_title_entry_group.grid(row=0, column=6,rowspan=4, sticky='ns')
+
+    def create_ticker_widgets(self):
+        self.ticker_group = TickerConfigGroup(self.app.master)
+        self.ticker_group.grid(row=5, column=5, sticky='ns', rowspan=2)
+
+    def create_axis_set_widgets(self):
+        self.axis_set_group = AxisConfigGroup(self.app.master)
+        self.axis_set_group.grid(row=5, column=6, sticky='ns', rowspan=2)
         
     # Creation
     def create_notebook(self):
@@ -219,6 +237,46 @@ class WidgetManager:
     def shift_value(self):
         value = self.fifth_row_group.shift_entry.get()
         return value if value != "Set Shift" else None
+    
+    @property
+    def x_ticks(self):
+        raw_value = self.ticker_group.x_tick_entry.get()
+        # if placeholder return default value eles try 
+        if(self.ticker_group.x_tick_entry.placeholder == raw_value):
+            return (0.1,0.02)
+        else:
+            try:
+                major, minor = map(float, raw_value.strip("()").split(","))
+                return (major, minor)
+            except ValueError:
+                return None
+
+    @property
+    def y_ticks(self):
+        raw_value = self.ticker_group.y_tick_entry.get()
+        try:
+            major, minor = map(float, raw_value.strip("()").split(","))
+            return (major, minor)
+        except ValueError:
+            return None
+        
+    @property
+    def x_axis_limits(self):
+        raw_value = self.axis_set_group.x_axis_entry.get()
+        try:
+            start, end = map(float, raw_value.strip("()").split(","))
+            return (start, end)
+        except ValueError:
+            return None
+
+    @property
+    def y_axis_limits(self):
+        raw_value = self.axis_set_group.y_axis_entry.get()
+        try:
+            start, end = map(float, raw_value.strip("()").split(","))
+            return (start, end)
+        except ValueError:
+            return None
 
         
 class SliderManager(tk.Frame):
@@ -349,10 +407,29 @@ class ButtonGroup(tk.Frame):
 class ListBoxGroup(tk.Frame):
     def __init__(self, master=None, label_text=None,width=None, **kwargs):
         super().__init__(master,  width=width,**kwargs)
+
+        self._create_listbox(label_text)   
+        self._create_dropdown()
+
+    def _create_listbox(self, label_text):    
         self.specimen_listbox_label = tk.Label(self, text=label_text)
         self.specimen_listbox_label.grid(row=0, column=0, padx=10, pady=10)
         self.specimen_listbox = tk.Listbox(self, selectmode=tk.MULTIPLE)
         self.specimen_listbox.grid(row=1, column=0, rowspan=2, padx=10, pady=2, sticky='ns')
+
+    def _create_dropdown(self):
+        from .plot_manager import LEFT, MIDDLE, RIGHT
+        options = ["Left current specimen", "Middle overlay of specimen", "Right avg of specimen"]    
+        self.PLOT_MAPPING= {
+            "Left current specimen": LEFT,
+            "Middle overlay of specimen": MIDDLE,
+            "Right avg of specimen": RIGHT
+        }
+        
+        self.update_plot_dropdown_var = tk.StringVar(self)
+        self.update_plot_dropdown_var .set(options[0])  # Set the default value
+        self.specimen_dropdown = tk.OptionMenu(self, self.update_plot_dropdown_var ,*options)
+        self.specimen_dropdown.grid(row=3, column=0, padx=10, pady=2)   
 
 class FifthRowGroup(tk.Frame):
     def __init__(self, master=None, reset_callback=None, import_callback=None, 
@@ -377,39 +454,39 @@ class FifthRowGroup(tk.Frame):
 
     def create_reset_button(self, callback):
         self.reset_button = tk.Button(self, text="Reset Strain Shift", command=callback)
-        self.reset_button.grid(row=0, column=1, padx=10, pady=5, sticky='n')
+        self.reset_button.grid(row=0, column=0, padx=10, pady=5, sticky='n')
 
     def create_import_button(self, callback):
         self.import_button = tk.Button(self, text="Import Specimen", command=callback)
-        self.import_button.grid(row=0, column=3, padx=10, pady=5, sticky='n')
+        self.import_button.grid(row=0, column=1, padx=10, pady=5, sticky='n')
 
     def create_strain_checkbox(self, callback):
         self.toggle_button = tk.Checkbutton(self, text="Enable strain shift", variable=self.strain_variable, command=callback)
-        self.toggle_button.grid(row=0, column=0, padx=10, pady=10, sticky='n')
+        self.toggle_button.grid(row=1, column=0, padx=10, pady=10, sticky='n')
 
     def create_select_checkbox(self, callback):
         self.select_mode_toggle_button = tk.Checkbutton(self, text="Enable Select Mode", variable=self.select_variable, command=callback)
-        self.select_mode_toggle_button.grid(row=0, column=2, padx=10, pady=4, sticky='n')
+        self.select_mode_toggle_button.grid(row=1, column=1, padx=10, pady=4, sticky='n')
     
     def create_word_button(self, callback):
         self.ms_button = tk.Button(self, text="MS word", command=callback)
-        self.ms_button.grid(row=0, column=4, padx=10, pady=5, sticky='n')
+        self.ms_button.grid(row=0, column=2, padx=10, pady=5, sticky='n')
 
     def create_internal_plot_checkbox(self):
         self.internal_plot_toggle_button = tk.Checkbutton(self, text="Internal Plot", variable=self.internal_plot_variable)
-        self.internal_plot_toggle_button.grid(row=0, column=5, padx=10, pady=4, sticky='n')
+        self.internal_plot_toggle_button.grid(row=1, column=5, padx=10, pady=4, sticky='n')
 
     def create_external_plot_checkbox(self):
         self.external_plot_toggle_button = tk.Checkbutton(self, text="External Plot", variable=self.external_plot_variable)
-        self.external_plot_toggle_button.grid(row=0, column=6, padx=10, pady=4, sticky='n')
+        self.external_plot_toggle_button.grid(row=1, column=6, padx=10, pady=4, sticky='n')
 
     def create_offset_entry(self):
         self.offset_entry = PlaceholderEntry(self, placeholder="Set Offset (%) Default 1")
-        self.offset_entry.grid(row=0, column=7, padx=10, pady=4, sticky='n')
+        self.offset_entry.grid(row=0, column=5, padx=10, pady=4, sticky='n')
 
     def create_shift_entry(self):
         self.shift_entry = PlaceholderEntry(self, placeholder="Set Shift")
-        self.shift_entry.grid(row=0, column=8, padx=10, pady=4, sticky='n')
+        self.shift_entry.grid(row=0, column=6, padx=10, pady=4, sticky='n')
 
 
 class PrelimGroup(tk.Frame):
@@ -527,4 +604,47 @@ class PlotTitleEntryGroup(tk.Frame):
             entry.on_focusout(None)
 
 
+class AxisConfigGroup(ttk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.create_axis_label()
+        self.create_x_axis_configuration()
+        self.create_y_axis_configuration()
 
+    def create_axis_label(self):
+        ttk.Label(self, text="Axes").grid(row=0, column=0, columnspan=2, sticky='w', pady=8)
+    
+    def create_x_axis_configuration(self):
+        self.x_axis_label = ttk.Label(self, text="X-axis:")
+        self.x_axis_label.grid(row=1, column=0, sticky='w')
+        self.x_axis_entry = PlaceholderEntry(self, placeholder="(Start,End) e.g., (0,10)")
+        self.x_axis_entry.grid(row=1, column=1, sticky='w')
+
+    def create_y_axis_configuration(self):
+        self.y_axis_label = ttk.Label(self, text="Y-axis:")
+        self.y_axis_label.grid(row=2, column=0, sticky='w')
+        self.y_axis_entry = PlaceholderEntry(self, placeholder="(Start,End) e.g., (0,5)")
+        self.y_axis_entry.grid(row=2, column=1, sticky='w')
+
+
+class TickerConfigGroup(ttk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.create_ticker_label()
+        self.create_x_ticker_configuration()
+        self.create_y_ticker_configuration()
+
+    def create_ticker_label(self):
+        ttk.Label(self, text="Ticker (Major,Minor)").grid(row=0, column=0, columnspan=4, sticky='w', pady=8)
+
+    def create_x_ticker_configuration(self):
+        self.x_tick_label = ttk.Label(self, text="X-tick:",)
+        self.x_tick_label.grid(row=1, column=0, sticky='w', pady=2)
+        self.x_tick_entry = PlaceholderEntry(self, placeholder="(Major,Minor) e.g., (0.1,0.02)")
+        self.x_tick_entry.grid(row=1, column=1, sticky='w')
+
+    def create_y_ticker_configuration(self):
+        self.y_tick_label = ttk.Label(self, text="Y-tick:")
+        self.y_tick_label.grid(row=2, column=0, sticky='w', pady=2)
+        self.y_tick_entry = PlaceholderEntry(self, placeholder="(Major,Minor) e.g., (2,0.5)")
+        self.y_tick_entry.grid(row=2, column=1, sticky='w')

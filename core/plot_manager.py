@@ -184,9 +184,7 @@ class PlotManager:
             
             if is_internal_enabled and not is_external_enabled:
                 common_plot_styles(ax)
-
-                
-            
+                         
             elif is_external_enabled and not is_internal_enabled:
                 common_plot_styles(ax)
 
@@ -391,6 +389,36 @@ class PlotManager:
                             self.update_lines_with_selected_points(ax)
 
                         break
+
+    
+    def user_update_plot(self, selected_plot, x_ticks, y_ticks, x_axis_limits, y_axis_limits):
+
+        if not selected_plot or selected_plot not in self.plots:
+            print(f"Error: Plot '{selected_plot}' not found!")
+            return
+        
+        figure = self.plots[selected_plot].figure
+        ax = figure.gca()
+
+        # Update plots
+        if x_ticks is not None:
+            x_major_ticks, x_minor_ticks = x_ticks
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(x_major_ticks))
+            ax.xaxis.set_minor_locator(ticker.MultipleLocator(x_minor_ticks))
+
+        if y_ticks is not None:
+            y_major_ticks, y_minor_ticks = y_ticks
+            ax.yaxis.set_major_locator(ticker.MultipleLocator(y_major_ticks))
+            ax.yaxis.set_minor_locator(ticker.MultipleLocator(y_minor_ticks))
+
+        if x_axis_limits is not None:
+            ax.set_xlim(*x_axis_limits)
+
+        if y_axis_limits is not None:
+            ax.set_ylim(*y_axis_limits)
+
+        self.plots[selected_plot].draw()
+
 
     @staticmethod
     def find_nearest_x(clicked_x, xdata):

@@ -392,8 +392,39 @@ class ButtonActions:
         )
 
 
+    ### Skeleton Functions 
 
+    def export_indivdual_data(self):
+        print("Button clicked to export individual specimen data to Excel Files")
 
+    def update_plot(self):
+        selected_plot = self.widget_manager.update_plot_dropdown_var.get()
+        print(f"Update Plot button clicked. Selected plot: {selected_plot}")
+
+        x_ticks = self.widget_manager.x_ticks
+        y_ticks = self.widget_manager.y_ticks
+        x_axis_limits = self.widget_manager.x_axis_limits
+        y_axis_limits = self.widget_manager.y_axis_limits
+
+        # print out the values in tabulated form using tabulate
+        self._print_plot_update_values(x_ticks, y_ticks, x_axis_limits, y_axis_limits)
+
+        selected_plot= self.widget_manager.PLOT_MAPPING_OPTIONS.get(selected_plot)
+
+        self.plot_manager.user_update_plot(selected_plot, x_ticks, y_ticks, x_axis_limits, y_axis_limits)
+
+    def _print_plot_update_values(self,x_ticks, y_ticks, x_axis_limits, y_axis_limits):
+        plot_update_data = [
+            ["X Ticks", f"{x_ticks}"],
+            ["Y Ticks", f"{y_ticks}"],
+            ["X Axis Limits", f"{x_axis_limits}"],
+            ["Y Axis Limits", f"{y_axis_limits}"]
+        ]
+
+        headers = ["Plot Update", "Value"]
+
+        print("\nPlot Update Values:")
+        print(tabulate(plot_update_data, headers, tablefmt="grid"))
      
 ##### Not implemented ############
     
@@ -412,8 +443,7 @@ class ButtonActions:
             return
 
 
-    def custom_skew_cards(self):
-        print("Custom Skew Cards button clicked.")
+
 
     def recalculate_specimen(self):
         print("Recalculate Specimen Variables button clicked.")
