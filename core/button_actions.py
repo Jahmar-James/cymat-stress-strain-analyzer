@@ -415,10 +415,10 @@ class ButtonActions:
 
     def _print_plot_update_values(self,x_ticks, y_ticks, x_axis_limits, y_axis_limits):
         plot_update_data = [
-            ["X Ticks", f"{x_ticks}"],
-            ["Y Ticks", f"{y_ticks}"],
-            ["X Axis Limits", f"{x_axis_limits}"],
-            ["Y Axis Limits", f"{y_axis_limits}"]
+            ["X Ticks (Major, Minor) - %", f"{x_ticks}"],
+            ["Y Ticks (Major, Minor) - Mpa", f"{y_ticks}"],
+            ["X Axis Limits (Start, End) - %", f"{x_axis_limits if x_axis_limits else 'No change'}"],
+            ["Y Axis Limits (Start, End)", f"{y_axis_limits if y_axis_limits else 'No change'}"]
         ]
 
         headers = ["Plot Update", "Value"]

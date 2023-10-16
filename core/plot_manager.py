@@ -403,8 +403,8 @@ class PlotManager:
         # Update plots
         if x_ticks is not None:
             x_major_ticks, x_minor_ticks = x_ticks
-            ax.xaxis.set_major_locator(ticker.MultipleLocator(x_major_ticks))
-            ax.xaxis.set_minor_locator(ticker.MultipleLocator(x_minor_ticks))
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(x_major_ticks/100))
+            ax.xaxis.set_minor_locator(ticker.MultipleLocator(x_minor_ticks/100))
 
         if y_ticks is not None:
             y_major_ticks, y_minor_ticks = y_ticks
@@ -412,7 +412,8 @@ class PlotManager:
             ax.yaxis.set_minor_locator(ticker.MultipleLocator(y_minor_ticks))
 
         if x_axis_limits is not None:
-            ax.set_xlim(*x_axis_limits)
+            x_start, x_end = x_axis_limits
+            ax.set_xlim(x_start/100, x_end/100)
 
         if y_axis_limits is not None:
             ax.set_ylim(*y_axis_limits)

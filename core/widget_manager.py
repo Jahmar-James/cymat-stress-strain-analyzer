@@ -241,9 +241,8 @@ class WidgetManager:
     @property
     def x_ticks(self):
         raw_value = self.ticker_group.x_tick_entry.get()
-        # if placeholder return default value eles try 
         if(self.ticker_group.x_tick_entry.placeholder == raw_value):
-            return (0.1,0.02)
+            return (10,2)
         else:
             try:
                 major, minor = map(float, raw_value.strip("()").split(","))
@@ -254,11 +253,14 @@ class WidgetManager:
     @property
     def y_ticks(self):
         raw_value = self.ticker_group.y_tick_entry.get()
-        try:
-            major, minor = map(float, raw_value.strip("()").split(","))
-            return (major, minor)
-        except ValueError:
-            return None
+        if(self.ticker_group.y_tick_entry.placeholder == raw_value):
+            return (2,0.5)
+        else:
+            try:
+                major, minor = map(float, raw_value.strip("()").split(","))
+                return (major, minor)
+            except ValueError:
+                return None
         
     @property
     def x_axis_limits(self):
@@ -640,7 +642,7 @@ class TickerConfigGroup(ttk.Frame):
     def create_x_ticker_configuration(self):
         self.x_tick_label = ttk.Label(self, text="X-tick:",)
         self.x_tick_label.grid(row=1, column=0, sticky='w', pady=2)
-        self.x_tick_entry = PlaceholderEntry(self, placeholder="(Major,Minor) e.g., (0.1,0.02)")
+        self.x_tick_entry = PlaceholderEntry(self, placeholder="(Major,Minor) e.g., (10,2)")
         self.x_tick_entry.grid(row=1, column=1, sticky='w')
 
     def create_y_ticker_configuration(self):
