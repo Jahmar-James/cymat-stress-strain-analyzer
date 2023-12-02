@@ -14,7 +14,7 @@ Properties that need to be set to specimen must end with '_p' suffix
 class SpecimenMetricsDTO(BaseModel):
     """
     For specific analysis properties type and program model.
-    Base DTO with some common properties.
+    Base DTO with some common properties. 
     Properties that need to be set to specimen must end with '_p' suffix.
 
     Metric is a named tuple with value and defualt unit.

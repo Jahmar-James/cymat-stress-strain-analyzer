@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app_layer.app_state import AppState
+    from app_layer.app_state import AppVariables
 
 class WidgetManager(ABC):
     """

@@ -7,6 +7,12 @@ from app_layer.managers.widget_manager import WidgetManager
 
 from .ui.ui import UI
 
+# Makes a State Design Pattern
+"""
+The State Design Pattern is a behavioral design pattern that allows an object to alter its behavior based on its internal state.
+
+Change AppBackend to a State Design Pattern allowing for unifrom state management across all frontends.
+"""
 
 class FrontendInterface(ABC):
     """

@@ -9,9 +9,9 @@ if TYPE_CHECKING:
     from data_layer.models.analyzable_entity import AnalyzableEntity
 
 
-class AppState(BaseModel):
+class AppVariables(BaseModel):
     """
-    Contain app states, provide validation. 
+    Contain app varibles, provide validation. 
     The Subjet of Observer pattern. 
     """
     # Data / Model
