@@ -27,6 +27,10 @@ from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 
 DIN_PROPERTIES = [
+        'Rplt', 'Rplt_E', 'ReH', 'Ev', 'Eff', 'Aplt_E', 'AeH', 'm'
+    ]
+
+DIN_PROPERTIES_OLD = [
         'Rplt', 'Rplt_E', 'ReH', 'Ev', 'Eff', 'ReH_Rplt_ratio', 'Aplt_E', 'AeH', 'Rp1', 'm'
     ]
 
@@ -41,6 +45,60 @@ def median_filter(data, denoise_strength = 21):
 
 def gaussian_smoothing(data, sigma):
     return data.apply(lambda x: gaussian_filter1d(x, sigma=sigma))
+
+
+class DataValidator:
+    REQUIRED_COLUMNS = {
+        'stress_strain': ['stress', 'strain'],
+        'displacement_force': ['displacement', 'force']
+    }
+
+    COLUMN_MAPPING = {
+            'stress': ['stress', 'contrainte'],
+            'strain': ['strain', 'deformation'],
+            'force': ['force', 'load'],
+            'displacement': ['displacement', 'elongation',]
+    }
+
+    @staticmethod
+    def validate_columns(data):
+        if isinstance(data, pd.DataFrame) and not data.empty:
+            print(f"Data has been imported successfully with the following columns: {list(data.columns)}")
+            columns = [col.lower() for col in data.columns]
+            if any(required in col for required in DataValidator.REQUIRED_COLUMNS['stress_strain'] for col in columns):
+                print("Stress and strain data found.")
+                return 'stress_strain_df'
+            elif any(required in col for required in DataValidator.REQUIRED_COLUMNS['displacement_force'] for col in columns):
+                print("Displacement and force data found. Further processing required.")
+                return 'displacement_force_df'
+            else:
+                raise ValueError(f"Data must contain columns related to either 'stress_strain' or 'displacement_force'")
+        else:
+            return None
+        
+    @staticmethod
+    def remap_df_columns(df: pd.DataFrame, column_mapping: dict = None) -> pd.DataFrame:
+        if column_mapping is None:
+            column_mapping = DataValidator.COLUMN_MAPPING
+
+        # Do necessary conversions
+        original_columns = df.columns
+        strain_variations = column_mapping.get('strain', [])
+        for col in original_columns:
+            if any(variation in col.lower() for variation in strain_variations) and '%' in col:
+                df[col] = df[col].astype(float) / 100
+                print(f"Converted strain from % to mm/mm for column: {col}")
+
+        # Remap the columns
+        remapped_columns = {}
+        for standard_name, variations in column_mapping.items():
+            for variation in variations:
+                matching_columns = [col for col in df.columns if variation in col.lower()]
+                if matching_columns:
+                    remapped_columns[matching_columns[0]] = standard_name
+                    break
+        
+        return  df.rename(columns=remapped_columns)
 
 # data_handler.py
 class DataHandler:
@@ -68,6 +126,12 @@ class DataHandler:
 
         self.data_analysis_buttons = []  # First group
         self.data_management_buttons = []  # Second group
+
+        self.SUPPORTED_FILE_TYPES = [
+         ("Supported types", "*.dat *.xls *.xlsx *.csv"),
+        ("All files", "*.*")
+    ]
+
     
     def set_widget_manager(self, widget_manager):
         self.widget_manager = widget_manager
@@ -89,32 +153,45 @@ class DataHandler:
             return "Length, Width, Thickness, and Weight must be numbers."
         return None
 
-
-    def import_specimen_data(self):
+    def process_file(self, file_path):
         def read_raw_data(file_path):
             with open(file_path, 'r') as file:
                 return file.readlines()
+        if file_path:
+            # Display file name above the 'Import Data' button
+            raw_data = read_raw_data(file_path)
+            return raw_data, None
+        
+    def process_excel(self, file_path):
+        data = pd.read_excel(file_path)
+        data = DataValidator.remap_df_columns(data, )
+        data_fields  = DataValidator.validate_columns(data)
+        return data, data_fields
+    
+    def process_csv(self, file_path):
+        data = pd.read_csv(file_path)
+        data = DataValidator.remap_df_columns(data)
+        data_fields = DataValidator.validate_columns(data)
+        return data, data_fields
 
-        def process_file(file_path):
-            if file_path:
-                # Display file name above the 'Import Data' button
-                raw_data = read_raw_data(file_path)
-                return raw_data
-
-        DAT_FILE_TYPE = (("Data files", "*.dat"), ("All files", "*.*"))
-
+    def import_specimen_data(self): 
         raw_data_list = [] # Create an empty list to store raw data
-        data_types = ['Unloading data', 'General data']
+        condtion_list = [] # Create an empty list to store condtion data
+        data_types = ['Pre-loading data', 'General Full-Load data']
 
         if self.app.variables.prelim_mode.get():
-            file_path = filedialog.askopenfilename(title="Select a data file", filetypes=(DAT_FILE_TYPE))
-            raw_data = process_file(file_path)
+            file_path = self.ask_for_file()
+            process_method = self.get_processing_method(file_path)
+            raw_data, condtion  = process_method(file_path)
             raw_data_list.append(raw_data)
+            condtion_list.append(condtion)
         else:
             for data_type in data_types:
-                file_path = filedialog.askopenfilename(title=f"Select {data_type} file", filetypes=(DAT_FILE_TYPE))
-                raw_data = process_file(file_path)
+                file_path = self.ask_for_file(data_type)
+                process_method = self.get_processing_method(file_path)
+                raw_data, condtion = process_method(file_path)
                 raw_data_list.append(raw_data)
+                condtion_list.append(condtion)
         
         if file_path:
             # Now the list raw_data_list contains all the raw data. We can process it now.
@@ -125,7 +202,7 @@ class DataHandler:
 
             filename = Path(file_path).name
             self.widget_manager.update_ui_elements(filename, specimen)
-            specimen.process_data()
+            specimen.process_data(condtion_list)
             tab_id = self.widget_manager.create_new_tab(name)
             self.app.variables.add_specimen(tab_id, specimen)
             self.button_actions.clear_entries()
@@ -138,6 +215,24 @@ class DataHandler:
             if len(self.app.variables.specimens) > 1:
                 self.button_actions.plot_all_specimens()
 
+    def get_processing_method(self, file_path):
+        if file_path is None:
+            return None
+        if file_path.endswith('.dat'):
+            return self.process_file
+        elif file_path.endswith(('.xls', '.xlsx')):
+            return self.process_excel
+        elif file_path.endswith('.csv'):
+            return self.process_csv
+        else:
+            raise ValueError("Unsupported file type")   
+
+    def ask_for_file(self, data_type=None):
+        file_extension, _ =self.SUPPORTED_FILE_TYPES
+        title = f"Select {data_type} file" if data_type else f"Select a data file from the supported types ({file_extension})"
+        return filedialog.askopenfilename(title=title, filetypes=self.SUPPORTED_FILE_TYPES)
+        
+
     def get_specimen_properties(self):
         name = self.widget_manager.name_entry.get()
         length = self.widget_manager.length_entry.get()
@@ -147,18 +242,18 @@ class DataHandler:
         return name, length, width, thickness, weight
    
     def split_hysteresis_data(self, data):
-        max_force_index = np.argmax(-data["Force"].values)
+        max_force_index = np.argmax(-data["force"].values)
         return data[:max_force_index+1], data[max_force_index+1:]
     
     def clean_split_hysteresis_data_by_force(self, data):
-        return data[data["Force"].abs() > 50]
+        return data[data["force"].abs() > 50]
     
     def get_common_force(self, split_data_1, split_data_2):
-        min_force_1 = max(abs(data["Force"].min()) for data in split_data_1)
-        min_force_2 = min(abs(data["Force"].max()) for data in split_data_2)
+        min_force_1 = max(abs(data["force"].min()) for data in split_data_1)
+        min_force_2 = min(abs(data["force"].max()) for data in split_data_2)
         
-        max_force_1 = min(abs(data["Force"].max()) for data in split_data_1)
-        max_force_2 = max(abs(data["Force"].min()) for data in split_data_2)
+        max_force_1 = min(abs(data["force"].max()) for data in split_data_1)
+        max_force_2 = max(abs(data["force"].min()) for data in split_data_2)
 
         max_force_common = min(max_force_1, max_force_2)
         min_force_common = max(min_force_1, min_force_2)
@@ -175,14 +270,14 @@ class DataHandler:
     def interpolate_data(self, data, common_force, cross_sectional_area, original_length, testing_interpolation=False):
         # Select only the required columns
         df = data.loc[:, ["stress", "strain", "shiftd strain"]]
-        data  = data.loc[:, ["Force", "Displacement", "Time"]]
+        data  = data.loc[:, ["force", "displacement", "Time"]]
 
         # Create interpolating functions
-        f_displacement = interp1d(abs(data["Force"]), data["Displacement"])
-        f_time = interp1d(abs(data["Force"]), data["Time"])
+        f_displacement = interp1d(abs(data["force"]), data["displacement"])
+        f_time = interp1d(abs(data["force"]), data["Time"])
         
         # Remove out of bounds values
-        common_force = np.clip(common_force, np.min(abs(data["Force"])), np.max(abs(data["Force"])))
+        common_force = np.clip(common_force, np.min(abs(data["force"])), np.max(abs(data["force"])))
 
         # Perform the interpolation
         interpolated_displacement = f_displacement(common_force)
@@ -192,14 +287,14 @@ class DataHandler:
         stress = (common_force / cross_sectional_area) 
         strain = (interpolated_displacement / original_length) * -1
 
-        f_shiftd_strain = interp1d(abs(data["Force"]), df["shiftd strain"])
+        f_shiftd_strain = interp1d(abs(data["force"]), df["shiftd strain"])
         interpolated_shiftd_strain = f_shiftd_strain(common_force)
 
         if testing_interpolation:
             # Testing interpolation difference
-            f_stress = interp1d(abs(data["Force"]), df["stress"])
-            f_strain = interp1d(abs(data["Force"]), df["strain"])
-            f_shiftd_strain = interp1d(abs(data["Force"]), df["shiftd strain"])
+            f_stress = interp1d(abs(data["force"]), df["stress"])
+            f_strain = interp1d(abs(data["force"]), df["strain"])
+            f_shiftd_strain = interp1d(abs(data["force"]), df["shiftd strain"])
 
             interpolated_stress = f_stress(common_force)
             interpolated_strain = f_strain(common_force)
@@ -224,7 +319,7 @@ class DataHandler:
             ax[0, 0].set_ylabel("Difference")
             ax[0, 0].legend()
 
-            ax[0, 1].plot(data['Force'], data["Displacement"], label="Original Displacement")
+            ax[0, 1].plot(data['force'], data["displacement"], label="Original Displacement")
             ax[0, 1].plot(common_force, interpolated_displacement, label="Interpolated Displacement")
             ax[0, 1].set_title("Force vs Displacement")
             ax[0, 1].set_xlabel("Force")
@@ -254,7 +349,7 @@ class DataHandler:
         
         return pd.DataFrame({"Force": common_force, "Displacement": interpolated_displacement, "Time": interpolated_time, "Stress": stress, "Strain": interpolated_shiftd_strain})
     
-    def process_hysteresis_data(self, selected_specimens = None, testing=False, smoothing=False,window_size=31, denoise_strength = 21, sigma=6 , all_plots=False):
+    def process_hysteresis_data(self, selected_specimens = None, testing=False, smoothing=True ,window_size=31, denoise_strength = 21, sigma=6 , all_plots=False):
         if selected_specimens is None:
             selected_indices = self.widget_manager.specimen_listbox.curselection()
             selected_specimens= self.get_selected_specimens(selected_indices)
@@ -323,6 +418,40 @@ class DataHandler:
             print(tabulate(total_variation_dict.items(), headers=['Data Type', 'Total Variation'], tablefmt='pretty'))
 
             self._plot_avg_temp_data(temp_data, title= 'with smooth', alpha=0.6, all_plots=all_plots)
+
+    def process_hysteresis_data_with_median_filter(self, selected_specimens=None, denoise_strength=21):
+        if selected_specimens is None:
+            selected_indices = self.widget_manager.specimen_listbox.curselection()
+            selected_specimens = self.get_selected_specimens(selected_indices)
+
+        # Create split_data once and reuse it
+        split_data = [self.split_hysteresis_data(specimen.processed_hysteresis_data) for specimen in selected_specimens]
+
+        # Process data
+        processed_data = self._process_split_data(selected_specimens, split_data)
+
+        # Apply median filter
+        median_filtered_data = median_filter(processed_data, denoise_strength=denoise_strength)
+
+        return median_filtered_data
+    
+    def _process_split_data(self, selected_specimens, split_data):
+        split_data_1 = [self.clean_split_hysteresis_data_by_force(data[0]) for data in split_data]
+        split_data_2 = [self.clean_split_hysteresis_data_by_force(data[1]) for data in split_data]
+
+        common_force_1, common_force_2 = self.get_common_force(split_data_1, split_data_2)
+
+        interpolated_data_1 = [self.interpolate_data(data, common_force_1, specimen.cross_sectional_area, specimen.original_length) for specimen, data in zip(selected_specimens, split_data_1)]
+        interpolated_data_2 = [self.interpolate_data(data, common_force_2, specimen.cross_sectional_area, specimen.original_length) for specimen, data in zip(selected_specimens, split_data_2)]
+
+        average_data_1 = pd.concat(interpolated_data_1).groupby("Force").mean()
+        average_data_2 = pd.concat(interpolated_data_2).groupby("Force").mean()
+
+        average_data = pd.concat([average_data_1, average_data_2.iloc[::-1]]).reset_index()
+        average_data["Time"] = average_data["Time"] - average_data["Time"].min()
+
+        return average_data
+
 
     def _plot_avg_temp_data(self, temp_data, title = '', alpha=0.6, all_plots=False, pts=None):
         if all_plots:
@@ -438,7 +567,7 @@ class DataHandler:
         data = self._shift_strain(data, max_stress_index, closest_strain)
 
         if filtering and len(self.specimens_with_hysteresis_data) > 1:
-            data = self._filter_end_points(data, show_plot=False)
+            data = self._filter_end_points(data, show_plot=False) # Add Filtering
             stain_at_70 , stress_at_70 = self.avg_70_pt['point'] 
             closest_stress_index, closest_strain_value, closest_stress_values = self._find_closest_stress(self.average_of_specimens, stress_at_70)
             self.app.variables.average_of_specimens_hysteresis = self._shift_strain(data, self.avg_70_pt['index'], closest_strain_value)
@@ -691,7 +820,9 @@ class DataHandler:
         # If the list is not empty, process the hysteresis data
         if specimens_with_hysteresis_data:
             self.specimens_with_hysteresis_data =  specimens_with_hysteresis_data
-            self.process_hysteresis_data(specimens_with_hysteresis_data)
+            # self.process_hysteresis_data(specimens_with_hysteresis_data) # used for testing all the filters 
+            self.app.variables.average_of_specimens_hysteresis = self.process_hysteresis_data_with_median_filter(specimens_with_hysteresis_data) # stremlined approach 
+
 
         # get the shift value for widget manager
         shift_value = float(self.widget_manager.shift_value) if self.widget_manager.shift_value else 0
@@ -724,9 +855,22 @@ class DataHandler:
 
     def summary_statistics(self):
         """Calculate summary statistics for each property."""
-
         summary_df = self.create_summary_df(self.properties_df)
         return summary_df
+    
+    def create_summary_df(self, properties_df):
+        """Create a summarized DataFrame of their average with the corresponding STD and CV."""
+        summary_stats = []
+
+        for prop in properties_df.columns:
+            if prop != 'name':  # skip over 'name' column
+                avg, std, cv, ucl, lcl = self.calculate_summary_stats(properties_df[prop].values)
+                summary_stats.append({'Property': prop, 'Average': avg, 'Std Dev': std, 'CV %': cv, 'UCL': ucl, 'LCL': lcl})
+     
+        summary_stats_df = pd.DataFrame(summary_stats)
+        summary_stats_df.set_index('Property', inplace=True)
+
+        return summary_stats_df
   
     def create_properties_df(self, selected_specimens = None):
         """Create a DataFrame with all properties for each specimen."""
@@ -770,31 +914,193 @@ class DataHandler:
                 properties[prop] = getattr(specimen.data_manager, prop)
         
         return properties
-
-    def create_summary_df(self, properties_df):
-        """Create a summarized DataFrame of their average with the corresponding STD and CV."""
-        summary_stats = []
-
-        for prop in properties_df.columns:
-            if prop != 'name':  # skip over 'name' column
-                avg, std, cv, ucl, lcl = self.calculate_summary_stats(properties_df[prop].values)
-                summary_stats.append({'Property': prop, 'Average': avg, 'Std Dev': std, 'CV %': cv, 'UCL': ucl, 'LCL': lcl})
-     
-        summary_stats_df = pd.DataFrame(summary_stats)
-        summary_stats_df.set_index('Property', inplace=True)
-
-        return summary_stats_df
     
     def update_properties_df(self, selected_indices):
+        
         selected_specimens = self.get_selected_specimens(selected_indices)
         
-        if self.app.variables.DIN_Mode == True:
+        if self.app.variables.DIN_Mode:
             for specimen in selected_specimens:
-                if specimen.din_analyzer is None:
-                    specimen.set_analyzer()
+                specimen.set_analyzer() if specimen.din_analyzer is None else None
 
-        # Update specimen properties DataFrame
+
         self.properties_df = self.create_properties_df(selected_specimens)
+
+    def export_individual_kpi(self, selected_indices):
+
+        selected_specimens = self.get_selected_specimens(selected_indices)
+        KPI_df = self.generate_kpi_table(selected_specimens)
+        transposed_df_reset= KPI_df.set_index('Name').transpose().reset_index()
+        self.generate_kpi_for_csv(selected_specimens)
+
+        print("\nQuality Control KPIs for Indivdual:")
+
+        self.print_KPI_chunked_tables(transposed_df_reset)
+
+        # KPI_stats = self.process_kpi_with_control_metrics(KPI_df)
+
+
+    def generate_kpi_for_csv(self, selected_specimens):
+        from datetime import datetime
+        # Initialize the DataFrame with specimen names as columns
+        rows = []
+        for specimen in selected_specimens:
+            # Calculate the KPIs for each specimen (uncomment the line below if needed)
+            # specimen.calculate_quality_control_KPIs()
+
+            # Retrieve and flatten KPIs for the current specimen
+            KPIs_flattened = {'Name': specimen.name}
+            for prop, info in specimen.qc_manager.property_dict.items():
+                value = info['value']
+                if isinstance(value, tuple):
+                    # Create a separate column for each element of the tuple
+                    for i, v in enumerate(value):
+                        KPIs_flattened[f"{prop}_G{i+1} {info['unit']}"] = v
+                else:
+                    KPIs_flattened[f"{prop} {info['unit']}"] = value
+            
+            # Append the specimen's flattened KPIs to the DataFrame
+            rows.append(KPIs_flattened)
+        KPI_csv_df = pd.DataFrame(rows)
+
+        # Set the 'Name' column as the DataFrame's index
+        KPI_csv_df.set_index('Name', inplace=True)
+        
+        # Save the transposed DataFrame to a CSV file
+        timestamp = datetime.now().strftime("%Y-%m-%d %H_%M_%S")
+        csv_filename = f"KPI_Time_{timestamp}.csv"
+        KPI_csv_df.to_csv(csv_filename)
+        
+        print(f"KPI DataFrame saved as {csv_filename}")
+        # self.plot_surface_for_each_property(KPI_csv_df)
+    
+        return KPI_csv_df
+    
+    def plot_surface_for_each_property(self, df):
+        import matplotlib.pyplot as plt
+        from mpl_toolkits.mplot3d import Axes3D
+        from scipy.interpolate import griddata
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+        df.reset_index(inplace=True)
+
+        # Extract 'M' and 'G' values from the 'Name' column
+        df['M_value'] = df['Name'].str.extract(r'M(\d+)').astype(int)
+        df['G_value'] = df['Name'].str.extract(r'G(\d+)').astype(int)
+   
+        # Loop through each property except 'Name', 'M_value', and 'G_value'
+        for column in df.columns.drop(['Name', 'M_value', 'G_value']):
+            # Prepare the data for the scatter plot
+            x = df['M_value']
+            y = df['G_value']
+            z = df[column]
+
+            # Creating grid points for interpolation
+            xi = np.linspace(x.min(), x.max(), 100)
+            yi = np.linspace(y.min(), y.max(), 100)
+            X, Y = np.meshgrid(xi, yi)
+
+            # Interpolate Z values on grid
+            Z = griddata((x, y), z, (X, Y), method='linear')
+
+            # Create the plot
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+
+            # Plot the surface
+            surf = ax.plot_surface(X, Y, Z, cmap='viridis')
+
+            # Labels
+            ax.set_xlabel('M Value')
+            ax.set_ylabel('G Value')
+            ax.set_zlabel(column)
+
+            # Add a color bar which maps values to colors
+            # fig.colorbar(surf, shrink=0.5, aspect=5)
+
+            # Show the plot
+            import tkinter as tk
+            window = tk.Toplevel(self.app.master)
+            window.title(f"Surface Plot for {column}")
+            canvas = FigureCanvasTkAgg(fig, master=window)
+            canvas.draw()
+            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+
+    def generate_kpi_table(self, selected_specimens, standard_name='ISO_13314:2011(E)'):
+        KPI_table = []
+        
+        for specimen in selected_specimens:
+            specimen.calculate_quality_control_KPIs(standard_name)
+ 
+            KPIs_with_units = {}
+            for prop, info in specimen.qc_manager.property_dict.items():
+                value = info['value']
+                if isinstance(value, tuple):
+                    # Format each numeric part of the tuple to 4 decimal places
+                    formatted_values = tuple(f"{float(v):.4f}" if isinstance(v, (int, float)) else v for v in value)
+                    KPIs_with_units[prop] = f"{formatted_values} {info['unit']}"
+                else:
+                    # Format single numeric values to 4 decimal places
+                    KPIs_with_units[prop] = f"{float(value):.4f} {info['unit']}" if isinstance(value, (int, float)) else value
+
+
+            # KPIs_with_units = {prop: f"{float(info['value']):.4f} {info['unit']}"
+            #                 for prop, info in specimen.qc_manager.property_dict.items()}
+            KPI_table.append({'Name': specimen.name, **KPIs_with_units})
+
+        return pd.DataFrame(KPI_table)
+    
+    def print_KPI_chunked_tables(self,df, max_columns_per_table=4):
+        num_tables = (len(df.columns) - 1) // max_columns_per_table + 1
+
+        for i in range(num_tables):
+            start_col = 1 + i * max_columns_per_table
+            end_col = min(start_col + max_columns_per_table, len(df.columns))
+            chunk = df.iloc[:, [0] + list(range(start_col, end_col))]
+            print(tabulate(chunk, headers='keys', tablefmt='psql', showindex=False))
+            print("\n")
+    
+    def process_kpi_with_control_metrics(self,KPI_df, LSLs=None, USLs=None):
+        from control_chart import ControlProcessMetrics
+        KPI_stats = pd.DataFrame()
+        for kpi in KPI_df.columns.drop('Name'):
+            kpi_data = KPI_df[kpi].dropna()  # Assuming NaN values should be dropped
+
+            # Check if data is a tuple
+            if isinstance(kpi_data.iloc[0], tuple):
+                kpi_data_1 = np.array([x[0] for x in kpi_data])
+                kpi_data_2 = np.array([x[1] for x in kpi_data])
+
+                # Create instances for each part of the tuple
+                cp_metrics_1 = ControlProcessMetrics(kpi_data_1, LSLs.get(kpi, [None, None])[0], USLs.get(kpi, [None, None])[0])
+                cp_metrics_2 = ControlProcessMetrics(kpi_data_2, LSLs.get(kpi, [None, None])[1], USLs.get(kpi, [None, None])[1])
+
+                # Calculate and store statistics as tuples
+                KPI_stats[kpi] = [
+                    (cp_metrics_1.mean, cp_metrics_2.mean),
+                    (cp_metrics_1.sigma, cp_metrics_2.sigma),
+                    (cp_metrics_1.cv, cp_metrics_2.cv),
+                    (cp_metrics_1.UCL, cp_metrics_2.UCL),
+                    (cp_metrics_1.LCL, cp_metrics_2.LCL),
+                    (cp_metrics_1.Cp, cp_metrics_2.Cp),
+                    (cp_metrics_1.Cpk, cp_metrics_2.Cpk)
+                ]
+            else:
+                # Single value data
+                cp_metrics = ControlProcessMetrics(kpi_data, LSLs.get(kpi), USLs.get(kpi))
+                KPI_stats[kpi] = [
+                    cp_metrics.mean,
+                    cp_metrics.sigma,
+                    cp_metrics.cv,
+                    cp_metrics.UCL,
+                    cp_metrics.LCL,
+                    cp_metrics.Cp,
+                    cp_metrics.Cpk
+                ]
+
+        KPI_stats.index = ['Mean', 'Std', 'CV', 'UCL', 'LCL', 'Cp', 'Cpk']  # Update as per available metrics
+        return KPI_stats
+
 
     def calculate_avg_KPI(self, lower_strain = 0.2, upper_strain = 0.4):
         def calculate_plt(strain, lower_strain, upper_strain):
@@ -807,6 +1113,8 @@ class DataHandler:
         def calculate_energy(self, strain, stress):
 
             def calculate_Ev(stress, strain, compression):
+                # strain = strain[strain < 0]
+                # stress = stress[strain < 0]
                 idx = (np.abs(strain - compression)).argmin()
                 return trapz(stress[:idx], strain[:idx])
             
@@ -851,7 +1159,15 @@ class DataHandler:
 
         print("Starting export thread")
         export_thread = threading.Thread(target=self.word_exporter.export_report(selected_indices, file_path))
-          
+
+    def recalculate_specimen(self,selected_indices):
+        selected_specimens = self.get_selected_specimens(selected_indices)
+        for specimen in selected_specimens:
+                print("Recalculating specimen: ", specimen.name)
+                specimen.calculate_general_KPI()
+                specimen.graph_manager.plot_one_pnt_line(None,specimen.data_manager.modulus, recalculating = True)
+
+        pass
 
     def save_specimen_data(self, specimen, output_directory):
         """
@@ -893,6 +1209,13 @@ class DataHandler:
 
             # Reconstruct the Specimen object
             specimen = Specimen.from_dict(properties_dict, temp_dir=temp_dir)
+
+            if specimen.data_manager.formatted_data is not None and isinstance(specimen.data_manager.formatted_data, pd.DataFrame):
+                specimen.data_manager.formatted_data = DataValidator.remap_df_columns(specimen.data_manager.formatted_data)
+
+            if specimen.data_manager.formatted_hysteresis_data is not None and isinstance(specimen.data_manager.formatted_hysteresis_data, pd.DataFrame):
+                specimen.data_manager.formatted_hysteresis_data = DataValidator.remap_df_columns(specimen.data_manager.formatted_hysteresis_data)
+
             # Add to GUI
             tab_id = self.widget_manager.create_new_tab(specimen.name)
             self.app.variables.add_specimen(tab_id, specimen)
@@ -924,7 +1247,8 @@ class SpecimenDataEncoder(json.JSONEncoder):
         Returns:
         dict or list or str or int or float or bool or None: The JSON-serializable representation of obj.
         """
-        if isinstance(obj, SpecimenDINAnalysis):
+        from standards.Compression_standard_ISO import SpecimenQCManager
+        if isinstance(obj, SpecimenDINAnalysis) or isinstance(obj, SpecimenQCManager):
             return  # return None or skip if the object is an instance of SpecimenDINAnalysis
         elif isinstance(obj, SpecimenDataManager) or isinstance(obj, SpecimenGraphManager):
             return self.encode_dict(obj.__dict__)
@@ -969,3 +1293,6 @@ class SpecimenDataEncoder(json.JSONEncoder):
             else:
                 encoded_dict[attr] = value
         return encoded_dict
+    
+
+

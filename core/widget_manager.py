@@ -57,9 +57,9 @@ class WidgetManager:
         self.file_name_label =  self.properties_group.file_name_label
 
     def create_data_analysis_button_group(self):
-        data_analysis_names = ["Submit", "Plot Current Specimen", "Plot Average", 
-                               "Recalculate Specimen Variables", "Clear Specimen"]
-        data_analysis_functions = [self.button_actions.submit, self.button_actions.plot_current_specimen, 
+        data_analysis_names = ["Submit", "Test Hide", "Plot Average", 
+                               "Recalculate export KPI", "Clear Specimen"]
+        data_analysis_functions = [self.button_actions.submit, self.create_visibility_controller, 
                                    self.button_actions.plot_average, self.button_actions.recalculate_specimen,
                                    self.button_actions.delete_selected_specimens]
         data_analysis_specs = list(zip(data_analysis_names, data_analysis_functions, 
@@ -71,9 +71,9 @@ class WidgetManager:
         self.data_analysis_buttons[0].bind("<Return>", self.button_actions.submit)
 
     def create_data_management_button_group(self):
-        data_management_names = ["Import Specimen Properties","Save Specimen", "Export Average to Excel", 
+        data_management_names = ["Import Specimen","Save Specimen", "Export Average to Excel", 
                                  "Update Plot", "Individual Excel Files"]
-        data_management_functions = [self.button_actions.import_properties, self.button_actions.save_selected_specimens, self.button_actions.export_average_to_excel, 
+        data_management_functions = [self.button_actions.import_data, self.button_actions.save_selected_specimens, self.button_actions.export_average_to_excel, 
                                      self.button_actions.update_plot, self.button_actions.export_indivdual_data]
         data_management_specs = list(zip(data_management_names, data_management_functions, 
                                          ['disabled' if i != 0 else 'normal' for i in range(len(data_management_names))]))
@@ -96,7 +96,7 @@ class WidgetManager:
 
     def create_fifth_row_group(self):
         self.fifth_row_group = FifthRowGroup(self.app.master, reset_callback=self.reset_sliders,
-                                              import_callback=self.button_actions.import_data,
+                                              import_callback=self.button_actions.import_properties,
                                               enable_strain_callback=self.toggle_slider, 
                                               enable_select_callback=self.toggle_select_mode,
                                               ms_word_callback=self.button_actions.export_ms_data,    
@@ -130,7 +130,6 @@ class WidgetManager:
     # Creation
     def create_notebook(self):
         self.notebook = ttk.Notebook(self.app.master)
-        self.notebook.bind("<<NotebookTabChanged>>",self.update_specimen_properties_label)
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
         self.notebook.grid(row=7, column=0, columnspan=8, sticky='nsew')
         return self.notebook
@@ -162,7 +161,6 @@ class WidgetManager:
 
     def update_specimen_listbox(self, specimen_name):
         self.specimen_listbox.insert(tk.END, specimen_name)
-        # self.list_box.insert(tk.END, specimen_name)
 
     def enable_buttons(self):
         for button in self.data_analysis_buttons:
@@ -173,7 +171,9 @@ class WidgetManager:
     def on_tab_change(self, event):
         # updates the variables,resets the toggle button and the slider
         self.reset_toggle_button()
+        self.update_specimen_properties_label()
 
+        # Retrieve the current tab name and select the corresponding specimen and slider manager
         current_tab_name = self.notebook.tab(self.notebook.select(), "text")
         self.app.variables.select_tab(current_tab_name)
         
@@ -236,7 +236,7 @@ class WidgetManager:
     @property
     def shift_value(self):
         value = self.fifth_row_group.shift_entry.get()
-        return value if value != "Set Shift" else None
+        return float(value)/100 if value != "Set Shift" else None
     
     @property
     def x_ticks(self):
@@ -279,7 +279,9 @@ class WidgetManager:
             return (start, end)
         except ValueError:
             return None
-
+        
+    def create_visibility_controller(self):
+        VisibilityControllerWindow(self)
         
 class SliderManager(tk.Frame):
     """A class to create custom widget"""
@@ -291,6 +293,7 @@ class SliderManager(tk.Frame):
         self.callback = callback
 
     def create_slider(self, frame):
+        
         self.slider = tk.Scale(frame, from_=-0.1, to=0.1, resolution=0.0001, length=00,
                                orient=tk.HORIZONTAL,
                                variable=self.shared_var,
@@ -406,18 +409,23 @@ class ButtonGroup(tk.Frame):
             button.grid(row=i, column=0, padx=10, pady=10, sticky='we')
             self.buttons.append(button)
         
-class ListBoxGroup(tk.Frame):
+class ListBoxGroup(ttk.Frame):
     def __init__(self, master=None, label_text=None,width=None, **kwargs):
         super().__init__(master,  width=width,**kwargs)
+        self.grid(sticky='nswe')
 
         self._create_listbox(label_text)   
         self._create_dropdown()
+        # self._create_sizegrip()
 
     def _create_listbox(self, label_text):    
         self.specimen_listbox_label = tk.Label(self, text=label_text)
         self.specimen_listbox_label.grid(row=0, column=0, padx=10, pady=10)
         self.specimen_listbox = tk.Listbox(self, selectmode=tk.MULTIPLE)
-        self.specimen_listbox.grid(row=1, column=0, rowspan=2, padx=10, pady=2, sticky='ns')
+        self.specimen_listbox.grid(row=1, column=0, rowspan=2, padx=10, pady=2, sticky='nswe')
+
+        self.specimen_listbox.bind('<<ListboxSelect>>', self.on_select)
+        self.specimen_listbox.bind('<Double-1>', self.on_double_click)
 
     def _create_dropdown(self):
         from .plot_manager import LEFT, MIDDLE, RIGHT
@@ -431,7 +439,31 @@ class ListBoxGroup(tk.Frame):
         self.update_plot_dropdown_var = tk.StringVar(self)
         self.update_plot_dropdown_var .set(options[0])  # Set the default value
         self.specimen_dropdown = tk.OptionMenu(self, self.update_plot_dropdown_var ,*options)
-        self.specimen_dropdown.grid(row=3, column=0, padx=10, pady=2)   
+        self.specimen_dropdown.grid(row=3, column=0, padx=10, pady=2) 
+
+    def _create_sizegrip(self):
+        # Create a sizegrip at the bottom-right corner of the frame
+        self.sizegrip = ttk.Sizegrip(self)
+        self.sizegrip.grid(row=4, column=0, padx=10, pady=10, sticky='se')
+
+    def add_item_to_listbox(self, item):
+        self.specimen_listbox.insert(tk.END, item)
+
+    def remove_selected_items(self):
+        selected_items = self.specimen_listbox.curselection()
+        for item in selected_items[::-1]:
+            self.specimen_listbox.delete(item)
+
+    def on_select(self, event):
+    # Handle selection change
+        print("Specimen listbox selection changed")
+        pass
+
+    def on_double_click(self, event):
+        # Handle double click
+        print("Specimen listbox double click")
+        pass
+  
 
 class FifthRowGroup(tk.Frame):
     def __init__(self, master=None, reset_callback=None, import_callback=None, 
@@ -459,7 +491,7 @@ class FifthRowGroup(tk.Frame):
         self.reset_button.grid(row=0, column=0, padx=10, pady=5, sticky='n')
 
     def create_import_button(self, callback):
-        self.import_button = tk.Button(self, text="Import Specimen", command=callback)
+        self.import_button = tk.Button(self, text="Import Properties Excel", command=callback)
         self.import_button.grid(row=0, column=1, padx=10, pady=5, sticky='n')
 
     def create_strain_checkbox(self, callback):
@@ -499,6 +531,7 @@ class PrelimGroup(tk.Frame):
         self.grid_rowconfigure(0, weight=1)  
         self.grid_columnconfigure(0, weight=1)
         self.create_widgets()
+        self.is_visible = True
 
     def create_widgets(self):
         self.create_prelim_toggle_button()
@@ -526,12 +559,16 @@ class PrelimGroup(tk.Frame):
             pass  # Handle non-numeric input here if necessary
     
     def update_trigger_forces_labels(self):
-        if self.plateau_stress_var.get().isdigit() and self.app.variables.current_specimen:
-            plateau_stress = float(self.plateau_stress_var.get())
+        if self.plateau_stress_var.get() and self.app.variables.current_specimen:
+            # try to convert to float else set to 0
+            try:
+                plateau_stress = float(self.plateau_stress_var.get())
+            except ValueError:
+                plateau_stress = 0
             specimen = self.app.variables.current_specimen
             area = specimen.cross_sectional_area
             forces = [stress * area for stress in (0.2 * plateau_stress, 0.7 * plateau_stress, 1.3 * plateau_stress)]
-            self.trigger_forces_label.config(text=f"Trigger Forces (MPa): {forces[0]:.2f}, {forces[1]:.2f}, {forces[2]:.2f}")
+            self.trigger_forces_label.config(text=f"Trigger Forces (N): {forces[0]:.2f}, {forces[1]:.2f}, {forces[2]:.2f}")
 
     def create_range_entries(self):
         self.range_start_var = tk.StringVar()
@@ -580,6 +617,7 @@ class PrelimGroup(tk.Frame):
             idx_upper = (np.abs(strain - range_end)).argmin()
 
             return np.mean(stress[idx_lower:idx_upper])
+        
 
 class PlotTitleEntryGroup(tk.Frame):
     def __init__(self, master=None, **kwargs):
@@ -650,3 +688,104 @@ class TickerConfigGroup(ttk.Frame):
         self.y_tick_label.grid(row=2, column=0, sticky='w', pady=2)
         self.y_tick_entry = PlaceholderEntry(self, placeholder="(Major,Minor) e.g., (2,0.5)")
         self.y_tick_entry.grid(row=2, column=1, sticky='w')
+
+
+class VisibilityControllerWindow:
+    def __init__(self, widget_manager):
+        self.widget_manager = widget_manager
+        self.window = tk.Toplevel()
+        self.window.title("Visibility Controller") 
+        self.window.geometry("300x200")
+       
+        # Initialize BooleanVar variables to track visibility state
+        self.prelim_group_visible = tk.BooleanVar(value=True)
+        self.entry_group_visible = tk.BooleanVar(value=True)
+        self.plot_title_entry_group_visible = tk.BooleanVar(value=True)
+        self.ticker_widgets_visible = tk.BooleanVar(value=True)
+        self.axis_set_widgets_visible = tk.BooleanVar(value=True)
+
+        # Create toggle buttons
+        self.create_toggle_buttons()
+
+    def create_toggle_buttons(self):
+        # Toggle button for the prelim group
+        tk.Checkbutton(self.window, text="Toggle Prelim Group", 
+                       var=self.prelim_group_visible, 
+                       command=self.toggle_prelim_group).pack()
+
+        # Toggle button for the entry group
+        tk.Checkbutton(self.window, text="Toggle Entry Group", 
+                       var=self.entry_group_visible, 
+                       command=self.toggle_entry_group).pack()
+        
+        # Toggle button for the plot title entry group
+        tk.Checkbutton(self.window, text="Toggle Plot Title Entry Group", 
+                       var=self.plot_title_entry_group_visible, 
+                       command=self.toggle_plot_title_entry_group).pack()
+        
+        # Toggle button for the ticker widgets
+        tk.Checkbutton(self.window, text="Toggle Ticker Widgets", 
+                       var=self.ticker_widgets_visible, 
+                       command=self.toggle_ticker_widgets).pack()
+        
+        # Toggle button for the axis set widgets
+        tk.Checkbutton(self.window, text="Toggle Axis Set Widgets", 
+                       var=self.axis_set_widgets_visible, 
+                       command=self.toggle_axis_set_widgets).pack()
+
+    def toggle_prelim_group(self):
+        """Toggle the visibility of the prelim group."""
+        if self.prelim_group_visible.get(): # Show the prelim group
+            self.widget_manager.prelim_group.grid(row=0, column=5, rowspan=3, sticky='ns')
+        else: # Hide the prelim group
+            self.widget_manager.prelim_group.grid_forget()
+
+    def toggle_entry_group(self):
+        """Toggle the visibility of the entry group."""
+        if self.entry_group_visible.get():# Show the entry group
+            self.widget_manager.entry_group.grid(row=0, column=0, rowspan=5, sticky='ns')
+        else: # Hide the entry group
+            self.widget_manager.entry_group.grid_forget()
+
+    def toggle_plot_title_entry_group(self):
+        """Toggle the visibility of the plot title entry group."""
+        if self.plot_title_entry_group_visible.get():
+            self.widget_manager.plot_title_entry_group.grid(row=0, column=6,rowspan=4, sticky='ns')
+        else:
+            self.widget_manager.plot_title_entry_group.grid_forget()
+
+    def toggle_ticker_widgets(self):
+        """Toggle the visibility of the ticker widgets."""
+        if self.ticker_widgets_visible.get():
+            self.widget_manager.ticker_group.grid(row=5, column=5, sticky='ns', rowspan=2)
+        else:
+            self.widget_manager.ticker_group.grid_forget()
+
+    def toggle_axis_set_widgets(self):
+        """Toggle the visibility of the axis set widgets."""
+        if self.axis_set_widgets_visible.get(): # Show the axis set widgets
+            self.widget_manager.axis_set_group.grid(row=5, column=6, sticky='ns', rowspan=2)
+        else: # Hide the axis set widgets
+            self.widget_manager.axis_set_group.grid_forget()
+
+
+class ScrollableNotebook(ttk.Frame):
+    def __init__(self, container, *args, **kwargs):
+        super().__init__(container, *args, **kwargs)
+        
+        self.canvas = tk.Canvas(self)
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = ttk.Frame(self.canvas)
+
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.notebook = ttk.Notebook(self.scrollable_frame)
+        self.notebook.bind("<Configure>", self.on_notebook_configure)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+        self.notebook.pack(fill="both", expand=True)
+
+    def on_notebook_configure(self, event):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))

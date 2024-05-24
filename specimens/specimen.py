@@ -5,6 +5,7 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 from scipy.integrate import trapz
 from scipy.signal import argrelextrema
+from scipy.signal import medfilt
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +13,10 @@ import pandas as pd
 from shapely.geometry import LineString, MultiPoint, Point
 
 from standards.specimen_DIN import SpecimenDINAnalysis
+from standards.Compression_standard_ISO import SpecimenQCManager
+
+def median_filter(data, denoise_strength = 21):
+    return data.apply(lambda x: medfilt(x, denoise_strength))
 
 class Specimen:
     def __init__(self, name, data, length, width, thickness, weight):
@@ -25,6 +30,12 @@ class Specimen:
         self.graph_manager = SpecimenGraphManager(self)
         self.din_analyzer = None
         self.manual_strain_shift = 0
+        self.qc_manager = SpecimenQCManager(self)
+
+    def calculate_quality_control_KPIs(self, standard_name: str):
+        self.qc_manager.update_standards(standard_name)
+        self.qc_manager.calculate_KPIs()
+        return self.qc_manager.property_dict
 
     def set_analyzer(self):
         self.din_analyzer = SpecimenDINAnalysis(self.stress, self.shifted_strain)
@@ -45,9 +56,9 @@ class Specimen:
         properties_text += f"Original Length: {self.original_length:.2f} (mm)"
         label.config(text=properties_text)
 
-    def process_data(self):
-        self.data_manager.clean_data()
-        self.data_manager.add_stress_and_strain()
+    def process_data(self, condition=None):
+        self.data_manager.clean_data(condition)
+        self.data_manager.add_stress_and_strain(condition, recalculate=True)  # TODO  Marker to test if there a need to recalculate
         if  self.processed_hysteresis_data is not None:
             self.calculate_shift_from_hysteresis()
         
@@ -61,9 +72,9 @@ class Specimen:
             return trapz(stress[:idx], strain[:idx])
         
         
-        self.E20_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain, 0.2)*1000 # kJ/kg
-        self.E50_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain,0.5)*1000 # kJ/kg
-        self.E80_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain, 0.8)*1000 # kJ/kg
+        self.E20_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain, 0.2)*1000 # kJ/m^3
+        self.E50_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain,0.5)*1000 # kJ/m^3
+        self.E80_kJ_m3 = calculate_Ev(self.stress, self.shifted_strain, 0.8)*1000 # kJ/m^3
 
         density_kg_meters = self.density * 1000  # kg/m^3
         self.E20_kJ_kg = self.E20_kJ_m3 / density_kg_meters
@@ -87,6 +98,10 @@ class Specimen:
         self.graph_manager.plot_curves(ax, OFFSET, debugging)
         self.calculate_general_KPI()
 
+    def save_data(self, temp_dir):
+        # Save the raw data and the formatted data
+        self.data_manager.save(temp_dir)
+
     @property
     def strain(self):
         return self.data_manager.formatted_data['strain']
@@ -97,11 +112,11 @@ class Specimen:
 
     @property
     def force(self):
-        return self.data_manager.formatted_data['Force'] * -1
+        return self.data_manager.formatted_data['force'] * -1
 
     @property
     def displacement(self):
-        return self.data_manager.formatted_data['Displacement'] * -1
+        return self.data_manager.formatted_data['displacement'] * -1
 
     @property
     def shifted_strain(self):
@@ -155,10 +170,8 @@ class Specimen:
         specimen.manual_strain_shift = data.get('manual_strain_shift', 0)
 
         # Initialize Data and Graph managers
-        specimen.data_manager = SpecimenDataManager.from_dict(
-            data['data_manager'], specimen, temp_dir=temp_dir)
-        specimen.graph_manager = SpecimenGraphManager.from_dict(
-            data['graph_manager'], specimen, temp_dir=temp_dir)
+        specimen.data_manager = SpecimenDataManager.from_dict(data['data_manager'], specimen, temp_dir=temp_dir)
+        specimen.graph_manager = SpecimenGraphManager.from_dict(data['graph_manager'], specimen, temp_dir=temp_dir)
 
         return specimen
 
@@ -212,6 +225,7 @@ class SpecimenGraphManager:
         # print( f"\n Rate of chanage{rate_of_change} and\n roc norm : {roc_normalized}")
 
         # Find the index of the first significant increase in the rate of change within tolerance
+
         i = np.argmax((roc_normalized >= threshold) & (
             self.specimen.force[:-1] >= min_force) & (self.specimen.force[:-1] <= max_force))
 
@@ -427,9 +441,12 @@ class SpecimenGraphManager:
             self.stress = np.array(self.specimen.stress.values)  # MPa
             self.strain = np.array(self.specimen.strain.values)  # %
 
-            self.calculate_shifted_strain(self.stress, self.strain)
-            self.calculate_next_decrease_index(self.stress)
+            if not self.specimen.data_manager.has_preload_stess_and_strain:
+                self.calculate_shifted_strain(self.stress, self.strain)
+                self.calculate_next_decrease_index(self.stress)
             self.calculate_youngs_modulus(self.stress, self.strain)
+
+            self.strain_shifted = self.strain_shifted if not self.specimen.data_manager.has_preload_stess_and_strain else self.specimen.data_manager.formatted_data['strain']
             self.calculate_strength(self.stress, self.strain_shifted, OFFSET)
         else:
             self.youngs_modulus = self.specimen.data_manager.modulus 
@@ -447,18 +464,17 @@ class SpecimenGraphManager:
         ax = self.check_ax(ax)
 
         self.plot_shifted_curve(ax)
-
-        if self.specimen.processed_hysteresis_data is None:
-            self.plot_offset_curve(ax, OFFSET)
-            self.plot_scatter_points(ax)
-            
-            if debugging:
-                self.plot_debugging_curves(ax, ESTIMATED_PLASTIC_INDEX_START, ESTIMATED_PLASTIC_INDEX_END)
-        else:
-            if not self.specimen.processed_hysteresis_data.empty:
-                self.youngs_modulus = self.specimen.data_manager.modulus 
-                self.strain_hyst_shifted = self.specimen.processed_hysteresis_data['shiftd strain']
-                self.plot_hysteresis_data(ax)
+        if not self.specimen.data_manager.has_preload_stess_and_strain:
+            if self.specimen.processed_hysteresis_data is None:    
+                self.plot_offset_curve(ax, OFFSET)
+                self.plot_scatter_points(ax)   
+                if debugging:
+                    self.plot_debugging_curves(ax, ESTIMATED_PLASTIC_INDEX_START, ESTIMATED_PLASTIC_INDEX_END)
+            else:
+                if not self.specimen.processed_hysteresis_data.empty:
+                    self.youngs_modulus = self.specimen.data_manager.modulus 
+                    self.strain_hyst_shifted = self.specimen.processed_hysteresis_data['shiftd strain']
+                    self.plot_hysteresis_data(ax)
         return ax
     
 
@@ -479,6 +495,8 @@ class SpecimenGraphManager:
 
     def plot_offset_curve(self, ax, OFFSET):
         # filter using boolean indexing, such that offset line is only plotted to the max stress
+        if self.youngs_modulus is None or self.offset_line is None:
+            return None    
         mask = self.offset_line < max(self.stress)
         offset_line_masked = self.offset_line[mask]
         strain_shifted_masked = self.strain_shifted[mask]
@@ -513,7 +531,7 @@ class SpecimenGraphManager:
 
         ax.plot(x_filtered , y_filtered,  alpha=0.4,color='greenyellow', label='Zere Slope Line')
 
-    def plot_one_pnt_line(self, ax, slope, offset=0.01):
+    def plot_one_pnt_line(self, ax, slope, offset=0.01,  recalculating = False):
 
         max_strain = max(self.strain_shifted)
         num_points = len(self.strain_shifted)
@@ -528,6 +546,9 @@ class SpecimenGraphManager:
         self.compressive_proof_strength = ps_strain, ps_stress 
         self.specimen.data_manager.compressive_proof_strength = ps_stress
 
+        if recalculating:
+            return ps_strain, ps_stress
+        
         # Filter using boolean indexing
         max_stress = max(self.stress)
         mask_1 = y > 0
@@ -595,6 +616,13 @@ class SpecimenDataManager:
         self._toughness = None
         self._resilience = None
         self._ductility  = None
+        self.has_preload_stess_and_strain = False
+        self.COLUMN_MAPPING = {
+            'stress': ['stress', 'contrainte'],
+            'strain': ['strain', 'deformation'],
+            'force': ['force', 'load'],
+            'displacement': ['displacement', 'elongation',]
+        }
 
         # Determine the type of data and assign appropriately
         if raw_data:
@@ -604,9 +632,10 @@ class SpecimenDataManager:
                 self.hysteresis_data = raw_data[0]
                 self.raw_data = raw_data[1]
 
-    def clean_data(self):
-        # Check if each type of data exists and clean accordingly
-        if self.raw_data:
+    def clean_data(self, condition=None):
+        if 'df' in str(condition):
+            self.clean_data_df()
+        else:     
             self.clean_raw_data()
         if self.hysteresis_data:
             self.clean_hysteresis_data()
@@ -622,15 +651,30 @@ class SpecimenDataManager:
         self.split_raw_data_df.columns = ['Column 1', 'Column 2', 'Column 3', 'Column 4',
                                           'Column 5', 'Column 6', 'Column 7', 'Column 8', 'Column 9', 'Column 10']
         
+    def clean_data_df(self):
+        print(f"Cleaning data from dataframe with the following columns:{self.raw_data.columns}")
+        self.formatted_data = self.raw_data.copy()
+ 
 
     def clean_hysteresis_data(self):
         self.formatted_hysteresis_data = self.clean_specific_data(self.hysteresis_data)
+
+    def _remap_columns(self, df :pd.DataFrame, column_mapping : dict) -> pd.DataFrame:
+            remapped_columns = {}
+            for standard_name, variations in column_mapping.items():
+                for variation in variations:
+                    matching_columns = [col for col in df.columns if variation in col.lower()]
+                    if matching_columns:
+                        remapped_columns[matching_columns[0]] = standard_name
+                        break
+            return df.rename(columns=remapped_columns)  
 
     def clean_specific_data(self, data):
         time_row = self.find_time_row(data)
         headers, units = self.extract_headers_and_units(data, time_row)
         data_rows = self.extract_data_rows(data, time_row, headers)
-        return self.format_data(data_rows, headers)
+        fomated_data = self.format_data(data_rows, headers)
+        return self._remap_columns(fomated_data, self.COLUMN_MAPPING)
 
     @staticmethod
     def find_time_row(data):
@@ -662,16 +706,30 @@ class SpecimenDataManager:
         mask = data['Displacement'].str.match(pattern)
         return data[~mask].astype({header: float for header in headers})
 
-    def add_stress_and_strain(self):
-        self.formatted_data['stress'] = ( self.formatted_data['Force'] / self.cross_sectional_area)*-1
-        self.formatted_data['strain'] = ( (self.formatted_data['Displacement']) / self.original_length)*-1
+    def add_stress_and_strain(self, condition=None, recalculate=False):
+        if 'stress' in str(condition):
+            # add condition to control recalculating stress and strain
+
+            if 'force' not in self.formatted_data.columns:
+                self.has_preload_stess_and_strain = True
+                print("No force data found. Please check the data.")
+
+            if recalculate and not self.has_preload_stess_and_strain:
+                self.formatted_data['stress'] = ( self.formatted_data['force'] / self.cross_sectional_area)
+                self.formatted_data['stress'] = ( self.formatted_data['force'] / self.cross_sectional_area)      
+            return None
+            raise NotImplementedError("Remapping stress and strain data is not yet implemented.")
+        
+        self.formatted_data['stress'] = ( self.formatted_data['force'] / self.cross_sectional_area)*-1
+        self.formatted_data['strain'] = ( (self.formatted_data['displacement']) / self.original_length)*-1
         
         if self.specimen.processed_hysteresis_data is not None:
-            self.formatted_hysteresis_data['stress'] = ( self.formatted_hysteresis_data['Force'] / self.cross_sectional_area)*-1
-            self.formatted_hysteresis_data['strain'] = ( (self.formatted_hysteresis_data ['Displacement']) / self.original_length)*-1
+            self.formatted_hysteresis_data['stress'] = ( self.formatted_hysteresis_data['force'] / self.cross_sectional_area)*-1
+            self.formatted_hysteresis_data['strain'] = ( (self.formatted_hysteresis_data ['displacement']) / self.original_length)*-1
 
 
     def align_hysteresis_data(self, max_stress_index):
+        
         max_stress_hysteresis = self.formatted_hysteresis_data["stress"].iloc[max_stress_index]
 
         first_stress_index_raw_at_max = np.argwhere(self.formatted_data["stress"] > max_stress_hysteresis)
@@ -708,7 +766,8 @@ class SpecimenDataManager:
         self.formatted_hysteresis_data["strain"] = self.formatted_hysteresis_data["strain"] - strain_offset
 
     def get_modulus_from_hysteresis(self):
-        force = self.formatted_hysteresis_data['Force'].values
+        # self.formatted_hysteresis_data = median_filter(self.formatted_hysteresis_data, denoise_strength = 21)
+        force = self.formatted_hysteresis_data['force'].values
         negative_force = force*-1
         max_force_index = np.argmax(negative_force)
         max_stress_index = np.argmax(self.formatted_hysteresis_data['stress'].values)
@@ -716,10 +775,10 @@ class SpecimenDataManager:
         self.align_hysteresis_data(max_stress_index)
 
         assert max_force_index == max_stress_index, 'The max force and max stress do not occur at the same index'
-        peak_pt_by_force = self.formatted_hysteresis_data["Displacement"].iloc[max_force_index], self.formatted_hysteresis_data["Force"].iloc[max_force_index]
+        peak_pt_by_force = self.formatted_hysteresis_data["displacement"].iloc[max_force_index], self.formatted_hysteresis_data["force"].iloc[max_force_index]
         peak_pt_by_stress = self.formatted_hysteresis_data["strain"].iloc[max_stress_index], self.formatted_hysteresis_data["stress"].iloc[max_stress_index]
 
-        end_pt_by_force = self.formatted_hysteresis_data["Displacement"].iloc[-1], self.formatted_hysteresis_data["Force"].iloc[-1]
+        end_pt_by_force = self.formatted_hysteresis_data["displacement"].iloc[-1], self.formatted_hysteresis_data["force"].iloc[-1]
         end_pt_by_stress = self.formatted_hysteresis_data["strain"].iloc[-1], self.formatted_hysteresis_data["stress"].iloc[-1]
 
         modulus_by_force = (peak_pt_by_force[1] - end_pt_by_force[1]) / (peak_pt_by_force[0] - end_pt_by_force[0])
@@ -787,8 +846,7 @@ class SpecimenDataManager:
     @classmethod
     def from_dict(cls, data, specimen, temp_dir=None):
         # Initialize the DataManager with the data loaded from the CSV files
-        manager = cls(specimen, None,
-                      data['cross_sectional_area'], data['original_length'])
+        manager = cls(specimen, None, data['cross_sectional_area'], data['original_length'])
         for attr, value in data.items():
             if isinstance( value, str) and value.endswith('_data.csv'):
                 csv_file = value
@@ -796,6 +854,55 @@ class SpecimenDataManager:
                     temp_dir, csv_file) if temp_dir else csv_file
                 df = pd.read_csv(file_path)
                 setattr(manager, attr, df)
-           
+
+            if attr == 'has_preload_stess_and_strain':
+                setattr(manager, attr, value)
 
         return manager
+    
+    def save(self, directory):
+        # Check for formatted and hysteresis data - keyword and will be short circuited to false if any of the left side conditions are false
+        is_formatted_data = self.formatted_data is not None and isinstance(self.formatted_data, pd.DataFrame) and not self.formatted_data.empty
+        is_hysteresis_data = self.formatted_hysteresis_data is not None and isinstance(self.formatted_hysteresis_data, pd.DataFrame) and not self.formatted_hysteresis_data.empty
+
+        # remove end line from name and spaces
+        name = self.specimen.name.replace('\n', '').replace(' ', '_')
+        file_name = f"{name}.xlsx"
+        file_path = os.path.join(directory, file_name)
+
+        with pd.ExcelWriter(file_path, engine='xlsxwriter') as writer:
+            workbook = writer.book
+
+            # Description of the data and the collection process
+            workbook.add_worksheet('Specimen Info').write('A1', f'Specimen Name: {name}')
+
+            # if there is formatted data and hysteresis data, save both in same file
+            if is_formatted_data and is_hysteresis_data:
+                self._write_dataframe(writer, 'Formatted Data', self.formatted_data)
+                self._write_dataframe(writer, 'Hysteresis Data', self.formatted_hysteresis_data)
+            # if there is only formatted data, save it in a file
+            elif is_formatted_data:
+                self._write_dataframe(writer, 'Formatted Data', self.formatted_data)
+            # else error make sure there fomatted data is computed first
+            else:
+                raise ValueError("No data available to save. Make sure the data is computed first.")
+    
+    def _write_dataframe(self, writer, sheet_name, dataframe):
+        # Starting row for the data (after the headers)
+        startrow = 3
+
+        # Save the DataFrame to the specified sheet
+        dataframe.to_excel(writer, sheet_name=sheet_name, startrow=startrow, index=False)
+
+        # Get the xlsxwriter workbook and worksheet objects
+        worksheet = writer.sheets[sheet_name]
+
+        # Get the dimensions of the dataframe
+        (max_row, max_col) = dataframe.shape
+        column_settings = [{'header': column.capitalize()} for column in dataframe.columns]
+
+        # Add a table to the worksheet
+        worksheet.add_table(startrow, 0, startrow + max_row, max_col - 1, {
+            'columns': column_settings,
+            'style': 'Table Style Medium 6'
+        })

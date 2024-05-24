@@ -37,10 +37,10 @@ class CustomToolbar(NavigationToolbar2Tk):
             self.canvas.figure.set_size_inches(8, 6)
 
             # Check if logo is inside or outside
-            if self.ax.get_label() == 'logo_axes':
-                LogoHelper.place_logo_with_inside(self.ax)
-            elif self.ax.get_label() == 'logo_title':
-                LogoHelper.place_logo_outside(self.ax)
+            # if self.ax.get_label() == 'logo_axes':
+            #     LogoHelper.place_logo_with_inside(self.ax)
+            # elif self.ax.get_label() == 'logo_title':
+            #     LogoHelper.place_logo_outside(self.ax)
             
             # Save with new DPI and size
             self.canvas.figure.savefig(fname, dpi=300)
@@ -200,11 +200,11 @@ class PlotManager:
 
                 ax.legend(loc='upper center', ncol=1, fontsize=6)
 
-                # Add logo
-                if position == RIGHT:
-                    LogoHelper.place_logo_outside(ax)
-                else: # MIDDLE
-                    LogoHelper.place_logo_with_inside(ax)
+                # # Add logo
+                # if position == RIGHT:
+                #     LogoHelper.place_logo_outside(ax)
+                # else: # MIDDLE
+                #     LogoHelper.place_logo_with_inside(ax)
                         
                 # Add address in footer
                 ax.figure.text(0.5, 0.02, 'Cymat Technologies Ltd. 6320-2 Danville Road Mississauga, Ontario, Canada, L5T 2L7', ha='center', va='bottom', fontsize=6, color='black')

@@ -34,9 +34,6 @@ class ButtonActions:
     def average_of_specimens_hysteresis(self):
         return self.app.variables.average_of_specimens_hysteresis
     
-    def get_export_path():
-        pass
-
     def validate_selected_specimen():
         pass
 
@@ -63,10 +60,9 @@ class ButtonActions:
         file_path = self.widget_manager.get_save_file_path()
         if not file_path:
             return
-        
+        tk.messagebox.showinfo("Data Export", "Data is getting exported to Excel, please wait...")
         self.data_handler.export_average_to_excel(selected_indices, file_path)   
   
-        tk.messagebox.showinfo("Data Export", "Data is getting exported to Excel, please wait...")
 
     def submit(self, event=None) -> None:
         #enter work on submit
@@ -220,6 +216,7 @@ class ButtonActions:
         std_dev_strain = self.average_of_specimens["std Strain"].to_numpy()
 
         if internal_plot == True or external_plot == True:
+
             # plot the error band based on the std dev of the stress and strain
             error_band_label = "Stress Standard Deviation Band"
             draw_error_band_y(ax, strain, stress, err=std_dev_stress, facecolor="C0", edgecolor="none", alpha=.3, label=error_band_label)
@@ -274,10 +271,10 @@ class ButtonActions:
     def display_energy_values(self, df_summary, dense_strain = "N/A"):
 
         density = df_summary.loc['density', 'Average']  # g/cm^3
-        density_kg_meters = density * 1000  # kg/m^3
+        density_kg_meters = density * 1000  # 1g/cm^3 = 1000 kg/m^3
 
         # calculate energy data and round to 2 decimal places for readability
-        E20_kJ_m3 = round(self.app.variables.average_E20 * 1000, 2)
+        E20_kJ_m3 = round(self.app.variables.average_E20 * 1000, 2) # [MPa *(mm/mm)]=1 Mj/m^3 = 1000 kJ/m^3
         E20_kJ_kg = round((self.app.variables.average_E20 * 1000) / density_kg_meters, 2)
 
         E50_kJ_m3 = round(self.app.variables.average_E50 * 1000, 2)
@@ -334,6 +331,8 @@ class ButtonActions:
 
          # Modulus line
         x,y  = self.app.variables.hyst_avg_linear_plot if self.app.variables.hyst_avg_linear_plot_best_fit is None else self.app.variables.hyst_avg_linear_plot_best_fit
+        slope = (y[-1] - y[0]) / (x[-1] - x[0])
+        # self._plot_zero_slope_line(ax,slope)
         x_filtered, y_filtered, mask = self._filter_xy(x, y)
         print("\nAverage Plot: Slope of the modulus line: ", (y_filtered[-1] - y_filtered[0]) / (x_filtered[-1] - x_filtered[0]))
         # round offse to 3 decimal places for readability
@@ -391,11 +390,42 @@ class ButtonActions:
             alpha=0.5
         )
 
+    def _plot_zero_slope_line(self, ax,slope):
+        max_stress = max(self.average_of_specimens["Stress"].to_numpy())
+        strain = self.average_of_specimens["Strain"].to_numpy() 
+        y = slope * strain
+        x = strain
+
+        # Filter using boolean indexing
+        mask_1 = y > 0
+        mask_2 = y < max_stress
+        mask = mask_1 & mask_2
+        y_filtered = y[mask]
+        x_filtered = x[mask]
+
+        ax.plot(x_filtered , y_filtered,  alpha=0.4,color='greenyellow', label='Zere Slope Line')
+
 
     ### Skeleton Functions 
 
     def export_indivdual_data(self):
         print("Button clicked to export individual specimen data to Excel Files")
+        selected_specimens = self.data_handler.get_selected_specimens()
+        if not selected_specimens:
+            tk.messagebox.showerror("Error", "No specimens selected for saving.")
+            return     
+        # Ask fot the directory to save the files
+        save_dir = filedialog.askdirectory()
+
+        if save_dir is None:
+            return
+        
+        try:
+            for specimen in selected_specimens:
+                specimen.save_data(save_dir)
+            tk.messagebox.showinfo("Save Successful", f"Saved selected specimens.")
+        except Exception as e:
+            tk.messagebox.showerror("Save Error", f"Failed to save selected specimens.\n\nError: {e}")
 
     def update_plot(self):
         selected_plot = self.widget_manager.update_plot_dropdown_var.get()
@@ -443,14 +473,15 @@ class ButtonActions:
             return
 
 
-
-
     def recalculate_specimen(self):
         print("Recalculate Specimen Variables button clicked.")
+        print("Change to KPI recalculation and export to excel") # TODO
         selected_indices = self.widget_manager.specimen_listbox.curselection()
         if not selected_indices:
             tk.messagebox.showerror("caution","All specimen values will be recalculates \n Do you want to continue?")
 
+        self.data_handler.export_individual_kpi(selected_indices)
+        # self.data_handler.recalculate_specimen(selected_indices)
 
     def delete_selected_specimens(self):
         """Delete the selected specimens from the list."""

@@ -77,6 +77,18 @@ class ControlProcessMetrics:
             (self.USL - self.mean) / (3 * self.sigma),
             (self.mean - self.LSL) / (3 * self.sigma)
         )
+    
+    @property
+    def cv(self):
+        return self.sigma / self.mean * 100 if self.mean != 0 else None
+    
+    @property
+    def Cpk(self):
+        return self.calculate_Cpk()
+    
+    @property
+    def Cp(self):
+        return self.calculate_Cp()
 
 
 class ControlChartPlotter:

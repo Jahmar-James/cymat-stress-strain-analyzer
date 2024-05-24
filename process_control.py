@@ -26,7 +26,6 @@ def main():
     batch_control_chart_processor.plot_chart()
 
 @dataclass
-
 class ControlPropertySettings:
     df_key: str
     title: str
@@ -53,7 +52,6 @@ class ControlPropertySettings:
             raise ValueError("Center can only be provided with tolerance_percentage.")
         
 class BaseControlSettings:
-
     @staticmethod
     def extract_values_from_sku(sku):
         #SKU Example: ML-RP-27.0-0.51
@@ -166,8 +164,7 @@ class BaseControlSettings:
         
         # Convert relative density LSL and USL to g/cc
         LSL = 2.7 * relative_density_LSL
-        USL = 2.7 * relative_density_USL
-        
+        USL = 2.7 * relative_density_USL       
         return LSL, USL
 
 class BatchControlCharts:

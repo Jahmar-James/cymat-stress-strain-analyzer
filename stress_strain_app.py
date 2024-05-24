@@ -22,7 +22,7 @@ class StressStrainApp:
 
         # Initialize instances
         self.data_handler = DataHandler(self)
-        self.widget_manager = WidgetManager(self)
+        self.widget_manager = WidgetManager(self) 
         self.button_actions = ButtonActions(self, self.data_handler)
         self.plot_manager = PlotManager(self.widget_manager.notebook, self)
 
@@ -43,7 +43,7 @@ class AppConfiguration:
     def configure_master(self):
         # Your existing code for configuring the master window
         self.master.title("Cymat Stress-Strain Analyzer")
-        self.master.geometry("850x600")
+        self.master.geometry("1200x600")
         self.master.minsize(850, 600)
         self.style = ttk.Style()
         self.style.theme_use('clam')
@@ -88,19 +88,3 @@ if __name__ == "__main__":
     root = tb.Window( themename= 'darkly')
     app = StressStrainApp(root)
     root.mainloop()
-
-# To Do
-# 5. Refine 1st index and next index
-# - Understand the purpose and functionality of the 1st index and next index.
-# - Identify the code sections where these values are used or calculated.
-# - Make any necessary adjustments or improvements to refine their functionality.
-
-# 10. Ability to shift the stress axes up
-# - Identify the code section responsible for the stress axes.
-# - Implement the necessary functionality to allow users to shift the stress axes up.
-# - Update the corresponding plots or graphs to reflect the shifted stress axes.
-
-# 11. Clean up file name
-# - Identify the files or resources with messy or inconsistent names.
-# - Rename the files or resources using a consistent and clean naming convention.
-# - Update any references to the renamed files in the code.
