@@ -716,7 +716,7 @@ class SpecimenDataManager:
 
             if recalculate and not self.has_preload_stess_and_strain:
                 self.formatted_data['stress'] = ( self.formatted_data['force'] / self.cross_sectional_area)
-                self.formatted_data['stress'] = ( self.formatted_data['force'] / self.cross_sectional_area)      
+                self.formatted_data['strain'] = ( (self.formatted_data['displacement']) / self.original_length)  
             return None
             raise NotImplementedError("Remapping stress and strain data is not yet implemented.")
         
