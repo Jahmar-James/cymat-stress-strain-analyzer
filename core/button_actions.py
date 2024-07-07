@@ -44,6 +44,7 @@ class ButtonActions:
         if self.app.variables.export_in_progress == True:
             tk.messagebox.showerror("Error", "Export is already in progress, ignore the button click.")
             return
+        
         selected_indices = self.app.widget_manager.specimen_listbox.curselection()
         if not selected_indices:
             tk.messagebox.showerror("Error", "No specimens selected for averaging.")
@@ -61,7 +62,14 @@ class ButtonActions:
         if not file_path:
             return
         tk.messagebox.showinfo("Data Export", "Data is getting exported to Excel, please wait...")
-        self.data_handler.export_average_to_excel(selected_indices, file_path)   
+
+        try:
+            self.data_handler.export_average_to_excel(selected_indices, file_path)
+        except Exception as e:
+            self.app.variables.export_in_progress = False
+            tk.messagebox.showerror("Export Error", f"Failed to export data to {file_path}\n\nError: {e}")
+            return None
+
   
 
     def submit(self, event=None) -> None:

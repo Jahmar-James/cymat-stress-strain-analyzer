@@ -57,7 +57,8 @@ class DataValidator:
             'stress': ['stress', 'contrainte'],
             'strain': ['strain', 'deformation'],
             'force': ['force', 'load'],
-            'displacement': ['displacement', 'elongation',]
+            'displacement': ['displacement', 'elongation'],
+            "Time": ["time", "temps", "Time"],
     }
 
     @staticmethod
@@ -132,7 +133,6 @@ class DataHandler:
         ("All files", "*.*")
     ]
 
-    
     def set_widget_manager(self, widget_manager):
         self.widget_manager = widget_manager
 
@@ -789,12 +789,25 @@ class DataHandler:
             return
         
         self.app.variables.selected_specimen_names = [specimen.name for specimen in selected_specimens]
+        condtions = [specimen.data_manager.import_condition for specimen in selected_specimens]
 
-        common_displacement = self.get_common_displacement(selected_specimens)
-        interpolated_forces = self.get_interpolated_forces(selected_specimens, common_displacement)
+        print(condtions)
+        skip_force = False
+        # for condtion in condtions:
+        #     if 'df' in str(condtion) and 'force' not in str(condtion):
+        #         print("One of the data samples does not have force data. Will attemp to avg only with stress and strain ")
+        #         skip_force = True
+        #         #empty force  and displacement data
+        #         average_displacement =pd.DataFrame()
+        #         average_force = pd.DataFrame()
 
-        average_force = np.mean(interpolated_forces, axis=0)
-        average_displacement = common_displacement
+
+        if not skip_force:
+            common_displacement = self.get_common_displacement(selected_specimens)
+            interpolated_forces = self.get_interpolated_forces(selected_specimens, common_displacement)
+
+            average_force = np.mean(interpolated_forces, axis=0)
+            average_displacement = common_displacement
 
         common_strain = self.get_common_strain(selected_specimens)
         interpolated_stresses = self.get_interpolated_stresses(selected_specimens, common_strain)
@@ -1138,13 +1151,18 @@ class DataHandler:
     
         self.update_properties_df(selected_indices)
 
-        print("Starting export thread")
+        
         if track_export is False:
             export_thread = threading.Thread(target=self.excel_exporter.export_data_to_excel(selected_indices, file_path))
         else:
             export_thread = threading.Thread(target=self.excel_exporter.profile_export_average_to_excel, args=(selected_indices, file_path))
-        export_thread.start()
-        self.app.variables.export_in_progress = True
+       
+        try:
+            export_thread.start()
+            print("Starting export thread")
+            self.app.variables.export_in_progress = True
+        except Exception as e:
+            self.app.variables.export_in_progress = False
 
     def format_specimen_name_for_file(self, specimen_name):
         valid_chars = "-_.() %s%s" % (string.ascii_letters, string.digits)

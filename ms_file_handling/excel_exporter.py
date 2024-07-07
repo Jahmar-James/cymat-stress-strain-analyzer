@@ -394,7 +394,13 @@ class ExcelExporter:
 
     def write_raw_data_to_excel(self, writer):
         raw_data_dfs = [specimen.data for specimen in self.selected_specimens]
+        # Check if all item in raw_data_dfs is None
+        if all(df is None for df in raw_data_dfs):
+            return None 
+        
         for idx, df in enumerate(raw_data_dfs):
+            if df is None: # if a single item is None skip to the next
+                continue
             df.to_excel(writer, sheet_name=RAW_DATA, index=False, startrow=1, startcol=idx * (len(df.columns) + 1))
             ws = writer.sheets[RAW_DATA]
             ws.cell(row=1, column=idx * (len(df.columns) + 1) + 1, value=self.selected_specimens[idx].name).font = Font(bold=True)

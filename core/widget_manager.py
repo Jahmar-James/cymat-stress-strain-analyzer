@@ -341,6 +341,17 @@ class PlaceholderEntry(ttk.Entry):
             self.insert(0, self.placeholder)
             self.configure(style="Placeholder.TEntry")
 
+    def set(self, value):
+        """Set the value of the entry, managing placeholders correctly."""
+        self.delete(0, 'end')
+        value = str(value)
+        if value == "":
+            self.insert(0, self.placeholder)
+            self.configure(style="Placeholder.TEntry")
+        else:
+            self.insert(0, value)
+            self.configure(style="TEntry")
+
 class PlaceholderEntryWithUnit(PlaceholderEntry):
     """A subclass of PlaceholderEntry to support placeholders with units."""
     def __init__(self, parent=None, placeholder="", unit='', **kwargs):
@@ -367,6 +378,18 @@ class PlaceholderEntryWithUnit(PlaceholderEntry):
     def get(self):
         value = super().get()
         return value.replace(self.unit, '')
+    
+    def set(self, value):
+        """Set the value of the entry, managing placeholders and units correctly."""
+        self.delete(0, 'end')
+        value = str(value)
+        if value.strip() == "":
+            self.insert(0, self.placeholder + self.unit)
+            self.configure(style="Placeholder.TEntry")
+        else:
+            self.insert(0, value + self.unit)
+            self.icursor(len(value))  # Move cursor before the unit
+            self.configure(style="TEntry")
 
 class EntryGroup(tk.Frame):
     def __init__(self, master=None, entries_data=None, **kwargs):

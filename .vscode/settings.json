@@ -1,10 +1,26 @@
 {
-    "[python]": {
-        "editor.defaultFormatter": "ms-python.python"
-    },
-    "python.formatting.provider": "none",
-    "editor.formatOnPaste": true,
-    "editor.defaultFormatter": "njpwerner.autodocstring",
-    "editor.formatOnSave": true,
-    "editor.formatOnSaveMode": "modifications"
+  // Python-specific settings
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff", // Specifies Ruff as the default formatter for Python files
+    "editor.formatOnSave": true, // Enables automatic formatting on save for Python files
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true // Organizes imports on save for Python files
+    }
+  },
+  // Ruff linter settings
+  "ruff.lint.enable": true, // Enables the Ruff linter
+  // General editor settings
+  "window.zoomLevel": 0, // Sets the zoom level of the window
+  "editor.formatOnPaste": true, // Enables formatting when pasting code
+  "editor.formatOnSave": true, // Enables global setting for formatting files on save
+  "editor.formatOnSaveMode": "modifications", // Formats only modified lines on save
+  // Python testing settings
+  "python.testing.pytestArgs": [
+    "toplevel_create_sample" // Arguments for pytest, specifying the test directory
+  ],
+  "python.testing.unittestEnabled": false, // Disables unittest framework
+  "python.testing.pytestEnabled": true, // Enables pytest framework
+  // Python analysis settings
+  "python.analysis.typeCheckingMode": "off", // Sets the level of type checking to basic
+  "python.analysis.autoImportCompletions": true // Enables automatic import completions
 }

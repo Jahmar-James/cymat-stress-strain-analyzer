@@ -562,7 +562,8 @@ class SpecimenGraphManager:
     def plot_strength_points(self, ax,):
         if self.compressive_proof_strength is not None:
             ps_strain, ps_stress = self.compressive_proof_strength
-            ax.scatter(ps_strain, ps_stress, c="green", label=f"Compressive Proof Strength: ({ps_strain:.3f}, {ps_stress:.3f})") 
+            if ps_strain is not None and ps_stress is not None:
+                ax.scatter(ps_strain, ps_stress, c="green", label=f"Compressive Proof Strength: ({ps_strain:.3f}, {ps_stress:.3f})") 
 
     def plot_scatter_points(self, ax):
         def plot_iys(ax):
@@ -623,6 +624,7 @@ class SpecimenDataManager:
             'force': ['force', 'load'],
             'displacement': ['displacement', 'elongation',]
         }
+        self.import_condition = None
 
         # Determine the type of data and assign appropriately
         if raw_data:
@@ -633,12 +635,16 @@ class SpecimenDataManager:
                 self.raw_data = raw_data[1]
 
     def clean_data(self, condition=None):
+        self.import_condition = condition
         if 'df' in str(condition):
             self.clean_data_df()
         else:     
             self.clean_raw_data()
-        if self.hysteresis_data:
-            self.clean_hysteresis_data()
+        if self.hysteresis_data is not None:
+            if 'df' in str(condition):
+                self.clean_hysteresis_df( recalculate=True)
+            else:
+                self.clean_hysteresis_data()
 
     # add filtering and noise reduction
 
@@ -653,9 +659,22 @@ class SpecimenDataManager:
         
     def clean_data_df(self):
         print(f"Cleaning data from dataframe with the following columns:{self.raw_data.columns}")
+        self.split_raw_data_df = self.raw_data.copy()
         self.formatted_data = self.raw_data.copy()
- 
 
+    def clean_hysteresis_df(self, recalculate=False):
+        if isinstance(self.hysteresis_data, pd.DataFrame):
+            # Clean and typecast the hysteresis data
+            self.formatted_hysteresis_data = self.hysteresis_data
+            if recalculate:
+                if 'stress' in self.formatted_hysteresis_data.columns:
+                    self.formatted_hysteresis_data['stress'] = self.formatted_hysteresis_data['force'].astype(float) / self.cross_sectional_area
+                    self.formatted_hysteresis_data['stress'] = self.formatted_hysteresis_data['stress'].astype(float)
+
+                if 'strain' in self.formatted_hysteresis_data.columns:
+                    self.formatted_hysteresis_data['strain'] = self.formatted_hysteresis_data['displacement'].astype(float) / self.original_length
+                    self.formatted_hysteresis_data['strain'] = self.formatted_hysteresis_data['strain'].astype(float)
+            
     def clean_hysteresis_data(self):
         self.formatted_hysteresis_data = self.clean_specific_data(self.hysteresis_data)
 
@@ -768,8 +787,9 @@ class SpecimenDataManager:
     def get_modulus_from_hysteresis(self):
         # self.formatted_hysteresis_data = median_filter(self.formatted_hysteresis_data, denoise_strength = 21)
         force = self.formatted_hysteresis_data['force'].values
-        negative_force = force*-1
-        max_force_index = np.argmax(negative_force)
+        max_force_index = np.argmax(force*-1) if 'df' not in str(self.import_condition) else np.argmax(force)
+        # negative_force = force*-1
+        # max_force_index = np.argmax(negative_force)
         max_stress_index = np.argmax(self.formatted_hysteresis_data['stress'].values)
 
         self.align_hysteresis_data(max_stress_index)

@@ -203,3 +203,5 @@ Archive/templates/07-0142_Fraunhofer_Normskizze_Umsetzung_DIN-rev-kru_EN.pdf
 Archive/27mm_0.518_2.4_analyzer_data.zip
 core/widget_manager.py
 output.svg
+toplevel_create_sample/specimen.dat
+.vscode/c_cpp_properties.json

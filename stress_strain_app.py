@@ -64,9 +64,11 @@ class AppVariables:
         self.notebook_to_data = {}
         self.export_in_progress = False
         self.preliminary_sample = False
+        self.SPLIT_HYSTERESIS_TOGGLE = tk.BooleanVar(value=False)
         self.prelim_mode = tk.BooleanVar(value=self.preliminary_sample)
         self.DIN_Mode = True
         self.ISO_Mode = False
+
 
     def add_specimen(self, tab_id, specimen):
         self.specimens.append(specimen)
