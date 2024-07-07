@@ -58,14 +58,12 @@ class CreateSampleWindow(ctk.CTkToplevel):
         self.callback = submission_callback
 
         self.SUPPORTED_DATA_FILE_TYPES = (
-            [("Supported types", "*.dat *.xls *.xlsx *.csv"), ("All files", "*.*")]
-            if supported_data_file_types is None
-            else supported_data_file_types
+            supported_data_file_types
+            if supported_data_file_types
+            else [("Supported types", "*.dat *.xls *.xlsx *.csv"), ("All files", "*.*")]
         )
         self.SUPPORTED_IMAGE_FILE_TYPES = (
-            [("Image Files", "*.png;*.jpg;*.jpeg;*.bmp")]
-            if supported_image_file_types is None
-            else supported_image_file_types
+            supported_image_file_types if supported_image_file_types else [("Image Files", "*.png;*.jpg;*.jpeg;*.bmp")]
         )
 
         self.validator = ToplevelValidator(self)
