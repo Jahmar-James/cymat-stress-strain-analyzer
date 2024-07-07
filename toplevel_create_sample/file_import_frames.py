@@ -4,7 +4,6 @@ import tkinter as tk
 from abc import ABC, abstractmethod
 from functools import wraps
 from pathlib import Path
-from re import T
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable, Optional
 
@@ -14,7 +13,6 @@ from classes_customtkinter import CustomTkinterToast, CustomTkinterTooltip
 from column_grid_manager import ColumnGridManager
 from mechanical_test_data_preprocessor import MechanicalTestDataPreprocessor
 from PIL import Image
-from toplevel_validator import DataValidator
 
 # GEAR_ICON_PATH = r"C:\Users\JahmarJames\OneDrive - Cymat Corporation\Documents\Python Scripts\Engineering_concepts\Stress__Strain_GUI_V2\toplevel_create_sample\Gear-icon.png"
 # GEAR_ICON_PATH = r"/workspaces/cymat-stress-strain-analyzer/toplevel_create_sample/Gear-icon.png"

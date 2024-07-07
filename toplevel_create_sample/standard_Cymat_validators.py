@@ -1,4 +1,5 @@
 import traceback
+from typing import TYPE_CHECKING, Optional
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, ValidationError, ValidationInfo, computed_field, field_validator
@@ -10,6 +11,9 @@ from standard_validator import (
     register_validator,
     validation_result,
 )
+
+if TYPE_CHECKING:
+    from .standard_validator import SampleProperties
 
 
 @register_validator(MechanicalTestStandards.CYMAT_ISO13314_2011)
@@ -77,7 +81,8 @@ class CymatISO133142011Validator(BaseStandardValidator):
             },
         }
 
-    def validate_general(self, data: "pd.DataFrame", data_type: str) -> validation_result:
+    @staticmethod
+    def validate_general(data: "pd.DataFrame", data_type: str) -> validation_result:
         try:
             assert data is not None, "Data is None"
             assert isinstance(data, pd.DataFrame), "Data is not a DataFrame"
@@ -101,7 +106,8 @@ class CymatISO133142011Validator(BaseStandardValidator):
                 update_data=False,
             )
 
-    def validate_hysteresis(self, data: "pd.DataFrame", data_type: str) -> validation_result:
+    @staticmethod
+    def validate_hysteresis(data: "pd.DataFrame", data_type: str) -> validation_result:
         try:
             assert data is not None, "Data is None"
             assert isinstance(data, pd.DataFrame), "Data is not a DataFrame"
@@ -124,6 +130,15 @@ class CymatISO133142011Validator(BaseStandardValidator):
                 data=None,
                 update_data=False,
             )
+
+    @staticmethod
+    def validate_sample_properties(sample_properties: Optional["SampleProperties"]) -> validation_result:
+        """
+        makes the sample properties are in the valid ranges
+        Create a specific pydantic model for the standard
+        Which will taken in the serialized prevalidated sample properties
+        """
+        pass
 
 
 if __name__ == "__main__":

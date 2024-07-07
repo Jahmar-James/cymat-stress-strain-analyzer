@@ -1,4 +1,4 @@
-import threading
+
 import tkinter as tk
 from functools import cached_property
 from tkinter import ttk
@@ -9,9 +9,8 @@ from classes_customtkinter import CustomTkinterToast, CustomTkinterTooltip
 from column_grid_manager import ColumnGridManager
 from file_import_frames import BatchSpecimenImportFrame, CompressionDataImportFrame, ImageImportFrame
 from properties_group import PropertiesGroup
-from pydantic import ValidationError
 from settings_toplevel_create_sample import *
-from standard_validator import MechanicalTestStandards, SampleProperties
+from standard_validator import MechanicalTestStandards
 from toplevel_validator import ToplevelValidator
 
 from core.widget_manager import PlaceholderEntry, PlaceholderEntryWithUnit
@@ -314,7 +313,7 @@ class MiddleFrame_FileGroup(ttk.Frame):
         self.properties_frame.create_widgets()
 
         self.standards_combobox = ttk.Combobox(self, values=self.stanadrds, state="readonly")
-        self.standards_combobox.current(0)
+        self.standards_combobox.current(1)  # The second item corresponds MechanicalTestStandards.CYMAT
 
         self.submit_button = ttk.Button(
             self,
@@ -336,90 +335,6 @@ class MiddleFrame_FileGroup(ttk.Frame):
         self.grid_manager.add_widget(widget=self.submit_button, sticky="ew")
         self.grid_manager.apply_layout(col_minsize=self.minsize_col, row_minsize=40)
 
-    def _submit_sample(self):
-        valid_general_file = self.toplevel_window.general_data_is_vaild.get()
-        valid_hysteresis_file = self.toplevel_window.hysteresis_data_is_vaild.get()
-        vaild_image_file = self.toplevel_window.image_data_is_vaild.get()
-
-        recalculate = self.toplevel_window.recalculate_toggle_var.get()
-        visualize_specimen = self.toplevel_window.visualize_specimen_toggle_var.get()  # only need the name and data
-        is_close_on_submission = self.toplevel_window.close_on_submission_toggle_var.get()
-        standard = self.standards_combobox.get()
-        comment = self.toplevel_window.comment_box_frame.comment
-
-        print(f"General data info: {self.toplevel_window.middle_frame.general_data_frame.info}")
-
-        skip_validation = not visualize_specimen or self.toplevel_window.disable_auto_validation_toggle_var.get()
-
-        is_ready_to_submit = True
-        if skip_validation:  # TODO - move to class
-            properties = self.toplevel_window.middle_frame.properties_frame.formatted_entry_values
-            try:
-                valid_properties = SampleProperties(**properties)
-                print(f"Sample properties are valid. {valid_properties}")
-            except ValidationError as e:
-                print(f"Validation failed with the following error(s):\n{e}")
-                CustomTkinterToast(
-                    self,
-                    title="Validation Error",
-                    message=f"Validation failed with the following error(s):\n{e}",
-                    duration=3000,
-                    alert=True,
-                ).show_toast()
-                is_ready_to_submit = False
-
-            # Validate the files based on the user's selection standard
-            print(f"Standard selected: {standard}")
-            print(f"The file paths are: {self.toplevel_window.filepaths}")
-            if standard == "Cymat_ISO13314-2011":
-                # Both files are required
-                if not valid_general_file and not valid_hysteresis_file:
-                    print("Both files are required for this standard.")
-                    CustomTkinterToast(
-                        self,
-                        title="Validation Error",
-                        message="Both files are required for this standard.",
-                        duration=3000,
-                        alert=True,
-                    ).show_toast()
-                    for file_label, file_path in self.toplevel_window.filepaths:
-                        if "general" in file_label:
-                            from settings_toplevel_create_sample import DataValidator
-
-                            general_catergy_type = DataValidator.validate_columns(file_path)
-                            # TODO Add more validation based on the file type
-                            general_data = DataValidator.remap_df_columns(file_path)
-
-                    is_ready_to_submit = False
-            elif standard == "General (Perliminary)":
-                # Only the general file is required
-                if not valid_general_file:
-                    print("General data file is required for this standard.")
-                    is_ready_to_submit = False
-
-        # if visualize_specimen and vaild_image_file and hasattr(self.toplevel_window, 'len_entry'):
-
-        if is_ready_to_submit:
-            print("Sample submitted for calculation.")
-            CustomTkinterToast(
-                self,
-                title="Sample Submitted",
-                message="Sample submitted for calculation.",
-                duration=3000,
-            ).show_toast()
-
-            if is_close_on_submission:
-                self.toplevel_window.destroy()
-            else:
-                self.toplevel_window.reset_window()
-
-            if self.toplevel_window.right_frame.batch_specimen_import_frame.is_exhausted:
-                print("Batch file is exhausted.")
-            else:
-                thread = threading.Thread(
-                    target=self.toplevel_window.right_frame.batch_specimen_import_frame.process_next_row
-                )
-                thread.start()
 
 
 class RightFrame_CalculationGroup(ttk.Frame):

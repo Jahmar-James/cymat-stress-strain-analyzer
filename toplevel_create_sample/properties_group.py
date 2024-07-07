@@ -105,8 +105,10 @@ class PropertiesGroup(ttk.Frame):
             density = density.to("g/cm^3")
             color = "red" if density.magnitude > 10 else "black"
             self.density_label.config(text=f"Density: {density.magnitude:.3f} g/cm^3", foreground=color)
+            return density
         else:
             self.density_label.config(text="Density: 0 g/cm^3")
+            return ureg.Quantity(0, "g/cm^3")
 
     def _attempt_to_convert_to_quantity(self, value: str, default_unit: str) -> UnitRegistry.Quantity:
         """Attempts to convert the value to a quantity with the given unit."""

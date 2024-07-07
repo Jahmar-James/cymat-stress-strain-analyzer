@@ -37,7 +37,6 @@ class SampleProperties(BaseModel):
 # Registry for validators
 validator_registry = {}
 
-
 # Decorator for registering validators
 def register_validator(standard) -> Callable:
     def decorator(cls):
@@ -153,6 +152,7 @@ class BaseStandardValidator:
         """
         self.data_validation_methods: dict[str, list[Callable]] = {}
         self.image_validation_methods: list[Callable] = []
+        self.sample_properties_validation_methods: list[Callable] = []
         self.column_name_requirements: dict[str, dict[str, list[str]]] = {}
         self.column_interval_requirements: dict[str, dict[str, int]] = {}
         self.valid_data = None
@@ -186,6 +186,15 @@ class BaseStandardValidator:
                 if data_type in self.column_interval_requirements:
                     nts = self._validate_data_freq(data, self.column_interval_requirements[data_type])
                     results.extend(nts)
+
+        # Validate sample properties
+        if sample_properties and self.sample_properties_validation_methods:
+            for validate in self.sample_properties_validation_methods:
+                result = validate(sample_properties)
+                results.append(result)
+
+                if result.update_data:
+                    self.validated_sample_properties = result.data
 
         # Validate images
         if images and self.image_validation_methods:
