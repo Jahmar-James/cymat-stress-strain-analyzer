@@ -1,7 +1,8 @@
 import pandas as pd
 import pytest
+from standard_Cymat_validators import CymatISO133142011Validator
 
-from .standard_validator import CymatISO133142011Validator, MechanicalTestDataTypes
+from .standard_validator import MechanicalTestDataTypes
 
 
 @pytest.fixture

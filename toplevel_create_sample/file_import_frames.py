@@ -16,8 +16,9 @@ from mechanical_test_data_preprocessor import MechanicalTestDataPreprocessor
 from PIL import Image
 from toplevel_validator import DataValidator
 
-GEAR_ICON_PATH = r"C:\Users\JahmarJames\OneDrive - Cymat Corporation\Documents\Python Scripts\Engineering_concepts\Stress__Strain_GUI_V2\toplevel_create_sample\Gear-icon.png"
-
+# GEAR_ICON_PATH = r"C:\Users\JahmarJames\OneDrive - Cymat Corporation\Documents\Python Scripts\Engineering_concepts\Stress__Strain_GUI_V2\toplevel_create_sample\Gear-icon.png"
+# GEAR_ICON_PATH = r"/workspaces/cymat-stress-strain-analyzer/toplevel_create_sample/Gear-icon.png"
+GEAR_ICON_PATH = r"O:\Documents\Python_Projects\Stress_Strain_App\master\cymat-stress-strain-analyzer\toplevel_create_sample\Gear-icon.png"
 
 class FileImportFrame(ttk.Frame, ABC):
     def __init__(

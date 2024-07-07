@@ -11,7 +11,7 @@ from file_import_frames import BatchSpecimenImportFrame, CompressionDataImportFr
 from properties_group import PropertiesGroup
 from pydantic import ValidationError
 from settings_toplevel_create_sample import *
-from standard_validator import SampleProperties
+from standard_validator import MechanicalTestStandards, SampleProperties
 from toplevel_validator import ToplevelValidator
 
 from core.widget_manager import PlaceholderEntry, PlaceholderEntryWithUnit
@@ -291,7 +291,7 @@ class MiddleFrame_FileGroup(ttk.Frame):
         self.general_data_is_vaild = toplevel_window.general_data_is_vaild
         self.hysteresis_data_is_valid = toplevel_window.hysteresis_data_is_vaild
         self.supported_data_file_types = toplevel_window.SUPPORTED_DATA_FILE_TYPES
-        self.stanadrds = ["Cymat_ISO13314-2011", "General (Perliminary)"]
+        self.stanadrds = [standard.value for standard in MechanicalTestStandards]
 
     def create_widgets(self) -> None:
         self.general_data_frame = CompressionDataImportFrame(

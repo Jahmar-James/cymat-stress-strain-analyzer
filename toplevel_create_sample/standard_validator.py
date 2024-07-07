@@ -1,12 +1,8 @@
-import traceback
 from collections import namedtuple
 from enum import Enum
-from tkinter import E
-from turtle import up
-from typing import TYPE_CHECKING, Callable, Optional, Union
+from typing import Callable, Optional, Union
 
 import pandas as pd
-from matplotlib.dates import SA
 from pint import UnitRegistry
 from pydantic import BaseModel, ConfigDict, ValidationError, ValidationInfo, computed_field, field_validator
 
@@ -63,15 +59,24 @@ class MechanicalTestDataTypes(Enum):
 
 
 class MechanicalTestStandards(Enum):
-    GENERAL_PRELIMINARY = "(General (Preliminary))"
+    GENERAL_PRELIMINARY = "(General (Preliminary)"
     CYMAT_ISO13314_2011 = "Cymat_ISO13314-2011"
+
+    # Missing values check casefold of the str enum value
+    @classmethod
+    def _missing_(cls, value: str):
+        value = value.casefold()
+        for standard in cls:
+            if value == standard.value.casefold():
+                return standard
+        return None
 
 
 class IntervalRequirements(Enum):
     CONSECUTIVE_INTERVAL = "consecutive_interval"
     SAMPLE_FREQUENCY = "sample_frequency"
     TOLERANCE = "tolerance"
-    UPPER_BOUND_ONLY = "upper_bound_only"
+    THRESHOLD = "threshold"
 
 
 class BaseStandardValidator:
@@ -214,12 +219,8 @@ class BaseStandardValidator:
                 data=None,
                 update_data=False,
             )
-        consecutive_intervals_nt = self._validate_consecutive_intervals(
-            data, self.column_interval_requirements["consecutive_interval"]
-        )
-        sample_frequency_nt = self._validate_sample_frequency(
-            data, self.column_interval_requirements["sample_frequency"]
-        )
+        consecutive_intervals_nt = self._validate_consecutive_intervals(data, column_requirements)
+        sample_frequency_nt = self._validate_sample_frequency(data, column_requirements)
         return [consecutive_intervals_nt, sample_frequency_nt]
 
     def _validate_consecutive_intervals(
@@ -228,7 +229,6 @@ class BaseStandardValidator:
         column_requirements: dict,
         sample_size: int = 100,
         tolerance: tuple = (0.9, 1.1),
-        upper_bound_only: bool = False,
     ) -> validation_result:
         """
         Validates that the intervals between consecutive data points in a specified column are consistent with a target interval.
@@ -242,21 +242,24 @@ class BaseStandardValidator:
                 target_interval = requirements[IntervalRequirements.CONSECUTIVE_INTERVAL.value]
                 lower_tolerance, upper_tolerance = requirements.get("tolerance", tolerance)
 
-                if upper_bound_only:
-                    if not intervals.between(target_interval, target_interval * upper_tolerance).all():
+                upper_bound = target_interval * upper_tolerance
+                lower_bound = target_interval * lower_tolerance
+
+                if requirements.get(IntervalRequirements.THRESHOLD.value, False):
+                    if (intervals > upper_bound).any():
                         invalid_columns.append(
-                            f"{column} ({intervals.max()} interval) at the index {intervals.idxmax()}"
+                            f"{column.upper()} ({intervals.max():.4f} interval) Threshold: {upper_bound}"
                         )
                 else:
-                    if not intervals.between(
-                        target_interval * lower_tolerance, target_interval * upper_tolerance
-                    ).all():
-                        invalid_columns.append(f"{column} ({intervals.mean()} interval)")
+                    if not intervals.between(lower_bound, upper_bound).all():
+                        invalid_columns.append(
+                            f"{column.upper()} (Avg. {intervals.mean():.4f} interval) Bounds: {lower_bound} - {upper_bound}"
+                        )
 
         if invalid_columns:
             return validation_result(
                 valid=False,
-                error_message=f"Data frequency in columns {', '.join(invalid_columns)} does not meet the required interval",
+                error_message=f"Data's consecutive points in columns {', '.join(invalid_columns)} does not meet the requirement",
                 data=None,
                 update_data=False,
             )
@@ -268,7 +271,6 @@ class BaseStandardValidator:
         column_requirements: dict,
         points: int = 100,
         tolerance: tuple = (0.9, 1.1),
-        upper_bound_only: bool = False,
     ) -> validation_result:
         """
         Validates that the data frequency in a specified column meets the required interval.
@@ -283,118 +285,29 @@ class BaseStandardValidator:
                 target_frequency = requirements[IntervalRequirements.SAMPLE_FREQUENCY.value]
                 lower_tolerance, upper_tolerance = requirements.get(IntervalRequirements.TOLERANCE.value, tolerance)
 
-                if upper_bound_only:
-                    if not (target_frequency <= actual_frequency <= target_frequency * upper_tolerance):
-                        invalid_columns.append(f"{column} ({actual_frequency:.2f} Hz)")
+                upper_bound = target_frequency * upper_tolerance
+                lower_bound = target_frequency * lower_tolerance
+
+                if requirements.get(IntervalRequirements.THRESHOLD.value, False):
+                    # Higher frequency is better as there is more points than required
+                    if (actual_frequency < lower_bound).any():
+                        invalid_columns.append(
+                            f"{column.upper()} ({actual_frequency:.2f} Hz) Threshold: {lower_bound} Hz"
+                        )
                 else:
-                    if not (
-                        target_frequency * lower_tolerance <= actual_frequency <= target_frequency * upper_tolerance
-                    ):
-                        invalid_columns.append(f"{column} ({actual_frequency:.2f} Hz)")
+                    if not (lower_bound <= actual_frequency <= upper_bound):
+                        invalid_columns.append(
+                            f"{column.upper()} ({actual_frequency:.2f} Hz) Bounds: {lower_bound} - {upper_bound} Hz"
+                        )
 
         if invalid_columns:
             return validation_result(
                 valid=False,
-                error_message=f"Data frequency in columns {', '.join(invalid_columns)} does not meet the required interval",
+                error_message=f"Data's frequency in columns {', '.join(invalid_columns)} does not meet the required interval",
                 data=None,
                 update_data=False,
             )
         return validation_result(valid=True, error_message="", data=None, update_data=False)
-
-
-@register_validator(MechanicalTestStandards.GENERAL_PRELIMINARY)
-class GeneralPreliminaryValidator(BaseStandardValidator):
-    def __init__(self):
-        super().__init__()
-        pass
-        # raise NotImplementedError("General Preliminary validation not implemented")
-
-
-@register_validator(MechanicalTestStandards.CYMAT_ISO13314_2011)
-class CymatISO133142011Validator(BaseStandardValidator):
-    """
-    Assume the data is a DataFrame, convert units, normalized columns, and type checked:
-
-    Will now check the data for the following:
-    1. necessary columns are present for given types
-    2. validate the data frequency for each column based on the standard
-
-    - no image validation needed
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.data_validation_methods = {
-            MechanicalTestDataTypes.GENERAL.value: [self.validate_general],
-            MechanicalTestDataTypes.HYSTERESIS.value: [self.validate_hysteresis],
-        }
-
-        self.column_name_requirements = {
-            MechanicalTestDataTypes.GENERAL.value: ["time", "force", "displacement"],
-            MechanicalTestDataTypes.HYSTERESIS.value: ["time", "force", "displacement"],
-        }
-
-        self.column_interval_requirements = {
-            MechanicalTestDataTypes.GENERAL.value: {
-                "time": {IntervalRequirements.CONSECUTIVE_INTERVAL.value: 1.0},
-                "displacement": {IntervalRequirements.SAMPLE_FREQUENCY.value: 5},
-                "strain": {
-                    IntervalRequirements.CONSECUTIVE_INTERVAL.value: 1.0,
-                    IntervalRequirements.UPPER_BOUND_ONLY.value: True,
-                },
-            },
-            MechanicalTestDataTypes.HYSTERESIS.value: {"time": 100},
-            "displacement": {IntervalRequirements.SAMPLE_FREQUENCY.value: 5},
-            "strain": {IntervalRequirements.CONSECUTIVE_INTERVAL.value: 1.0},
-        }
-
-    def validate_general(self, data: "pd.DataFrame", data_type: str) -> validation_result:
-        try:
-            assert data is not None, "Data is None"
-            assert isinstance(data, pd.DataFrame), "Data is not a DataFrame"
-            assert not data.empty, "DataFrame is empty"
-            assert (
-                data_type == MechanicalTestDataTypes.GENERAL.value
-            ), f"Data type is not {MechanicalTestDataTypes.GENERAL.value}"
-            return validation_result(True, "", None, False)
-        except AssertionError as e:
-            return validation_result(
-                valid=False,
-                error_message=f"Invalid {data_type} data. AssertionError: {e}",
-                data=None,
-                update_data=False,
-            )
-        except Exception as e:
-            return validation_result(
-                valid=False,
-                error_message=f"Unexpected error: {e}\n{traceback.format_exc()}",
-                data=None,
-                update_data=False,
-            )
-
-    def validate_hysteresis(self, data: "pd.DataFrame", data_type: str) -> validation_result:
-        try:
-            assert data is not None, "Data is None"
-            assert isinstance(data, pd.DataFrame), "Data is not a DataFrame"
-            assert not data.empty, "DataFrame is empty"
-            assert (
-                data_type == MechanicalTestDataTypes.HYSTERESIS.value
-            ), f"Data type is not {MechanicalTestDataTypes.HYSTERESIS.value}"
-            return validation_result(True, "", None, False)
-        except AssertionError as e:
-            return validation_result(
-                valid=False,
-                error_message=f"Invalid {data_type} data. AssertionError: {e}",
-                data=None,
-                update_data=False,
-            )
-        except Exception as e:
-            return validation_result(
-                valid=False,
-                error_message=f"Unexpected error: {e}\n{traceback.format_exc()}",
-                data=None,
-                update_data=False,
-            )
 
 
 if __name__ == "__main__":
@@ -404,15 +317,3 @@ if __name__ == "__main__":
     print(sample.area)
     print(sample.model_dump())
     print(sample.model_dump_json())
-
-    # # Test the GeneralPreliminaryValidator
-    # general_validator = validator_registry[MechanicalTestStandards.GENERAL_PRELIMINARY]
-    # print(general_validator.validate({MechanicalTestDataTypes.GENERAL: pd.DataFrame()}))
-
-    # # Test the CymatISO133142011Validator
-    # cymat_validator = validator_registry[MechanicalTestStandards.CYMAT_ISO13314_2011]
-    # print(cymat_validator.validate({MechanicalTestDataTypes.GENERAL: pd.DataFrame(), MechanicalTestDataTypes.HYSTERESIS: pd.DataFrame()}))    # print(general_validator.validate({MechanicalTestDataTypes.GENERAL: pd.DataFrame()}))
-
-    # # Test the CymatISO133142011Validator
-    # cymat_validator = validator_registry[MechanicalTestStandards.CYMAT_ISO13314_2011]
-    # print(cymat_validator.validate({MechanicalTestDataTypes.GENERAL: pd.DataFrame(), MechanicalTestDataTypes.HYSTERESIS: pd.DataFrame()}))

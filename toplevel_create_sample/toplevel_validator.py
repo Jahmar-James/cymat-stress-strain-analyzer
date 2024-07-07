@@ -3,13 +3,10 @@ from typing import TYPE_CHECKING, Union
 import pandas as pd
 from mechanical_test_data_preprocessor import MechanicalTestDataPreprocessor
 from pint import UnitRegistry
-from pydantic import BaseModel, ConfigDict, ValidationError, ValidationInfo, field_validator
-from standard_validator import (
-    CymatISO133142011Validator,
-    MechanicalTestDataTypes,
-    MechanicalTestStandards,
-    SampleProperties,
-)
+from pydantic import ValidationError
+from standard_Cymat_validators import CymatISO133142011Validator
+from standard_general_validator import GeneralPreliminaryValidator
+from standard_validator import MechanicalTestDataTypes, MechanicalTestStandards, SampleProperties
 
 if TYPE_CHECKING:
     from toplevel_create_sample.toplevel_create_sample import CreateSampleWindow
@@ -160,8 +157,8 @@ class ToplevelValidator:
             validator = CymatISO133142011Validator()
             validator.validate(self.data, self.images, self.valid_properties)
         elif standard == MechanicalTestStandards.GENERAL_PRELIMINARY.value:
-            # Add a new validator here
-            pass
+            validator = GeneralPreliminaryValidator()
+            validator.validate(self.data, self.images, self.valid_properties)
         else:
             raise ValueError(f"Standard {standard} is not supported.")
 

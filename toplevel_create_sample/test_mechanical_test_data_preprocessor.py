@@ -1,7 +1,10 @@
-import pytest
-import pandas as pd
 from unittest.mock import MagicMock
-from .mechanical_test_data_preprocessor import MechanicalTestDataPreprocessor, ureg  # Adjust the import according to your module structure
+
+import pandas as pd
+import pytest
+
+from .mechanical_test_data_preprocessor import MechanicalTestDataPreprocessor, ureg
+
 
 def test_MechanicalTestDataPreprocessor_init_default():
     # Test initialization with default parameters
@@ -59,3 +62,5 @@ def test_preprocess_data_with_dataframe(preprocessor: MechanicalTestDataPreproce
     # Asserting the processed data matches expected results
     pd.testing.assert_frame_equal(result_df, expected_df)
 
+    # Asserting the processed data matches expected results
+    pd.testing.assert_frame_equal(result_df, expected_df)
