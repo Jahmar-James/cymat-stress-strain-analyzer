@@ -205,3 +205,4 @@ core/widget_manager.py
 output.svg
 toplevel_create_sample/specimen.dat
 .vscode/c_cpp_properties.json
+.devcontainer/devcontainer.json

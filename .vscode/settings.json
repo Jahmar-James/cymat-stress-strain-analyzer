@@ -4,7 +4,7 @@
     "editor.defaultFormatter": "charliermarsh.ruff", // Specifies Ruff as the default formatter for Python files
     "editor.formatOnSave": true, // Enables automatic formatting on save for Python files
     "editor.codeActionsOnSave": {
-      "source.organizeImports": true // Organizes imports on save for Python files
+      "source.organizeImports": "explicit"
     }
   },
   // Ruff linter settings
@@ -22,5 +22,5 @@
   "python.testing.pytestEnabled": true, // Enables pytest framework
   // Python analysis settings
   "python.analysis.typeCheckingMode": "off", // Sets the level of type checking to basic
-  "python.analysis.autoImportCompletions": true // Enables automatic import completions
+  "python.analysis.autoImportCompletions": false // Enables automatic import completions
 }
