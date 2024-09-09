@@ -14,9 +14,10 @@ from column_grid_manager import ColumnGridManager
 from mechanical_test_data_preprocessor import MechanicalTestDataPreprocessor
 from PIL import Image
 
-# GEAR_ICON_PATH = r"C:\Users\JahmarJames\OneDrive - Cymat Corporation\Documents\Python Scripts\Engineering_concepts\Stress__Strain_GUI_V2\toplevel_create_sample\Gear-icon.png"
+GEAR_ICON_PATH = r"C:\Users\JahmarJames\OneDrive - Cymat Corporation\Documents\Python Scripts\Engineering_concepts\Stress__Strain_GUI_V2\toplevel_create_sample\Gear-icon.png"
 # GEAR_ICON_PATH = r"/workspaces/cymat-stress-strain-analyzer/toplevel_create_sample/Gear-icon.png"
-GEAR_ICON_PATH = r"O:\Documents\Python_Projects\Stress_Strain_App\master\cymat-stress-strain-analyzer\toplevel_create_sample\Gear-icon.png"
+# GEAR_ICON_PATH = r"O:\Documents\Python_Projects\Stress_Strain_App\master\cymat-stress-strain-analyzer\toplevel_create_sample\Gear-icon.png"
+
 
 class FileImportFrame(ttk.Frame, ABC):
     def __init__(
@@ -295,7 +296,18 @@ class CompressionDataImportFrame(FileImportFrame):
         return data
 
     def _process_csv(self, file_path):
-        data = pd.read_csv(file_path)
+        import csv
+
+        # Open the file in text mode
+        with open(file_path, "r") as file:
+            content = file.read()
+            # Use Sniffer to check if there is a header
+            has_header = csv.Sniffer().has_header(content)
+            # Use Sniffer to deduce the dialect (format) of the CSV
+            dialect = csv.Sniffer().sniff(content)
+
+        # Read the CSV file using the deduced dialect and header info
+        data = pd.read_csv(file_path, dialect=dialect, header=0 if has_header else None)
         return data
 
     def _validate_file(self, data) -> bool:

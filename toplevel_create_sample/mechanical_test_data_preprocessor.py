@@ -39,12 +39,16 @@ class MechanicalTestDataPreprocessor:
         "stress": ["stress", "contrainte"],
         "strain": ["strain", "deformation"],
         "force": ["force", "load"],
-        "displacement": ["displacement", "elongation"],
-        "time": [
-            "time",
-            "temps",
+        "displacement": [
+            "displacement",
+            "elongation",
+            "extension",
+            "compressive extension",
+            "compressive extension (mm)",
         ],
-    }
+        "Time": ["time", "temps", "Time"],
+    }  # To Do: Add Base units to column standard name
+
     SPECIMEN_COLUMN_MAPPING = {
         "specimenname": ["name", "nom", "nombre", "identifier", "id", "specimen", "sample"],
         "length": ["length", "longueur", "länge", "largo", "len", "long"],
@@ -119,7 +123,7 @@ class MechanicalTestDataPreprocessor:
     @staticmethod
     def remap_df_columns(df: pd.DataFrame, column_mapping: dict = None) -> pd.DataFrame:
         if column_mapping is None:
-            column_mapping = MechanicalTestDataPreprocessor.COLUMN_MAPPING
+            column_mapping = MechanicalTestDataPreprocessor.DATA_COLUMN_MAPPING
 
         df = df.copy()
         # Remap the columns

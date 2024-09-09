@@ -1,8 +1,8 @@
 import traceback
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 import pandas as pd
-from pydantic import BaseModel, ConfigDict, ValidationError, ValidationInfo, computed_field, field_validator
+from pydantic import BaseModel, Field, ValidationError, ValidationInfo
 from standard_validator import (
     BaseStandardValidator,
     IntervalRequirements,
@@ -138,7 +138,34 @@ class CymatISO133142011Validator(BaseStandardValidator):
         Create a specific pydantic model for the standard
         Which will taken in the serialized prevalidated sample properties
         """
-        pass
+        if sample_properties is None:
+            return validation_result(
+                valid=False,
+                error_message="Sample properties are None",
+                data=None,
+                update_data=False,
+            )
+        
+        samlple_dim = Annotated[float, Field(gt=0, le=100)]  # Greater than 0 and less than or equal to 100 mm
+
+        class VALIDSAMPLE(BaseModel):
+            name: str
+            length: samlple_dim
+            width: samlple_dim
+            thickness: samlple_dim
+            area: float
+            density: float = Field(gt=0, le=2.7)  # Greater than 0 and less than or equal to 2.7 g/cm^3 Alumium density
+
+        try:
+            valid_sample = VALIDSAMPLE(**sample_properties)
+            return validation_result(True, "", data=valid_sample.dump(), update_data=False)
+        except ValidationError as e:
+            return validation_result(
+                valid=False,
+                error_message=f"Invalid sample properties. ValidationError: {e}",
+                data=None,
+                update_data=False,
+            )
 
 
 if __name__ == "__main__":
