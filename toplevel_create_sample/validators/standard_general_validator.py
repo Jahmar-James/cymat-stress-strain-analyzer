@@ -11,3 +11,4 @@ class GeneralPreliminaryValidator(BaseStandardValidator):
         self.column_name_requirements = {}
         self.column_interval_requirements = {}
         self.column_interval_requirements = {}
+        self.sample_properties_validation_methods = {}

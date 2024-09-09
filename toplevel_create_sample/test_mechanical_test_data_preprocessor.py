@@ -9,9 +9,9 @@ from .mechanical_test_data_preprocessor import MechanicalTestDataPreprocessor, u
 def test_MechanicalTestDataPreprocessor_init_default():
     # Test initialization with default parameters
     preprocessor = MechanicalTestDataPreprocessor()
-    
+
     assert preprocessor.expected_units == MechanicalTestDataPreprocessor.EXPECTED_UNITS
-    assert preprocessor.column_mapping == MechanicalTestDataPreprocessor.COLUMN_MAPPING
+    assert preprocessor.column_mapping == MechanicalTestDataPreprocessor.DATA_COLUMN_MAPPING
     assert set(unit for sublist in preprocessor.KNOWN_UNITS.values() for unit in sublist) == preprocessor.flat_known_units
 
 def test_MechanicalTestDataPreprocessor_init_custom():

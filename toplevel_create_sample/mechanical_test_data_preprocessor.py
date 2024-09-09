@@ -43,10 +43,8 @@ class MechanicalTestDataPreprocessor:
             "displacement",
             "elongation",
             "extension",
-            "compressive extension",
-            "compressive extension (mm)",
         ],
-        "Time": ["time", "temps", "Time"],
+        "time": ["time", "temps", "Time"],
     }  # To Do: Add Base units to column standard name
 
     SPECIMEN_COLUMN_MAPPING = {

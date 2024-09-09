@@ -185,7 +185,8 @@ class BaseStandardValidator:
                 # Validate data intervals (Frequency)
                 if data_type in self.column_interval_requirements:
                     nts = self._validate_data_freq(data, self.column_interval_requirements[data_type])
-                    results.extend(nts)
+                    for nt in nts:
+                        results.append(nt)
 
         # Validate sample properties
         if sample_properties and self.sample_properties_validation_methods:

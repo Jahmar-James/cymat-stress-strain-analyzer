@@ -9,13 +9,13 @@ from .standard_validator import (
     IntervalRequirements,
     MechanicalTestDataTypes,
     MechanicalTestStandards,
+    SampleProperties,
     register_validator,
     validation_result,
 )
 
 if TYPE_CHECKING:
     from .standard_validator import SampleProperties
-
 
 @register_validator(MechanicalTestStandards.CYMAT_ISO13314_2011)
 class CymatISO133142011Validator(BaseStandardValidator):
@@ -31,6 +31,7 @@ class CymatISO133142011Validator(BaseStandardValidator):
 
     def __init__(self):
         super().__init__()
+        self.sample_properties_validation_methods = [self.validate_sample_properties]
         self.data_validation_methods = {
             MechanicalTestDataTypes.GENERAL.value: [self.validate_general],
             MechanicalTestDataTypes.HYSTERESIS.value: [self.validate_hysteresis],
@@ -95,14 +96,14 @@ class CymatISO133142011Validator(BaseStandardValidator):
         except AssertionError as e:
             return validation_result(
                 valid=False,
-                error_message=f"Invalid {data_type} data. AssertionError: {e}",
+                error_message=f"General Data Validation | Invalid {data_type} data. AssertionError: {e}",
                 data=None,
                 update_data=False,
             )
         except Exception as e:
             return validation_result(
                 valid=False,
-                error_message=f"Unexpected error: {e}\n{traceback.format_exc()}",
+                error_message=f"General Data Validation | Unexpected error: {e}\n{traceback.format_exc()}",
                 data=None,
                 update_data=False,
             )
@@ -120,14 +121,14 @@ class CymatISO133142011Validator(BaseStandardValidator):
         except AssertionError as e:
             return validation_result(
                 valid=False,
-                error_message=f"Invalid {data_type} data. AssertionError: {e}",
+                error_message=f"Hysteresis Data Validation | Invalid {data_type} data. AssertionError: {e}",
                 data=None,
                 update_data=False,
             )
         except Exception as e:
             return validation_result(
                 valid=False,
-                error_message=f"Unexpected error: {e}\n{traceback.format_exc()}",
+                error_message=f"Hysteresis Data Validation | Unexpected error: {e}\n{traceback.format_exc()}",
                 data=None,
                 update_data=False,
             )
@@ -142,32 +143,76 @@ class CymatISO133142011Validator(BaseStandardValidator):
         if sample_properties is None:
             return validation_result(
                 valid=False,
-                error_message="Sample properties are None",
+                error_message="Sample properties Validation | Sample properties are None",
                 data=None,
                 update_data=False,
             )
 
-        samlple_dim = Annotated[float, Field(gt=0, le=100)]  # Greater than 0 and less than or equal to 100 mm
+        if isinstance(sample_properties, SampleProperties):
+            # Turn the SampleProperties into a dictionary and remove the units
+            sample_properties: dict = sample_properties.model_dump()
+            for key, value in sample_properties.items():
+                # Value should be a pint quantity
+                if hasattr(value, "magnitude"):
+                    sample_properties[key] = value.magnitude
 
-        class VALIDSAMPLE(BaseModel):
+        # Sample properties should now be a dictionary
+
+        samlple_dim = Annotated[float, Field(gt=0, le=120)]  # Greater than 0 and less than or equal to 120 mm
+        from pydantic import PositiveFloat
+
+        class VALID_CYMAT_ISO_SAMPLE(BaseModel):
             name: str
             length: samlple_dim
             width: samlple_dim
             thickness: samlple_dim
-            area: float
             density: float = Field(gt=0, le=2.7)  # Greater than 0 and less than or equal to 2.7 g/cm^3 Alumium density
+            weight: PositiveFloat  # Greater than 0 g,  PositiveFloat
 
         try:
-            valid_sample = VALIDSAMPLE(**sample_properties)
-            return validation_result(True, "", data=valid_sample.dump(), update_data=False)
+            valid_sample = VALID_CYMAT_ISO_SAMPLE(**sample_properties)
+            # Data is Valid do not update or return a copy ( This standard does not need additional metadata than SampleProperties)
+            return validation_result(True, "", data=None, update_data=False)
         except ValidationError as e:
             return validation_result(
                 valid=False,
-                error_message=f"Invalid sample properties. ValidationError: {e}",
+                error_message=f"Sample properties Validation | Invalid sample properties. ValidationError: {e}",
                 data=None,
                 update_data=False,
             )
 
 
 if __name__ == "__main__":
+
+    def test_valid_sample_properties_dict() -> validation_result:
+        valid_sample_properties = {
+            "name": "Sample Name",
+            "length": 10.0,
+            "width": 5.0,
+            "thickness": 2.0,
+            "density": 1.0,
+            "weight": 1.0,
+        }
+        return CymatISO133142011Validator.validate_sample_properties(valid_sample_properties)
+
+    def test_validate_sample_properties_SampleProperties() -> validation_result:
+        from pint import UnitRegistry
+
+        ureg = UnitRegistry()
+        sample_properties = SampleProperties(
+            name="Sample Name",
+            length=10.0 * ureg.mm,
+            width=5.0 * ureg.mm,
+            thickness=2.0 * ureg.mm,
+            density=1.0 * ureg.g / ureg.cm**3,
+            weight=100.0 * ureg.g,
+        )
+        return CymatISO133142011Validator.validate_sample_properties(sample_properties)
+
+    print("Runing Standard Cymat ISO 13314 2011 Validator File as main")
+    print(f"Testing valid sample properties validation DICT: {test_valid_sample_properties_dict()}")
+    print(
+        f"Testing valid sample properties validation Sample properties: {test_validate_sample_properties_SampleProperties()}"
+    )
+    pass
     pass
