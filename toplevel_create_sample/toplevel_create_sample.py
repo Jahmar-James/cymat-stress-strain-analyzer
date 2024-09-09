@@ -10,8 +10,9 @@ from column_grid_manager import ColumnGridManager
 from file_import_frames import BatchSpecimenImportFrame, CompressionDataImportFrame, ImageImportFrame
 from properties_group import PropertiesGroup
 from settings_toplevel_create_sample import *
-from standard_validator import MechanicalTestStandards
 from toplevel_validator import ToplevelValidator
+# from standard_validator import MechanicalTestStandards
+from validators import MechanicalTestStandards
 
 from core.widget_manager import PlaceholderEntry, PlaceholderEntryWithUnit
 
@@ -469,4 +470,5 @@ class CommentBoxGroup(ttk.Frame):
     @comment.setter
     def comment(self, value):
         self.comment_box.delete("0.0", "end")
+        self.comment_box.insert("0.0", value)
         self.comment_box.insert("0.0", value)

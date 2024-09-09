@@ -1,4 +1,4 @@
-from standard_validator import BaseStandardValidator, MechanicalTestStandards, register_validator
+from .standard_validator import BaseStandardValidator, MechanicalTestStandards, register_validator
 
 
 @register_validator(MechanicalTestStandards.GENERAL_PRELIMINARY)
@@ -9,4 +9,5 @@ class GeneralPreliminaryValidator(BaseStandardValidator):
         # This result in the the feilds being skipped during validation
         self.data_validation_methods = {}
         self.column_name_requirements = {}
+        self.column_interval_requirements = {}
         self.column_interval_requirements = {}

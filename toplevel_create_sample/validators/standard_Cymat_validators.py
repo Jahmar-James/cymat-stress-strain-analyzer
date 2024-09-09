@@ -3,7 +3,8 @@ from typing import TYPE_CHECKING, Annotated, Optional
 
 import pandas as pd
 from pydantic import BaseModel, Field, ValidationError, ValidationInfo
-from standard_validator import (
+
+from .standard_validator import (
     BaseStandardValidator,
     IntervalRequirements,
     MechanicalTestDataTypes,
@@ -145,7 +146,7 @@ class CymatISO133142011Validator(BaseStandardValidator):
                 data=None,
                 update_data=False,
             )
-        
+
         samlple_dim = Annotated[float, Field(gt=0, le=100)]  # Greater than 0 and less than or equal to 100 mm
 
         class VALIDSAMPLE(BaseModel):

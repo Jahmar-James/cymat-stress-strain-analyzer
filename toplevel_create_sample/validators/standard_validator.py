@@ -40,9 +40,9 @@ validator_registry = {}
 # Decorator for registering validators
 def register_validator(standard) -> Callable:
     def decorator(cls):
+        global validator_registry
         validator_registry[standard] = cls()
         return cls
-
     return decorator
 
 
