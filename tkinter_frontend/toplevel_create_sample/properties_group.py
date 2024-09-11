@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import TYPE_CHECKING, Union
 
-from settings_toplevel_create_sample import ureg
+from .settings_toplevel_create_sample import ureg
 
 if TYPE_CHECKING:
     from pint import UnitRegistry

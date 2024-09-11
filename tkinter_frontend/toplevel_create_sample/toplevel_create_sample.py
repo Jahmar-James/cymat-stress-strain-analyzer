@@ -1,20 +1,21 @@
-
 import tkinter as tk
 from functools import cached_property
 from tkinter import ttk
 from typing import Callable, Optional
 
 import customtkinter as ctk
-from classes_customtkinter import CustomTkinterToast, CustomTkinterTooltip
-from column_grid_manager import ColumnGridManager
-from file_import_frames import BatchSpecimenImportFrame, CompressionDataImportFrame, ImageImportFrame
-from properties_group import PropertiesGroup
-from settings_toplevel_create_sample import *
-from toplevel_validator import ToplevelValidator
-# from standard_validator import MechanicalTestStandards
-from validators import MechanicalTestStandards
 
-from core.widget_manager import PlaceholderEntry, PlaceholderEntryWithUnit
+from tkinter_frontend.core.widget_manager import PlaceholderEntry, PlaceholderEntryWithUnit
+
+from .classes_customtkinter import CustomTkinterToast, CustomTkinterTooltip
+from .column_grid_manager import ColumnGridManager
+from .file_import_frames import BatchSpecimenImportFrame, CompressionDataImportFrame, ImageImportFrame
+from .properties_group import PropertiesGroup
+from .settings_toplevel_create_sample import *
+from .toplevel_validator import ToplevelValidator
+
+# from standard_validator import MechanicalTestStandards
+from .validators import MechanicalTestStandards
 
 
 class CreateSampleWindow(ctk.CTkToplevel):
@@ -333,7 +334,6 @@ class MiddleFrame_FileGroup(ttk.Frame):
         self.grid_manager.add_widget(widget=self.standards_combobox, sticky="ew")
         self.grid_manager.add_widget(widget=self.submit_button, sticky="ew")
         self.grid_manager.apply_layout(col_minsize=self.minsize_col, row_minsize=40)
-
 
 
 class RightFrame_CalculationGroup(ttk.Frame):

@@ -3,7 +3,8 @@ from typing import TYPE_CHECKING, Union
 import pandas as pd
 from pint import UnitRegistry
 from pydantic import ValidationError
-from validators import MechanicalTestDataTypes, MechanicalTestStandards, SampleProperties, validator_registry
+
+from .validators import MechanicalTestDataTypes, MechanicalTestStandards, SampleProperties, validator_registry
 
 # from standard_validator import MechanicalTestDataTypes, MechanicalTestStandards, SampleProperties, validator_registry
 

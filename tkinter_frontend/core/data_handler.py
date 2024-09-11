@@ -1287,7 +1287,7 @@ class DataHandler:
             print("\n")
 
     def process_kpi_with_control_metrics(self, KPI_df, LSLs=None, USLs=None):
-        from control_chart import ControlProcessMetrics
+        from visualization.control_chart import ControlProcessMetrics
 
         KPI_stats = pd.DataFrame()
         for kpi in KPI_df.columns.drop("Name"):

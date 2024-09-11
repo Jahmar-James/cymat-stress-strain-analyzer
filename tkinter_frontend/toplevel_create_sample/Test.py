@@ -11,7 +11,7 @@ print(f"The package name is: {__package__} and module name is: {__name__}")
 print(f"Current working directory is:\n{os.getcwd()}\n, Python's system path is:\n {sys.path}")
 
 
-from toplevel_create_sample import CreateSampleWindow
+from .toplevel_create_sample import CreateSampleWindow
 
 
 class App(tk.Tk):
