@@ -1,8 +1,13 @@
-from ..default_sample.sample import SampleGenericGroup
+from typing import Optional
+
+from standards import MechanicalTestStandards, register_sample
+
+from ..default_sample.sample import SampleGeneric
 from .validator import CymatISO133142011Validator
 
 
-class SampleCymatGroup(SampleGenericGroup):
+@register_sample(MechanicalTestStandards.CYMAT_ISO13314_2011)
+class SampleCymat(SampleGeneric):
     """
     A collection of mechanical testing samples.
     This class handles operations and calculations that apply to groups of samples, such as averaging properties.
@@ -13,14 +18,20 @@ class SampleCymatGroup(SampleGenericGroup):
 
     def __init__(
         self,
-        validator: CymatISO133142011Validator = CymatISO133142011Validator(),
+        validator: Optional[CymatISO133142011Validator] = None,
     ):
         super().__init__(validator)
-        self.validator = validator
+        self.validator = validator or CymatISO133142011Validator()
 
     def create_entity(self):
         """
         Method to create a group of samples after validation.
         Can perform calculations such as averaging key properties across the group.
         """
-        pass
+        raise NotImplementedError("Cymat Sample to be implemented.")
+
+    def plot(self) -> None:
+        """
+        Plot key performance indicators (KPI) relevant to the standard being used.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")

@@ -5,6 +5,7 @@ from typing import Callable, Optional
 
 import customtkinter as ctk
 
+from standards import MechanicalTestStandards
 from tkinter_frontend.core.widget_manager import PlaceholderEntry, PlaceholderEntryWithUnit
 
 from ..layout_helpers.column_grid_manager import ColumnGridManager
@@ -13,8 +14,8 @@ from .file_import_frames import BatchSpecimenImportFrame, CompressionDataImportF
 from .properties_group import PropertiesGroup
 from .settings_toplevel_create_sample import *
 from .toplevel_validator import ToplevelValidator
+
 # from standard_validator import MechanicalTestStandards
-from .validators import MechanicalTestStandards
 
 
 class CreateSampleWindow(ctk.CTkToplevel):

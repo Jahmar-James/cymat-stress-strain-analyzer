@@ -1,14 +1,9 @@
-from typing import Optional
-
-from standards import MechanicalTestStandards, register_sample
-
-from ..base.analyzable_entity import AnalyzableEntity
-from ..base.base_standard_validator import BaseStandardValidator
-from .validator import GeneralPreliminaryValidator
+from standards import MechanicalTestStandards, standard_registry
+from standards.base.analyzable_entity import AnalyzableEntity
 
 
-@register_sample(MechanicalTestStandards.GENERAL_PRELIMINARY)
-class SampleGeneric(AnalyzableEntity):
+@standard_registry.register_standard(MechanicalTestStandards.VISUALIZATION_SAMPLE)
+class VisualizationSample(AnalyzableEntity):
     """
     A collection of mechanical testing samples.
     This class handles operations and calculations that apply to groups of samples, such as averaging properties.
@@ -17,22 +12,18 @@ class SampleGeneric(AnalyzableEntity):
     - Validate that all samples in the group have compatible properties (e.g., so that average properties can be calculated).
     """
 
-    def __init__(
-        self,
-        validator: Optional[BaseStandardValidator] = None,
-    ):
+    def __init__(self):
         # Validator to ensure that all samples have the necessary properties to form a group.
         # For example, checks might ensure that samples can be averaged together.
-        self.validator = validator or GeneralPreliminaryValidator()
+        self.validator = None
         self.io_manger = None
-        self.operator = None
 
-    def create_entity(self):
+    def create_entity(self) -> bool:
         """
         Method to create a group of samples after validation.
         Can perform calculations such as averaging key properties across the group.
         """
-        raise NotImplementedError("Gemeric Sample to be implemented.")
+        raise NotImplementedError("Visualization Sample to be implemented.")
 
     def plot(self) -> None:
         """

@@ -18,7 +18,7 @@ def register_sample(standard) -> Callable:
 class MechanicalTestStandards(Enum):
     GENERAL_PRELIMINARY = "(General (Preliminary)"
     CYMAT_ISO13314_2011 = "Cymat_ISO13314-2011"
-    VISULIZATION_SAMPLE = "Visualizations_sample"
+    VISUALIZATION_SAMPLE = "Visualizations_sample"
 
     # Missing values check casefold of the str enum value
     @classmethod
@@ -32,3 +32,6 @@ class MechanicalTestStandards(Enum):
 
 validation_result = namedtuple("validation_result", ["valid", "error_message", "data", "update_data"])
 # validation_result: (bool, str, Optional[pd.DataFrame], bool)
+
+from .cymat_iso_13314_2011.sample_iso13314_cymat import SampleCymat
+from .default_sample.sample import SampleGeneric

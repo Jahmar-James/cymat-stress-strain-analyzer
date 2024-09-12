@@ -16,7 +16,7 @@
   "editor.formatOnSaveMode": "modifications", // Formats only modified lines on save
   // Python testing settings
   "python.testing.pytestArgs": [
-    "toplevel_create_sample" // Arguments for pytest, specifying the test directory
+    "tests"
   ],
   "python.testing.unittestEnabled": false, // Disables unittest framework
   "python.testing.pytestEnabled": true, // Enables pytest framework

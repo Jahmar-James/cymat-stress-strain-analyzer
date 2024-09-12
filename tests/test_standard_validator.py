@@ -2,12 +2,8 @@ import pandas as pd
 import pytest
 from pint import UnitRegistry
 
-from ..tkinter_frontend.toplevel_create_sample.validators import (
-    BaseStandardValidator,
-    CymatISO133142011Validator,
-    MechanicalTestDataTypes,
-    SampleProperties,
-)
+from standards.base.base_standard_validator import BaseStandardValidator, MechanicalTestDataTypes, SampleProperties
+from standards.cymat_iso_13314_2011.validator import CymatISO133142011Validator
 
 
 @pytest.fixture

@@ -1,12 +1,13 @@
 from typing import TYPE_CHECKING, Union
 
 import pandas as pd
-from pint import UnitRegistry
+# from pint import UnitRegistry
 from pydantic import ValidationError
 
-from .validators import MechanicalTestDataTypes, MechanicalTestStandards, SampleProperties, validator_registry
+from standards import MechanicalTestStandards, standard_registry
+from standards.base.base_standard_validator import MechanicalTestDataTypes, SampleProperties
 
-# from standard_validator import MechanicalTestDataTypes, MechanicalTestStandards, SampleProperties, validator_registry
+# from .validators import MechanicalTestDataTypes, MechanicalTestStandards, SampleProperties, validator_registry
 
 
 if TYPE_CHECKING:
@@ -135,12 +136,13 @@ class ToplevelValidator:
 
         standard = self.toplevel_window.standard
 
-        validator = validator_registry.get(MechanicalTestStandards(standard), None)
+        # validator = validator_registry.get(MechanicalTestStandards(standard), None)
+        sample = standard_registry.get(MechanicalTestStandards(standard), None)
 
-        if validator is None:
+        if sample is None:
             raise ValueError(f"Standard {standard} is not supported.")
         else:
-            validator.validate(self.data, self.images, self.valid_properties)
+            sample.validator.validate(self.data, self.images, self.valid_properties)
 
     def _submission_rules_check(self):
         print("passing submission rules check.")
@@ -148,4 +150,5 @@ class ToplevelValidator:
 
     def _submit_sample(self):
         if self.submission_callback:
+            self.submission_callback(self.valid_data, self.valid_properties)
             self.submission_callback(self.valid_data, self.valid_properties)

@@ -1,8 +1,8 @@
 import traceback
-from typing import Optional
+from typing import Annotated, Optional
 
 import pandas as pd
-from pydantic import Annotated, BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from standards import validation_result
 from standards.base.base_standard_validator import (
