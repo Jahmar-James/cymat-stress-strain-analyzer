@@ -13,8 +13,8 @@ from PIL import Image
 
 from data_extraction import MechanicalTestDataPreprocessor
 
-from .classes_customtkinter import CustomTkinterToast, CustomTkinterTooltip
-from .column_grid_manager import ColumnGridManager
+from ..layout_helpers.column_grid_manager import ColumnGridManager
+from ..notifications.classes_customtkinter import CustomTkinterToast, CustomTkinterTooltip
 
 # GEAR_ICON_PATH = r"C:\Users\JahmarJames\OneDrive - Cymat Corporation\Documents\Python Scripts\Engineering_concepts\Stress__Strain_GUI_V2\toplevel_create_sample\Gear-icon.png"
 # GEAR_ICON_PATH = r"/workspaces/cymat-stress-strain-analyzer/toplevel_create_sample/Gear-icon.png"
@@ -607,4 +607,5 @@ if __name__ == "__main__":
     batch_specimen_frame.create_widgets()
     batch_specimen_frame.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
 
+    root.mainloop()
     root.mainloop()

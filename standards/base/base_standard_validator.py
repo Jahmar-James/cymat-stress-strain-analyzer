@@ -1,4 +1,3 @@
-from collections import namedtuple
 from enum import Enum
 from typing import Callable, Optional, Union
 
@@ -6,70 +5,7 @@ import pandas as pd
 from pint import UnitRegistry
 from pydantic import BaseModel, ConfigDict, ValidationError, ValidationInfo, computed_field, field_validator
 
-
-# Validation on Submission (Sample Properties and Adherence to selected  Standards)
-class SampleProperties(BaseModel):
-    name: str
-    length: Union[UnitRegistry.Quantity, None]
-    width: Union[UnitRegistry.Quantity, None]
-    thickness: Union[UnitRegistry.Quantity, None]
-    density: Union[UnitRegistry.Quantity, None]
-    weight: Union[UnitRegistry.Quantity, None]
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, str_strip_whitespace=True)
-
-    def __repr__(self):
-        return f"<SampleProperties(name={self.name}, density={self.density}, length={self.length})>"
-
-    @field_validator("length", "width", "thickness", "weight", mode="after")
-    @classmethod
-    def validate_positive(cls, value, info: ValidationInfo):
-        if value.magnitude <= 0:
-            raise ValueError(f"Value must be positive: {value}")
-        return value
-
-    @computed_field(return_type=UnitRegistry.Quantity)
-    def area(self) -> UnitRegistry.Quantity:
-        if self.length and self.width:
-            return self.length * self.width
-
-
-# Registry for validators
-validator_registry = {}
-
-# Decorator for registering validators
-def register_validator(standard) -> Callable:
-    def decorator(cls):
-        global validator_registry
-        validator_registry[standard] = cls()
-        return cls
-    return decorator
-
-
-
-validation_result = namedtuple("validation_result", ["valid", "error_message", "data", "update_data"])
-# validation_result: (bool, str, Optional[pd.DataFrame], bool)
-
-
-class MechanicalTestDataTypes(Enum):
-    GENERAL = "general"
-    HYSTERESIS = "hysteresis"
-    FATIGUE = "fatigue"
-    SAMPLE_PROPERTIES = "sample_properties"
-
-
-class MechanicalTestStandards(Enum):
-    GENERAL_PRELIMINARY = "(General (Preliminary)"
-    CYMAT_ISO13314_2011 = "Cymat_ISO13314-2011"
-
-    # Missing values check casefold of the str enum value
-    @classmethod
-    def _missing_(cls, value: str):
-        value = value.casefold()
-        for standard in cls:
-            if value == standard.value.casefold():
-                return standard
-        return None
+from standards import validation_result
 
 
 class IntervalRequirements(Enum):
@@ -77,6 +13,13 @@ class IntervalRequirements(Enum):
     SAMPLE_FREQUENCY = "sample_frequency"
     TOLERANCE = "tolerance"
     THRESHOLD = "threshold"
+
+
+class MechanicalTestDataTypes(Enum):
+    GENERAL = "general"
+    HYSTERESIS = "hysteresis"
+    FATIGUE = "fatigue"
+    SAMPLE_PROPERTIES = "sample_properties"
 
 
 class BaseStandardValidator:
@@ -321,10 +264,28 @@ class BaseStandardValidator:
         return validation_result(valid=True, error_message="", data=None, update_data=False)
 
 
-if __name__ == "__main__":
-    # Test the SampleProperties model
-    sample = SampleProperties(name="Test Sample", length=10, width=5, thickness=2, density=1, weight=50)
-    print(sample)
-    print(sample.area)
-    print(sample.model_dump())
-    print(sample.model_dump_json())
+# Validation on Submission (Sample Properties and Adherence to selected  Standards)
+class SampleProperties(BaseModel):
+    name: str
+    length: Union[UnitRegistry.Quantity, None]
+    width: Union[UnitRegistry.Quantity, None]
+    thickness: Union[UnitRegistry.Quantity, None]
+    density: Union[UnitRegistry.Quantity, None]
+    weight: Union[UnitRegistry.Quantity, None]
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, str_strip_whitespace=True)
+
+    def __repr__(self):
+        return f"<SampleProperties(name={self.name}, density={self.density}, length={self.length})>"
+
+    @field_validator("length", "width", "thickness", "weight", mode="after")
+    @classmethod
+    def validate_positive(cls, value, info: ValidationInfo):
+        if value.magnitude <= 0:
+            raise ValueError(f"Value must be positive: {value}")
+        return value
+
+    @computed_field(return_type=UnitRegistry.Quantity)
+    def area(self) -> UnitRegistry.Quantity:
+        if self.length and self.width:
+            return self.length * self.width

@@ -7,13 +7,12 @@ import customtkinter as ctk
 
 from tkinter_frontend.core.widget_manager import PlaceholderEntry, PlaceholderEntryWithUnit
 
-from .classes_customtkinter import CustomTkinterToast, CustomTkinterTooltip
-from .column_grid_manager import ColumnGridManager
+from ..layout_helpers.column_grid_manager import ColumnGridManager
+from ..notifications.classes_customtkinter import CustomTkinterToast, CustomTkinterTooltip
 from .file_import_frames import BatchSpecimenImportFrame, CompressionDataImportFrame, ImageImportFrame
 from .properties_group import PropertiesGroup
 from .settings_toplevel_create_sample import *
 from .toplevel_validator import ToplevelValidator
-
 # from standard_validator import MechanicalTestStandards
 from .validators import MechanicalTestStandards
 
@@ -470,5 +469,7 @@ class CommentBoxGroup(ttk.Frame):
     @comment.setter
     def comment(self, value):
         self.comment_box.delete("0.0", "end")
+        self.comment_box.insert("0.0", value)
+        self.comment_box.insert("0.0", value)
         self.comment_box.insert("0.0", value)
         self.comment_box.insert("0.0", value)

@@ -22,7 +22,7 @@ from tabulate import tabulate
 from ms_file_handling.excel_exporter import ExcelExporter
 from ms_file_handling.ms_word_exporter import WordExporter
 from specimens.specimen import Specimen, SpecimenDataManager, SpecimenGraphManager
-from standards.specimen_DIN import SpecimenDINAnalysis
+from standards.archive.specimen_DIN import SpecimenDINAnalysis
 
 DIN_PROPERTIES = ["Rplt", "Rplt_E", "ReH", "Ev", "Eff", "Aplt_E", "AeH", "m"]
 

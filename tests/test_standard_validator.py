@@ -2,7 +2,12 @@ import pandas as pd
 import pytest
 from pint import UnitRegistry
 
-from .validators import BaseStandardValidator, CymatISO133142011Validator, MechanicalTestDataTypes, SampleProperties
+from ..tkinter_frontend.toplevel_create_sample.validators import (
+    BaseStandardValidator,
+    CymatISO133142011Validator,
+    MechanicalTestDataTypes,
+    SampleProperties,
+)
 
 
 @pytest.fixture
@@ -31,7 +36,9 @@ def validator() -> BaseStandardValidator:
 def validator_Cymat_ISO() -> CymatISO133142011Validator:
     return CymatISO133142011Validator()
 
+
 # BaseStandardValidator tests
+
 
 def test_validate_column_name_missing_columns(validator: BaseStandardValidator, valid_general_data) -> None:
     required_columns = ["time", "force", "displacement", "missing_column"]
@@ -74,6 +81,7 @@ def test_validate_consecutive_intervals_incorrect(validator: BaseStandardValidat
     assert "1.4" in result.error_message  # The average difference
     assert result.data is None
     assert not result.update_data
+
 
 def test_validate_sample_frequency_success(
     validator: BaseStandardValidator,

@@ -11,8 +11,8 @@ from scipy.optimize import curve_fit
 from scipy.signal import argrelextrema, medfilt
 from shapely.geometry import LineString, MultiPoint, Point
 
-from standards.Compression_standard_ISO import SpecimenQCManager
-from standards.specimen_DIN import SpecimenDINAnalysis
+from standards.archive.Compression_standard_ISO import SpecimenQCManager
+from standards.archive.specimen_DIN import SpecimenDINAnalysis
 
 
 def median_filter(data, denoise_strength=21):

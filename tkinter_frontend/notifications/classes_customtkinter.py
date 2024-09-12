@@ -197,3 +197,4 @@ if __name__ == "__main__":
     toast = CustomTkinterToast(master=root, message="This is a toast message", alert=True)
     toast.show_toast()
     root.mainloop()
+    root.mainloop()
