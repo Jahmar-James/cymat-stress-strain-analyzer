@@ -1,3 +1,4 @@
+from collections import namedtuple
 from enum import Enum
 from typing import Callable, Optional, Union
 
@@ -5,7 +6,8 @@ import pandas as pd
 from pint import UnitRegistry
 from pydantic import BaseModel, ConfigDict, ValidationError, ValidationInfo, computed_field, field_validator
 
-from standards import validation_result
+validation_result = namedtuple("validation_result", ["valid", "error_message", "data", "update_data"])
+# validation_result: (bool, str, Optional[pd.DataFrame], bool)
 
 
 class IntervalRequirements(Enum):

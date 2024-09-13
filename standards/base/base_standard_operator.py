@@ -6,10 +6,12 @@ import pandas as pd
 from scipy.interpolate import CubicSpline, PchipInterpolator, interp1d
 
 
+# SamplePropertyCalculator
 class BaseStandardOperator:
     """
     A base class for handling generic operations like calculating stress, strain, and energy absorption.
     Uses static methods, fails loudly on contract violations, and provides an optional conversion factor.
+    (This class is intended to be inherited by more specialized classes for specific standards.)
     """
 
     @staticmethod
@@ -92,11 +94,6 @@ class BaseStandardOperator:
 
         return strain_series
 
-    @staticmethod
-    def unit_conversion():
-        from pint import UnitRegistry
-
-        raise NotImplementedError("Method not implemented yet.")
 
     @staticmethod
     def calculate_slope_in_region() -> float:
