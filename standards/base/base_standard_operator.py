@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 from warnings import warn
 
 import numpy as np
@@ -12,7 +12,83 @@ class BaseStandardOperator:
     A base class for handling generic operations like calculating stress, strain, and energy absorption.
     Uses static methods, fails loudly on contract violations, and provides an optional conversion factor.
     (This class is intended to be inherited by more specialized classes for specific standards.)
+    
+    Will provide all the property calculation methods needed by the SampleGeneric class.
     """
+    @staticmethod
+    def calculate_cross_sectional_area(length: float, width: float, conversion_factor: float = 1.0) -> float:
+        """
+        Calculate the cross-sectional area of a sample given its length and width.
+        
+        Preconditions:
+        - `length` and `width` must be positive float values.
+        - `conversion_factor` is optional, and defaults to 1. It is used to convert the area into desired units.
+        
+        Postconditions:
+        - Returns the cross-sectional area of the sample, adjusted by `conversion_factor`.
+        """
+        # Preconditions: Validate inputs
+        BaseStandardOperator._validate_positive_number(length, "Length", "calculate_cross_sectional_area")
+        BaseStandardOperator._validate_positive_number(width, "Width", "calculate_cross_sectional_area")
+        BaseStandardOperator._validate_positive_number(conversion_factor, "Conversion factor", "calculate_cross_sectional_area")
+        
+        # Calculate the cross-sectional area (A = length * width)
+        area = length * width * conversion_factor
+        return area
+    
+    @staticmethod
+    def calculate_volume(area: float, thickness: float) -> float:
+        """
+        Calculate the volume of a sample given its area and thickness.
+        
+        Preconditions:
+        - `area` and `thickness` must be positive float values.
+        """
+        # Preconditions: Validate inputs
+        BaseStandardOperator._validate_positive_number(area, "Area", "calculate_volume")
+        BaseStandardOperator._validate_positive_number(thickness, "Thickness", "calculate_volume")
+        
+        # Calculate the volume (V = area * thickness)
+        volume = area * thickness
+        return volume
+    
+    @staticmethod
+    def calculate_volume_direct(length: float, width: float, thickness: float) -> float:
+        """
+        Calculate the volume of a sample given its length, width, and thickness.
+        
+        Preconditions:
+        - `length`, `width`, and `thickness` must be positive float values.
+        """
+        # Preconditions: Validate inputs
+        BaseStandardOperator._validate_positive_number(length, "Length", "calculate_volume_direct")
+        BaseStandardOperator._validate_positive_number(width, "Width", "calculate_volume_direct")
+        BaseStandardOperator._validate_positive_number(thickness, "Thickness", "calculate_volume_direct")
+        
+        # Calculate the volume (V = length * width * thickness)
+        volume = length * width * thickness
+        return volume   
+    
+    @staticmethod
+    def calculate_density(mass: float, volume: float, conversion_factor: float = 1.0) -> float:
+        """
+        Calculate the density of a sample given its mass and volume.
+        
+        Preconditions:
+        - `mass` and `volume` must be positive float values.
+        - `conversion_factor` is optional, and defaults to 1. It is used to convert the density into desired units.
+        
+        Postconditions:
+        - Returns the density of the sample, adjusted by `conversion_factor`.
+        """
+        # Preconditions: Validate inputs
+        BaseStandardOperator._validate_positive_number(mass, "Mass", "calculate_density")
+        BaseStandardOperator._validate_positive_number(volume, "Volume", "calculate_density")
+        BaseStandardOperator._validate_positive_number(conversion_factor, "Conversion factor", "calculate_density")
+        
+        # Calculate the density (density = mass / volume)
+        density = (mass / volume) * conversion_factor
+        return density
 
     @staticmethod
     def calculate_stress(
@@ -151,8 +227,8 @@ class BaseStandardOperator:
         dataframes: list[pd.DataFrame],
         reference_column: str,
         axis_step: float,
-        axis_start: float = None,
-        axis_end: float = None,
+        axis_start: Optional[float] = None,
+        axis_end: Optional[float] = None,
     ) -> pd.Series:
         """Generate a common axis based on the reference column."""
         if axis_start is None:
@@ -257,8 +333,8 @@ class BaseStandardOperator:
         avg_columns: Union[str, list],
         interp_column: str,
         step_size: float,
-        start: float = None,
-        end: float = None,
+        start: Optional[float] = None,
+        end: Optional[float] = None,
         interpolation_method: str = "linear",
         force_interpolation: bool = False,
     ) -> pd.DataFrame:
@@ -335,7 +411,7 @@ class BaseStandardOperator:
         df: pd.DataFrame,
         custom_array: np.ndarray,
         interp_column: str,
-        target_columns: list = None,
+        target_columns: list = [],
         interpolation_method: str = "linear",  # Can be "linear", "cubic", or "pchip"
         extrapolate: bool = True,  # Boolean to control whether extrapolation is enabled
     ) -> pd.DataFrame:
@@ -362,7 +438,7 @@ class BaseStandardOperator:
         if not isinstance(custom_array, (np.ndarray, list)):
             raise TypeError("custom_array must be a numpy array or list.")
 
-        if target_columns is None:
+        if target_columns:
             target_columns = df.select_dtypes(include=[np.number]).columns.tolist()
             if interp_column in target_columns:
                 target_columns.remove(interp_column)

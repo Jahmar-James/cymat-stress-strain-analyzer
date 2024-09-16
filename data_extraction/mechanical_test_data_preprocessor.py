@@ -57,7 +57,8 @@ class MechanicalTestDataPreprocessor:
     SPECIMEN_REQUIRED_COLUMNS = ["specimenname", "length", "width", "thickness", "weight"]
     # For unit conversion
     Q_ = ureg.Quantity  # Shortcut for creating quantities with units
-
+    unit_registry = ureg  # Pint unit registry
+    
     EXPECTED_UNITS = {
         "stress": ureg.megapascal,
         "strain": ureg.dimensionless,

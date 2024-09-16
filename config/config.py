@@ -33,7 +33,7 @@ class ConfigLoaderBase(ABC):
                     return yaml.safe_load(f)
             except yaml.YAMLError as e:
                 print(f"Error reading YAML file: {e}")
-        return None
+        return {}
 
     @staticmethod
     def _write_to_file(config, config_file):
