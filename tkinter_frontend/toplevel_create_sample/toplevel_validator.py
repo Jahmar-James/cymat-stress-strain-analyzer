@@ -4,8 +4,8 @@ import pandas as pd
 # from pint import UnitRegistry
 from pydantic import ValidationError
 
-from standards import MechanicalTestStandards, standard_registry
 from standards.base.base_standard_validator import MechanicalTestDataTypes, SampleProperties
+from standards.sample_factory import MechanicalTestStandards, standard_registry
 
 # from .validators import MechanicalTestDataTypes, MechanicalTestStandards, SampleProperties, validator_registry
 
@@ -150,5 +150,6 @@ class ToplevelValidator:
 
     def _submit_sample(self):
         if self.submission_callback:
+            self.submission_callback(self.valid_data, self.valid_properties)
             self.submission_callback(self.valid_data, self.valid_properties)
             self.submission_callback(self.valid_data, self.valid_properties)

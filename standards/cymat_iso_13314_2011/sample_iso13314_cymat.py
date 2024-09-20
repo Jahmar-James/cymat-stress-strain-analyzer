@@ -1,6 +1,6 @@
 from typing import Optional
 
-from standards import MechanicalTestStandards, register_sample
+from standards.sample_factory import MechanicalTestStandards, register_sample
 
 from ..default_sample.sample import SampleGeneric
 from .validator import CymatISO133142011Validator
@@ -23,7 +23,7 @@ class SampleCymat(SampleGeneric):
         super().__init__(validator)
         self.validator = validator or CymatISO133142011Validator()
 
-    def create_entity(self):
+    def create_entity(self) -> "SampleCymat":
         """
         Method to create a group of samples after validation.
         Can perform calculations such as averaging key properties across the group.

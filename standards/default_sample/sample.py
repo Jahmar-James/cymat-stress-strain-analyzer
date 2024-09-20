@@ -1,6 +1,6 @@
 from typing import Optional
 
-from standards import MechanicalTestStandards, register_sample
+from standards.sample_factory import MechanicalTestStandards, register_sample
 
 from ..base.analyzable_entity import AnalyzableEntity
 from ..base.base_standard_io_manager import BaseStandardIOManager

@@ -5,7 +5,7 @@ from typing import Callable, Optional
 
 import customtkinter as ctk
 
-from standards import MechanicalTestStandards
+from standards.sample_factory import MechanicalTestStandards
 from tkinter_frontend.core.widget_manager import PlaceholderEntry, PlaceholderEntryWithUnit
 
 from ..layout_helpers.column_grid_manager import ColumnGridManager

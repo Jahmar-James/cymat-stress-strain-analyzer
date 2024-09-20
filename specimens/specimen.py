@@ -112,11 +112,15 @@ class Specimen:
 
     @property
     def force(self):
-        return self.data_manager.formatted_data["force"] * -1
+        if self.data_manager.formatted_data["force"].mean() < 0:
+            return self.data_manager.formatted_data["force"] * -1
+        return self.data_manager.formatted_data["force"]
 
     @property
     def displacement(self):
-        return self.data_manager.formatted_data["displacement"] * -1
+        if self.data_manager.formatted_data["displacement"].mean() < 0:
+            return self.data_manager.formatted_data["displacement"] * -1
+        return self.data_manager.formatted_data["displacement"]
 
     @property
     def shifted_strain(self):

@@ -1,14 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Union
-import pandas as pd
-from ..base.base_standard_operator import BaseStandardOperator
-from data_extraction import MechanicalTestDataPreprocessor
-import pint
 
-from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import pint
 
+from data_extraction import MechanicalTestDataPreprocessor
+from visualization.plot_config import PlotConfig
+
+from ..base.base_standard_operator import BaseStandardOperator
 
 
 class AnalyzableEntity(ABC):
@@ -348,7 +349,7 @@ class AnalyzableEntity(ABC):
         # Default labels with units
         default_title = f"{self.name} Force-Displacement Curve"
         default_xlabel = f"Displacement [{self.internal_units.get('displacement', '')}]"
-        default_ylabel = f"Force [{self.internal_units.get('force', '')}]"3
+        default_ylabel = f"Force [{self.internal_units.get('force', '')}]"
         
         # Call the helper method
         return self._plot_data(
@@ -374,5 +375,6 @@ class AnalyzableEntity(ABC):
         This method must be implemented by subclasses to provide standard-specific views.
         """
         pass
+
 
 
