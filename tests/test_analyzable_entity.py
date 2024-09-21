@@ -10,6 +10,11 @@ from standards.base.analyzable_entity import AnalyzableEntity
 # =============================================================================
 
 
+class TestableAnalyzableEntity(AnalyzableEntity):
+    def plot(self) -> None:
+        # Provide a simple implementation for testing, if needed, or pass
+        pass
+
 @pytest.fixture
 def analyzable_entity_with_default_units():
     """
@@ -18,7 +23,7 @@ def analyzable_entity_with_default_units():
     - Force: newton (N)
     - Displacement: millimeter (mm)
     """
-    return AnalyzableEntity(
+    return TestableAnalyzableEntity(
         name="Sample 1",
         length=10.0,  # in millimeters
         width=5.0,  # in millimeters
@@ -77,7 +82,7 @@ def test_area_calculation_with_unit_conversion():
     - Calculated area = `length * width = 10 mm * 5 mm = 50 mm^2`
     """
     # Arrange
-    entity = AnalyzableEntity(
+    entity = TestableAnalyzableEntity(
         name="Sample 2",
         length=10.0,  # Length in millimeters
         width=0.5,  # Width in centimeters, but stored in internal_units as mm

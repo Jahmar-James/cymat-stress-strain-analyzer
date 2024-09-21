@@ -1,16 +1,21 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Union
+from typing import Optional, Union, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pint
 
+
 from data_extraction import MechanicalTestDataPreprocessor
+from visualization.plot_manager import PlotManager
 from visualization.plot_config import PlotConfig
 
 from ..base.base_standard_operator import BaseStandardOperator
 
+if TYPE_CHECKING:
+    from ..sample_factory import MechanicalTestStandards
+    from visualization.plot import Plot 
 
 class AnalyzableEntity(ABC):
     """
@@ -43,12 +48,15 @@ class AnalyzableEntity(ABC):
                  stress: Optional[pd.Series] = None,
                  strain: Optional[pd.Series] = None,
                  property_calculator: Optional[BaseStandardOperator] = None,
+                 plot_manager: Optional[PlotManager] = None
                  ):
+        
         self.name = name
         self.length = length 
         self.width = width
         self.thickness = thickness
         self.mass = mass
+        
         self._area = area
         self._volume = volume
         self._density = density
@@ -58,6 +66,10 @@ class AnalyzableEntity(ABC):
         self._strain = strain
         
         self.is_sample_group: bool = False
+        self.samples: list[AnalyzableEntity] = []
+        self.analysis_standard: Optional["MechanicalTestStandards"] = None
+        
+        self.plot_manager = plot_manager or PlotManager()
         self.property_calculator = property_calculator or BaseStandardOperator()
         self.data_preprocessor = MechanicalTestDataPreprocessor()
         self.internal_units : dict[str, pint.Unit] = MechanicalTestDataPreprocessor.EXPECTED_UNITS.copy()
@@ -253,102 +265,51 @@ class AnalyzableEntity(ABC):
         return self._convert_units(self._stress, current_unit_key="stress")
     
 
-    # Common Operations
-    def _plot_data(
-        self,
-        x_data: Union[pd.Series, np.ndarray],
-        y_data: Union[pd.Series, np.ndarray],
-        plot_config: Optional["PlotConfig"],
-        default_title: str,
-        default_xlabel: str,
-        default_ylabel: str,
-        fig: Optional[plt.Figure] = None,
-        ax: Optional[plt.Axes] = None,
-        update_fig: bool = True,
-        **kwargs
-        ) -> tuple[plt.Figure, plt.Axes]:
-            # Use default PlotConfig if none provided
-        if plot_config is None:
-            plot_config = PlotConfig(
-                title=default_title,
-                xlabel=default_xlabel,
-                ylabel=default_ylabel
-            )
-
-        # Create figure and axes if not provided
-        if ax is None:
-            fig, ax = plt.subplots(figsize=plot_config.figsize)
-        else:
-            if fig is None:
-                fig = ax.figure
-
-        # Plot data
-        ax.plot(
-            x_data,
-            y_data,
-            plot_config.line_style,
-            color=plot_config.color,
-            label=plot_config.title,
-            **kwargs
-        )
-
-        # Update figure elements if required
-        if update_fig:
-            ax.set_title(plot_config.title)
-            ax.set_xlabel(plot_config.xlabel)
-            ax.set_ylabel(plot_config.ylabel)
-            ax.grid(plot_config.grid)
-            ax.legend()
-
-        # Do not show or save the plot here
-        # Return the figure and axes for further processing
-        return fig, ax
+    # Common Operations        
+    def _get_output_units(self, property_name: str) -> pint.Unit:
+        """Get output units for a property."""
+        # 1. try target units 2. internal units 3. raise error
+        return self.target_units.get(property_name, self.internal_units.get(property_name)) or self.internal_units[property_name] 
         
-        
-    def plot_stress_strain(self,
-                           plot_config: Optional["PlotConfig"] = None,
-                            fig: Optional[plt.Figure] = None,
-                            ax: Optional[plt.Axes] = None,
-                            update_fig: bool = True,
-                            **kwargs
-                        ) -> tuple[plt.Figure, plt.Axes]:
-                           
+    def plot_stress_strain(self, plot: Optional["Plot"] = None, plot_name: Optional[str] = None, plot_config: Optional["PlotConfig"] = None, update_fig: bool = False) -> "Plot":
         """
         Plot the stress-strain curve for a sample.
         Can be used to provide an automated view of the data, potentially overlayed with other samples.
         """
         if self.stress is None or self.strain is None:
             raise ValueError("Stress or strain data is missing for plotting the stress-strain curve.")
-        
-        # Default labels with units
-        default_title = f"{self.name} Stress-Strain Curve"
-        default_xlabel = f"Strain [{self.internal_units.get('strain', '')}]"
-        default_ylabel = f"Stress [{self.internal_units.get('stress', '')}]"
-        
-        # Call the helper method
-        return self._plot_data(
-            x_data=self.strain,
-            y_data=self.stress,
-            plot_config=plot_config,
-            default_title=default_title,
-            default_xlabel=default_xlabel,
-            default_ylabel=default_ylabel,
-            fig=fig,
-            ax=ax,
-            update_fig=update_fig,
-            **kwargs
-        )
-        
-     
-        
 
+        if plot_name is None:
+            plot_name = f"{self.name} Stress-Strain Curve"
+            
+        if plot_config is None:
+            plot_config = PlotConfig(
+                title=plot_name,
+                xlabel=f"Strain [%]",
+                ylabel=f"Stress [{self._get_output_units('stress')}]",
+                x_percent=True,
+            )
+            
+        plot = self.plot_manager.add_entity_to_plot(
+            entity=self,
+            plot_name=plot_name,
+            plot_config=plot_config,
+            x_data_key="strain",
+            y_data_key="stress",
+            plot=plot,
+            element_label=f"{self.name}_Stress-Strain",
+            plot_type="line",
+            update_plot_config=update_fig,
+        )
+        return plot
+
+        
     def plot_force_displacement( self,
+        plot : Optional["Plot"] = None,
+        plot_name: Optional[str] = None,
         plot_config: Optional["PlotConfig"] = None,
-        fig: Optional[plt.Figure] = None,
-        ax: Optional[plt.Axes] = None,
-        update_fig: bool = True,
-        **kwargs
-        ) -> tuple[plt.Figure, plt.Axes]:
+        update_fig: bool = False,
+        ) -> "Plot":
         """
         Plot the force-displacement curve for a sample.
         Can be used to provide an automated view of the data, potentially overlayed with other samples.
@@ -356,24 +317,31 @@ class AnalyzableEntity(ABC):
         if self.force is None or self.displacement is None:
             raise ValueError("Force or displacement data is missing for plotting the force-displacement curve.")
         
-        # Default labels with units
-        default_title = f"{self.name} Force-Displacement Curve"
-        default_xlabel = f"Displacement [{self.internal_units.get('displacement', '')}]"
-        default_ylabel = f"Force [{self.internal_units.get('force', '')}]"
-        
-        # Call the helper method
-        return self._plot_data(
-            x_data=self.displacement,
-            y_data=self.force,
+        if plot_name is None:
+            plot_name = f"{self.name} Force-Displacement Curve"
+            
+        if plot_config is None:
+            plot_config = PlotConfig(
+                title=plot_name,
+                xlabel=f"Displacement [{self._get_output_units('displacement')}]",
+                ylabel=f"Force [{self._get_output_units('force')}]",
+            )  
+            
+            
+        plot = self.plot_manager.add_entity_to_plot(
+            entity=self,
+            plot_name=plot_name,
             plot_config=plot_config,
-            default_title=default_title,
-            default_xlabel=default_xlabel,
-            default_ylabel=default_ylabel,
-            fig=fig,
-            ax=ax,
-            update_fig=update_fig,
-            **kwargs
+            x_data_key="displacement",
+            y_data_key="force",
+            plot=plot,
+            element_label=f"{self.name}_Force-Displacement",
+            plot_type="line",
+            update_plot_config=update_fig,
         )
+        return plot
+        
+        
 
 
     # Interface - Abstract Methods

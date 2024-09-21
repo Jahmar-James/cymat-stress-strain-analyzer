@@ -38,6 +38,13 @@ class Plot:
         self.fig = fig
         self.axes = axes
         self.style = style
+    
+    @property    
+    def show(self) -> None:
+        if self.fig is None:
+            raise ValueError("Cannot show plot. No figure has been created.")
+        with plt.ioff():
+            self.fig.show()     
 
     def add_plot_element(
         self,
@@ -49,6 +56,7 @@ class Plot:
         axes_key: Optional[str] = None,
         text: Optional["TextData"] = None,
         annotation: Optional["AnnotationData"] = None,
+        update_plot_config: bool = False,
     ) -> tuple[plt.Figure, plt.Axes]:
         if element_label in self.plot_state.elements:
             raise ValueError(
@@ -75,7 +83,8 @@ class Plot:
         )
         self.plot_state.elements[element_label] = plot_element
         plot_config = plot_config or self.plot_config
-        ax = self._apply_plot_config(ax, plot_config)
+        if update_plot_config:
+            ax = self._apply_plot_config(ax, plot_config)
         return fig, ax
 
     def _get_or_create_axes_and_fig(self, ax_key: Optional[str] = None) -> tuple[plt.Figure, plt.Axes]:
@@ -92,8 +101,8 @@ class Plot:
                 self.axes = {"main": axes}
             # Might not need to apply the plot config here
             # as applied at end of add_plot_element FUNC
-            for ax in self.axes.values():
-                ax = self._apply_plot_config(ax, self.plot_config)
+            # for ax in self.axes.values():
+            #     ax = self._apply_plot_config(ax, self.plot_config)
 
         # After the initial state, we can return the existing figure and axes
         if len(self.axes) == 1:

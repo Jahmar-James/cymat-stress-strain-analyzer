@@ -55,13 +55,14 @@ class PlotManager:
         propperty_key: Optional[str] = None,
         element_label: Optional[str] = None,
         plot_config: Optional["PlotConfig"] = None,
-        plot_type: str = "custom",
+        plot_type: str = "line",
+        update_plot_config: Optional[bool] = False,
     ) -> Optional["Plot"]:
         plot_config = plot_config or self.default_plot_config
         plot = self._create_plot_if_none(plot, plot_name, plot_type, plot_config)
         x_data, y_data = self._normalize_entity_data_for_plotting(entity, x_data_key, y_data_key, propperty_key)
         element_label = self._generate_element_label(element_label, entity.name, x_data_key, y_data_key, propperty_key)
-        susccess_operation = plot.add_plot_element(entity.name, x_data, y_data, element_label, plot_config)
+        susccess_operation = plot.add_plot_element(entity.name, x_data, y_data, element_label, plot_config, update_plot_config = update_plot_config)
 
         if susccess_operation:
             return plot
@@ -100,10 +101,10 @@ class PlotManager:
             plot.plot_state.add_arrow(ax, annotation, element_label)
 
         elif isinstance(annotation, HorizontalLineData):
-            plot.plot_state.add_horizontal_line(ax, annotation.y, annotation.color, annotation.linestyle, element_label)
+            plot.plot_state.add_horizontal_line(ax,  annotation, element_label)
 
         elif isinstance(annotation, VerticalLineData):
-            plot.plot_state.add_vertical_line(ax, annotation.x, annotation.color, annotation.linestyle, element_label)
+            plot.plot_state.add_vertical_line(ax, annotation, element_label)
 
         elif isinstance(annotation, ShadedRegionData):
             plot.plot_state.add_shaded_region(ax, annotation, element_label)

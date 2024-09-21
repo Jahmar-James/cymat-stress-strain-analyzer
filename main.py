@@ -18,5 +18,5 @@ def top_level_test() -> None:
 
 # Run Application
 if __name__ == "__main__":
-    main()
-    # top_level_test()
+    # main()
+    top_level_test()
