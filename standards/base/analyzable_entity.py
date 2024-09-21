@@ -93,105 +93,117 @@ class AnalyzableEntity(ABC):
         # set the _property to None to force recalculation
         if hasattr(self, f"_{property_name}"):
             setattr(self, f"_{property_name}", None)
+            # Trigger the recalculation by accessing the property, ensuring fresh computation
+            getattr(self, property_name)
         else:
             raise ValueError(f"Property {property_name} does not exist.")
 
     def _convert_units(
-        self, 
+        self,
         value: Optional[Union[float, pd.Series]],
         current_unit_key: str,
-        target_unit_key: Optional[str] = None
+        target_unit_key: Optional[str] = None,
+        target_unit: Optional[pint.Unit] = None,
     ) -> Optional[Union[float, pd.Series]]:
         """
         Converts the units of a property value if a target unit is specified.
         """
         if value is not None:
             current_unit = self.internal_units.get(current_unit_key)
-            target_unit = self.target_units.get(target_unit_key or current_unit_key, current_unit)
+            # target_unit protity 1. Explicit units 2. Target unit key 3. Current unit key
+            target_unit = target_unit or self.target_units.get(target_unit_key or current_unit_key, current_unit)
             if target_unit and current_unit != target_unit:
-                conversion_factor = self.data_preprocessor._get_conversion_factor(current_unit, target_unit)
+                try:
+                    conversion_factor = self.data_preprocessor._get_conversion_factor(current_unit, target_unit)
+                except pint.errors.DimensionalityError as e:
+                    raise ValueError(f"Cannot convert entity '{self.name}' to target unit '{target_unit}': {str(e)}")
+                except pint.errors.UndefinedUnitError as e:
+                    raise ValueError(f"Cannot convert units for property '{current_unit_key}': {str(e)}")
                 return value * conversion_factor
             else:
                 return value
         else:
             return None
-    
-    
-    
+
+    def _get_proprety_with_units(self, property_name: str) -> pint.Quantity:
+        if hasattr(self, f"_{property_name}") or hasattr(self, property_name):
+            units = self.internal_units.get(property_name)
+            _property = getattr(property_name)
+            if isinstance(_property, (float, int)):
+                return getattr(property_name) * units
+            else:
+                raise ValueError(
+                    f"Cannot get the units for {property_name} as of the types {type(_property)} instead of being a number"
+                )
+
     @property
     def area(self) -> Optional[float]:
         # Inital First time calculation
-        if self._area is None and self.length and self.width:
-                 # Convert width to the same unit as length using a local variable
-                width_converted = self._convert_units(
-                value=self.width, 
-                current_unit_key="width", 
-                target_unit_key="length")    
+        if self._area is None:
+            # Convert width to the same unit as length using a local variable
+            length_unit = self.internal_units.get("length")
+            width_converted = self._convert_units(value=self.width, current_unit_key="width", target_unit=length_unit)
 
-                # Calculate area
+            # Calculate area
+            try:
                 self._area = self.property_calculator.calculate_cross_sectional_area(self.length, width_converted)
-                
-                # Set internal unit for area if not already set
-                self.internal_units.setdefault("area", self.internal_units["length"] ** 2)       
-                    
+            except ValueError as e:
+                raise ValueError(f"Cannnot calculate area for entity '{self.name}': {str(e)}")
+
+            # Set internal unit for area if not already set
+            self.internal_units.setdefault("area", self.internal_units["length"] ** 2)
+
         # Convert area to target unit if needed
         return self._convert_units(self._area, current_unit_key="area")
-    
+
     @property
     def volume(self) -> Optional[float]:
         if self.area is not None and self.thickness is not None:
-            thickness_converted = self._convert_units(self.thickness, current_unit_key="thickness", target_unit_key="length")
-        
-            # Calculate volume
-            self._volume = self.property_calculator.calculate_volume(
-                area=self.area,
-                thickness=thickness_converted
+            length_unit = self.internal_units.get("length")
+            thickness_converted = self._convert_units(
+                self.thickness, current_unit_key="thickness", target_unit=length_unit
             )
-            
+
+            # Calculate volume
+            self._volume = self.property_calculator.calculate_volume(area=self.area, thickness=thickness_converted)
+
             # Set internal unit for volume if not already set
             self.internal_units.setdefault("volume", self.internal_units["area"] * self.internal_units["length"])
-        
+
         elif self.length is not None and self.width is not None and self.thickness is not None:
-                # Convert width and thickness to the same unit as length
-                width_converted = self._convert_units(
-                    self.width, current_unit_key="width", target_unit_key="length"
-                )
-                thickness_converted = self._convert_units(
-                    self.thickness, current_unit_key="thickness", target_unit_key="length"
-                )
-                # Calculate volume directly
-                self._volume = self.property_calculator.calculate_volume_direct(
-                    length=self.length,
-                    width=width_converted,
-                    thickness=thickness_converted
-                )
-                # Set internal unit for volume if not already set
-                self.internal_units.setdefault("volume", self.internal_units["length"] ** 3)
+            # Convert width and thickness to the same unit as length
+            length_unit = self.internal_units.get("length")
+            width_converted = self._convert_units(self.width, current_unit_key="width", target_unit=length_unit)
+            thickness_converted = self._convert_units(
+                self.thickness, current_unit_key="thickness", target_unit_key="length"
+            )
+            # Calculate volume directly
+            self._volume = self.property_calculator.calculate_volume_direct(
+                length=self.length, width=width_converted, thickness=thickness_converted
+            )
+            # Set internal unit for volume if not already set
+            self.internal_units.setdefault("volume", self.internal_units["length"] ** 3)
         else:
             raise ValueError("Insufficient data to calculate volume.")
 
         # Convert volume to target unit if needed
-        return self._convert_units(self._volume, current_unit_key="volume")  
-        
-            
-    @property    
+        return self._convert_units(self._volume, current_unit_key="volume")
+
+    @property
     def density(self) -> Optional[float]:
         if self._density is None and self.mass is not None:
-            if self.volume is not None:
-                
-                # Calculate density
-                self._density = self.property_calculator.calculate_density(
-                    mass=self.mass, 
-                    volume=self.volume
-                )
-                # Set internal unit for density if not already set
-                self.internal_units.setdefault("density", self.internal_units["mass"] / self.internal_units["volume"])
-            else:
-                raise ValueError("Volume data is missing for density calculation.")
+            # Calculate density
+            try:
+                self._density = self.property_calculator.calculate_density(mass=self.mass, volume=self.volume)
+            except ValueError as e:
+                raise ValueError(f"Cannot calculate density for entity '{self.name}': {str(e)}")
+
+            # Set internal unit for density if not already set
+            self.internal_units.setdefault("density", self.internal_units["mass"] / self.internal_units["volume"])
 
         # Convert density to target unit if needed
         return self._convert_units(self._density, current_unit_key="density")
-        
+
     @property
     def force(self) -> Optional[pd.Series]:
         return self._convert_units(self._force, current_unit_key="force")
@@ -199,7 +211,7 @@ class AnalyzableEntity(ABC):
     @property
     def displacement(self) -> Optional[pd.Series]:
         return self._convert_units(self._displacement, current_unit_key="displacement")
-    
+
     @property
     def strain(self) -> Optional[pd.Series]:
         """
@@ -208,38 +220,36 @@ class AnalyzableEntity(ABC):
         :return: Strain data as a Pandas Series, optionally converted to the target unit.
         """
         if self._strain is None:
-            if self.displacement is not None and self.length:
-                
-                # Calculate strain using the property calculator
+            # Calculate strain using the property calculator
+            try:
                 self._strain = self.property_calculator.calculate_strain(
-                    displacement_series=self.displacement,
-                    initial_length=self.length
+                    displacement_series=self.displacement, initial_length=self.length
                 )
-                 # Set internal unit for strain if not already set
-                self.internal_units.setdefault("strain", pint.Unit("dimensionless")) 
-            else:
-                raise ValueError("Displacement data or length is missing for strain calculation.")
+            except ValueError as e:
+                raise ValueError(f"Cannot calculate strain for entity '{self.name}': {str(e)}")
+
+            # Set internal unit for strain if not already set
+            self.internal_units.setdefault("strain", pint.Unit("dimensionless"))
+
         return self._convert_units(self._strain, current_unit_key="strain")
-    
-        
+
     @property
     def stress(self) -> Optional[pd.Series]:
         """
         Calculate and return the stress, converting units if necessary.
-        Stress = Force / Area, where Area is calculated as 
+        Stress = Force / Area, where Area is calculated as
         :return: Stress data as a Pandas Series, optionally converted to the target unit.
         """
         if self._stress is None:
-            if self.force is not None and self.area:
-                 # Calculate stress using the property calculator
-                self._stress = self.property_calculator.calculate_stress(
-                    force_series=self.force,
-                    area=self.area
-                )
-                # Set internal unit for stress if not already set
-                self.internal_units.setdefault("stress", self.internal_units["force"] / self.internal_units["area"])
-            else:
-                raise ValueError("Force data or area is missing for stress calculation.")
+            # Calculate stress using the property calculator
+            try:
+                self._stress = self.property_calculator.calculate_stress(force_series=self.force, area=self.area)
+            except ValueError as e:
+                raise ValueError(f"Cannot calculate stress for entity '{self.name}': {str(e)}")
+
+            # Set internal unit for stress if not already set
+            self.internal_units.setdefault("stress", self.internal_units["force"] / self.internal_units["area"])
+
         return self._convert_units(self._stress, current_unit_key="stress")
     
 
@@ -368,7 +378,7 @@ class AnalyzableEntity(ABC):
 
     # Interface - Abstract Methods
 
-    @abstractmethod
+    # @abstractmethod
     def plot(self) -> None:
         """
         Plot key performance indicators (KPI) relevant to the standard being used.

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import pandas as pd
 from pint import UnitRegistry
-from pint.errors import UndefinedUnitError
+from pint.errors import DimensionalityError, UndefinedUnitError
 
 ureg = UnitRegistry()
 
@@ -65,6 +65,10 @@ class MechanicalTestDataPreprocessor:
         "force": ureg.newton,
         "displacement": ureg.millimeter,
         "time": ureg.second,
+        "length": ureg.millimeter,
+        "width": ureg.millimeter,
+        "thickness": ureg.millimeter,
+        "mass": ureg.kilogram,
     }
     # For mannual unit extraction if now found by regex
     KNOWN_UNITS = {
@@ -190,6 +194,8 @@ class MechanicalTestDataPreprocessor:
         except UndefinedUnitError as e:
             print(f"Conversion factor calculation failed: {current_unit} to {target_unit} with error {e}")
             return 1
+        except DimensionalityError as e:
+            print(f"Dimensionality mismatch: {current_unit} to {target_unit} with error {e}")
 
     @lru_cache(maxsize=128)
     def _parse_unit_from_column(self, column: str) -> tuple[str, Optional[str]]:
