@@ -111,6 +111,13 @@ def test_reset_target_unit(analyzable_entity_with_default_units):
     """
     # Act
     analyzable_entity_with_default_units.set_target_unit("force", "kilonewton")
+
+    # Verify that force is now in kilonewtons
+    force_in_kilonewtons = analyzable_entity_with_default_units.force
+    assert force_in_kilonewtons.equals(
+        pd.Series([0.1, 0.2, 0.3])
+    ), f"Force should be in kilonewtons: [0.1, 0.2, 0.3], but got: {force_in_kilonewtons.tolist()}"
+
     analyzable_entity_with_default_units.reset_target_unit("force")
 
     # Verify that force is now back to its default unit (newton)
@@ -178,10 +185,14 @@ def test_missing_length_for_area(analyzable_entity_with_default_units):
     # Arrange
     analyzable_entity_with_default_units.length = None  # Remove the length attribute
     analyzable_entity_with_default_units._area = None  # Reset the cached area value
-    analyzable_entity_with_default_units.recalculate_properties("area")  # Recalculate area
+
+    # Expected error: Cannot calculate area for entity 'Sample 1': Length must be a positive float or int.
 
     # Act & Assert
-    with pytest.raises(ValueError, match="Length must be a positive float or int."):
+    with pytest.raises(ValueError, match=r".*Length must be a positive float or int.*"):
+        _ = analyzable_entity_with_default_units.area  # Should raise ValueError
+
+    with pytest.raises(ValueError, match=r".*Cannnot calculate area for entity.*"):
         _ = analyzable_entity_with_default_units.area  # Should raise ValueError
 
 
@@ -192,11 +203,12 @@ def test_zero_width_for_area(analyzable_entity_with_default_units):
     # Arrange
     analyzable_entity_with_default_units.width = 0.0  # Set width to zero
 
-    # Act
-    calculated_area = analyzable_entity_with_default_units.area
+    # Cannnot calculate area for entity 'Sample 1': Func [calculate_cross_sectional_area] | Width must be a positive float or int.
+    with pytest.raises(ValueError, match=r".*Width must be a positive float or int.*"):
+        _ = analyzable_entity_with_default_units.area
 
-    # Assert
-    assert calculated_area == 0.0, f"Expected area: 0.0, but got: {calculated_area}"
+    with pytest.raises(ValueError, match=r".*Cannnot calculate area for entity.*"):
+        _ = analyzable_entity_with_default_units.area
 
 
 def test_accessing_stress_before_area(analyzable_entity_with_default_units):
@@ -210,8 +222,12 @@ def test_accessing_stress_before_area(analyzable_entity_with_default_units):
     Expected Behavior:
     - With `width = None`, accessing `stress` should raise a `ValueError` indicating that `area` is required.
     """
-    analyzable_entity_with_default_units.width = None  # Remove width
-    with pytest.raises(ValueError, match="Area is required to calculate stress"):
+    # Remove width, set _area to None to ensure that cached value is not used
+    analyzable_entity_with_default_units.width = None
+    analyzable_entity_with_default_units._area = None
+
+    # Expected error: Cannot calculate stress for entity 'Sample 1': Cannnot calculate area for entity 'Sample 1': Func [calculate_cross_sectional_area] | Width must be a positive float or int
+    with pytest.raises(ValueError, match=r".*Width must be a positive float or int.*"):
         _ = analyzable_entity_with_default_units.stress
 
 
@@ -226,6 +242,9 @@ def test_accessing_strain_without_length(analyzable_entity_with_default_units):
     Expected Behavior:
     - With `length = None`, accessing `strain` should raise a `ValueError` indicating that `length` is required.
     """
-    analyzable_entity_with_default_units.length = None  # Remove length
-    with pytest.raises(ValueError, match="Length is required to calculate strain"):
+    # Remove length
+    analyzable_entity_with_default_units.length = None
+
+    # Expected error: Cannot calculate strain for entity 'Sample 1': Initial length must be a positive float or int.
+    with pytest.raises(ValueError, match=r".*Initial length must be a positive float or int.*"):
         _ = analyzable_entity_with_default_units.strain

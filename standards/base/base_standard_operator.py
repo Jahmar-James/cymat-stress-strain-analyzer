@@ -1,4 +1,4 @@
-from typing import Union, Optional
+from typing import Optional, Union
 from warnings import warn
 
 import numpy as np
@@ -12,51 +12,54 @@ class BaseStandardOperator:
     A base class for handling generic operations like calculating stress, strain, and energy absorption.
     Uses static methods, fails loudly on contract violations, and provides an optional conversion factor.
     (This class is intended to be inherited by more specialized classes for specific standards.)
-    
+
     Will provide all the property calculation methods needed by the SampleGeneric class.
     """
+
     @staticmethod
     def calculate_cross_sectional_area(length: float, width: float, conversion_factor: float = 1.0) -> float:
         """
         Calculate the cross-sectional area of a sample given its length and width.
-        
+
         Preconditions:
         - `length` and `width` must be positive float values.
         - `conversion_factor` is optional, and defaults to 1. It is used to convert the area into desired units.
-        
+
         Postconditions:
         - Returns the cross-sectional area of the sample, adjusted by `conversion_factor`.
         """
         # Preconditions: Validate inputs
         BaseStandardOperator._validate_positive_number(length, "Length", "calculate_cross_sectional_area")
         BaseStandardOperator._validate_positive_number(width, "Width", "calculate_cross_sectional_area")
-        BaseStandardOperator._validate_positive_number(conversion_factor, "Conversion factor", "calculate_cross_sectional_area")
-        
+        BaseStandardOperator._validate_positive_number(
+            conversion_factor, "Conversion factor", "calculate_cross_sectional_area"
+        )
+
         # Calculate the cross-sectional area (A = length * width)
         area = length * width * conversion_factor
         return area
-    
+
     @staticmethod
     def calculate_volume(area: float, thickness: float) -> float:
         """
         Calculate the volume of a sample given its area and thickness.
-        
+
         Preconditions:
         - `area` and `thickness` must be positive float values.
         """
         # Preconditions: Validate inputs
         BaseStandardOperator._validate_positive_number(area, "Area", "calculate_volume")
         BaseStandardOperator._validate_positive_number(thickness, "Thickness", "calculate_volume")
-        
+
         # Calculate the volume (V = area * thickness)
         volume = area * thickness
         return volume
-    
+
     @staticmethod
     def calculate_volume_direct(length: float, width: float, thickness: float) -> float:
         """
         Calculate the volume of a sample given its length, width, and thickness.
-        
+
         Preconditions:
         - `length`, `width`, and `thickness` must be positive float values.
         """
@@ -64,20 +67,20 @@ class BaseStandardOperator:
         BaseStandardOperator._validate_positive_number(length, "Length", "calculate_volume_direct")
         BaseStandardOperator._validate_positive_number(width, "Width", "calculate_volume_direct")
         BaseStandardOperator._validate_positive_number(thickness, "Thickness", "calculate_volume_direct")
-        
+
         # Calculate the volume (V = length * width * thickness)
         volume = length * width * thickness
-        return volume   
-    
+        return volume
+
     @staticmethod
     def calculate_density(mass: float, volume: float, conversion_factor: float = 1.0) -> float:
         """
         Calculate the density of a sample given its mass and volume.
-        
+
         Preconditions:
         - `mass` and `volume` must be positive float values.
         - `conversion_factor` is optional, and defaults to 1. It is used to convert the density into desired units.
-        
+
         Postconditions:
         - Returns the density of the sample, adjusted by `conversion_factor`.
         """
@@ -85,7 +88,7 @@ class BaseStandardOperator:
         BaseStandardOperator._validate_positive_number(mass, "Mass", "calculate_density")
         BaseStandardOperator._validate_positive_number(volume, "Volume", "calculate_density")
         BaseStandardOperator._validate_positive_number(conversion_factor, "Conversion factor", "calculate_density")
-        
+
         # Calculate the density (density = mass / volume)
         density = (mass / volume) * conversion_factor
         return density
@@ -170,7 +173,6 @@ class BaseStandardOperator:
 
         return strain_series
 
-
     @staticmethod
     def calculate_slope_in_region() -> float:
         raise NotImplementedError("Method not implemented yet.")
@@ -190,17 +192,15 @@ class BaseStandardOperator:
             if parent_func_name:
                 raise ValueError(f"Func [{parent_func_name}] | {var_name} must be a positive float or int.")
             else:
-                raise ValueError(f"{var_name} must be a positive float or int.")
+                raise ValueError(f"{var_name} must be a positive float or int. But got {number}.")
 
     @staticmethod
     def _validate_columns_exist(dataframes: list[pd.DataFrame], required_columns: list[str]) -> list[int]:
         """
         Validate that all DataFrames contain the specified required columns.
 
-        Returns:
-            A list of index numbers of DataFrames that are missing required columns.
-            Raises:
-            ValueError with detailed information on missing columns if validation fails.
+        Raises:
+        ValueError with detailed information on missing columns if validation fails.
         """
         missing_info = []
 
@@ -219,8 +219,11 @@ class BaseStandardOperator:
             )
             raise ValueError(f"The following DataFrames are missing columns:\n{error_message}")
 
-        # Return the indices of DataFrames with missing columns
-        return [i for i, _, _ in missing_info]
+    @staticmethod
+    def _get_dataframes_with_required_columns(
+        dataframes: list[pd.DataFrame], required_columns: list[str]
+    ) -> list[pd.DataFrame]:
+        return [df for df in dataframes if all(column_name in df.columns for column_name in required_columns)]
 
     @staticmethod
     def _generate_common_axis(
@@ -270,6 +273,7 @@ class BaseStandardOperator:
         common_axis: pd.Series,
         interpolation_method: str = "linear",
         parent_func_name=None,
+        set_index: bool = True,
     ) -> list[pd.DataFrame]:
         """
         Interpolate the data in each DataFrame to a common axis based on the interpolation column.
@@ -322,6 +326,7 @@ class BaseStandardOperator:
 
             # Add the common_axis back as the interpolation column (e.g., 'time')
             interpolated_df[interp_column] = common_axis
+            interpolated_df.set_index(interp_column, inplace=set_index)
 
             interpolated_dfs.append(interpolated_df)
 
@@ -386,10 +391,11 @@ class BaseStandardOperator:
         BaseStandardOperator._validate_columns_exist(df_list, avg_columns + [interp_column])
 
         # Check if interpolation is needed
-        same_length = all(len(df) == len(df_list[0]) for df in df_list)
-        same_interp_column = all(df[interp_column].equals(df_list[0][interp_column]) for df in df_list)
+        same_length: bool = all(len(df) == len(df_list[0]) for df in df_list)
+        axis_is_common: bool = all(df[interp_column].equals(df_list[0][interp_column]) for df in df_list)
+        # Might only need to check is axis is common as that implies same length
 
-        if same_length and same_interp_column and not force_interpolation:
+        if same_length and axis_is_common and not force_interpolation:
             # If no interpolation is needed, directly average the columns
             return BaseStandardOperator._calculate_column_averages(df_list, avg_columns, interp_column)
 
@@ -398,7 +404,7 @@ class BaseStandardOperator:
 
         # Interpolate the DataFrames to the common axis
         interpolated_dfs = BaseStandardOperator.interpolate_dataframes(
-            df_list, interp_column, common_axis, interpolation_method, "average_dataframes"
+            df_list, interp_column, common_axis, interpolation_method, "average_dataframes", set_index=False
         )
         # Average the specified columns
         result_df = BaseStandardOperator._calculate_column_averages(

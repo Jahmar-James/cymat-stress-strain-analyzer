@@ -208,7 +208,7 @@ def test_interpolate_dataframes_basic(df_list, common_axis):
     )
 
     # Expected DataFrame 1 after interpolation
-    expected_df1 = pd.DataFrame({"time": [1, 2, 3, 4, 5, 6], "value": [10.0, 20.0, 30.0, 40.0, 50.0, 50.0]}).set_index(
+    expected_df1 = pd.DataFrame({"time": [1, 2, 3, 4, 5, 6], "value": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0]}).set_index(
         "time"
     )
 
@@ -236,7 +236,7 @@ def test_interpolate_dataframes_non_monotonic(df_list, common_axis):
 
     # Expected DataFrame after sorting and interpolation
     expected_df_non_monotonic = pd.DataFrame(
-        {"time": [1, 2, 3, 4, 5, 6], "value": [10.0, 20.0, 30.0, 40.0, 50.0, 50.0]}
+        {"time": [1, 2, 3, 4, 5, 6], "value": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0]}
     ).set_index("time")
 
     pd.testing.assert_frame_equal(result[2], expected_df_non_monotonic)
@@ -345,8 +345,7 @@ def test_validate_columns_exist_valid():
     """Test that DataFrames containing the required columns pass without error."""
     df1 = pd.DataFrame({"time": [1, 2], "value": [10, 20]})
     df2 = pd.DataFrame({"time": [1, 3], "value": [15, 30]})
-    result = BaseStandardOperator._validate_columns_exist([df1, df2], ["time", "value"])
-    assert result == []  # No missing columns, so return should be an empty list
+    BaseStandardOperator._validate_columns_exist([df1, df2], ["time", "value"])
 
 
 def test_validate_columns_exist_missing_column():
@@ -356,11 +355,13 @@ def test_validate_columns_exist_missing_column():
     df1.name = "DF1"
     df2.name = "DF2"
 
-    with pytest.raises(ValueError, match="DF1 is missing columns: value"):
+    # Expected error message
+    """
+    The following DataFrames are missing columns:
+        DF1 is missing columns: value
+    """
+    with pytest.raises(ValueError, match=r".*DF1 is missing columns.*"):
         BaseStandardOperator._validate_columns_exist([df1, df2], ["time", "value"])
-
-    result = BaseStandardOperator._validate_columns_exist([df1, df2], ["time", "value"])
-    assert result == [0]  # Only df1 is missing the 'value' column
 
 
 def test_validate_columns_exist_no_name():
@@ -370,6 +371,22 @@ def test_validate_columns_exist_no_name():
 
     with pytest.raises(ValueError, match="DataFrame at index 0 is missing columns: value"):
         BaseStandardOperator._validate_columns_exist([df1, df2], ["time", "value"])
+
+# Test get_dataframes_with_required_columns
+
+
+def test_get_dataframes_with_required_columns():
+    """Test that the function returns only DataFrames that have all the required columns."""
+    df1 = pd.DataFrame({"time": [1, 2]})
+    df2 = pd.DataFrame({"time": [1, 3], "value": [15, 30]})
+    df3 = pd.DataFrame({"time": [1, 2], "value": [20, 40], "extra": [100, 200]})
+    df1.name = "DF1"
+    df2.name = "DF2"
+    df3.name = "DF3"
+
+    result = BaseStandardOperator._get_dataframes_with_required_columns([df1, df2, df3], ["time", "value"])
+
+    assert result == [df2, df3]  # Only df2 and df3 have both 'time' and 'value' columns
 
 
 # Test _generate_common_axis
@@ -422,7 +439,7 @@ def df_list_same() -> list[pd.DataFrame]:
     return [df1, df2]
 
 
-# Fixture for DataFrames with different interp_column values (interpolation needed)
+# Fixture for DataFrames with different interp_column values - X (interpolation needed)
 @pytest.fixture
 def df_list_different() -> list[pd.DataFrame]:
     df1 = pd.DataFrame(
@@ -448,17 +465,107 @@ def test_average_dataframes_no_interpolation(df_list_same):
 
 # Test 2: Interpolation needed (different interp_column)
 def test_average_dataframes_with_interpolation(df_list_different):
+    # df_list_different contains two DataFrames with different interp_column values.
+    # df1:                              # df2:
+    #    interp_column  col1  col2      #    interp_column  col1  col2
+    # 0              0     0    10      # 0              0     0    10
+    # 1              1     1    11      # 1              2     1    11
+    # 2              2     2    12      # 2              4     2    12
+    # 3              3     3    13      # 3              6     3    13
+    # 4              4     4    14      # 4              8     4    14
+    # 5              5     5    15      # 5             10     5    15
+    # 6              6     6    16      # 6             12     6    16
+    # 7              7     7    17      # 7             14     7    17
+    # 8              8     8    18      # 8             16     8    18
+    # 9              9     9    19      # 9             18     9    19
+
+    # Common axis will be: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].
+
+    # The interpolatated values
+    # df1:                              # df2:
+    #    interp_column  col1  col2      #    interp_column  col1  col2
+    # 0             0     0    10       # 0              0     0    10
+    # 1             1     1    11       # 1              1     0.5  10.5
+    # 2             2     2    12       # 2              2     1    11
+    # 3             3     3    13       # 3              3     1.5  11.5
+    # 4             4     4    14       # 4              4     2    12
+    # 5             5     5    15       # 5              5     2.5  12.5
+    # 6             6     6    16       # 6              6     3    13
+    # 7             7     7    17       # 7              7     3.5  13.5
+    # 8             8     8    18       # 8              8     4    14
+    # 9             9     9    19       # 9              9     4.5  14.5
+    # 10           10    10    20       # 10            10     5    15
+    # 11           11    11    21       # 11            11     5.5  15.5
+    # 12           12    12    22       # 12            12     6    16
+    # 13           13    13    23       # 13            13     6.5  16.5
+    # 14           14    14    24       # 14            14     7    17
+    # 15           15    15    25       # 15            15     7.5  17.5
+    # 16           16    16    26       # 16            16     8    18
+    # 17           17    17    27       # 17            17     8.5  18.5
+    # 18           18    18    28       # 18            18     9    19
+
+    # The average values will be:
+    #    interp_column      avg_col1                        avg_col2
+    # 0              0      (0 + 0) / 2 = 0                 (10 + 10) / 2 = 10
+    # 1              1      (1 + 0.5) / 2 = 0.75            (11 + 10.5) / 2 = 10.75
+    # 2              2      (2 + 1) / 2 = 1.5               (12 + 11) / 2 = 11.5
+    # 3              3      (3 + 1.5) / 2 = 2.25            (13 + 11.5) / 2 = 12.25
+    # 4              4      (4 + 2) / 2 = 3                 (14 + 12) / 2 = 13
+    # 5              5      (5 + 2.5) / 2 = 3.75            (15 + 12.5) / 2 = 13.75
+    # 6              6      (6 + 3) / 2 = 4.5               (16 + 13) / 2 = 14.5
+    # 7              7      (7 + 3.5) / 2 = 5.25            (17 + 13.5) / 2 = 15.25
+    # 8              8      (8 + 4) / 2 = 6                 (18 + 14) / 2 = 16
+    # 9              9      (9 + 4.5) / 2 = 6.75            (19 + 14.5) / 2 = 16.75
+    # 10            10     (10 + 5) / 2 = 7.5               (20 + 15) / 2 = 17.5
+    # 11            11     (11 + 5.5) / 2 = 8.25            (21 + 15.5) / 2 = 18.25
+    # 12            12     (12 + 6) / 2 = 9                 (22 + 16) / 2 = 19
+    # 13            13     (13 + 6.5) / 2 = 9.75            (23 + 16.5) / 2 = 19.75
+    # 14            14     (14 + 7) / 2 = 10.5              (24 + 17) / 2 = 20.5
+    # 15            15     (15 + 7.5) / 2 = 11.25           (25 + 17.5) / 2 = 21.25
+    # 16            16     (16 + 8) / 2 = 12                (26 + 18) / 2 = 22
+    # 17            17     (17 + 8.5) / 2 = 12.75           (27 + 18.5) / 2 = 22.75
+    # 18            18     (18 + 9) / 2 = 13.5              (28 + 19) / 2 = 23.5
+
     result = BaseStandardOperator.average_dataframes(
         df_list=df_list_different, avg_columns="col1", interp_column="interp_column", step_size=1.0
     )
 
-    expected_interp_column = np.arange(0, 9.5, 0.5)
-    expected_col1 = pd.Series(
-        [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0]
+    expected_interp_column = np.arange(0, 19, 1)
+    expected_avg_col1 = pd.Series(
+        [0.0, 0.75, 1.5, 2.25, 3.0, 3.75, 4.5, 5.25, 6.0, 6.75, 7.5, 8.25, 9.0, 9.75, 10.5, 11.25, 12.0, 12.75, 13.5],
     )
-    expected = pd.DataFrame({"interp_column": expected_interp_column, "avg_col1": expected_col1})
+    expected_avg_col2 = pd.Series(
+        [
+            10.0,
+            10.75,
+            11.5,
+            12.25,
+            13.0,
+            13.75,
+            14.5,
+            15.25,
+            16.0,
+            16.75,
+            17.5,
+            18.25,
+            19.0,
+            19.75,
+            20.5,
+            21.25,
+            22.0,
+            22.75,
+            23.5,
+        ],
+    )
+    expected = pd.DataFrame(
+        {
+            "interp_column": expected_interp_column,
+            "avg_col1": expected_avg_col1,
+        },
+        dtype="float64",
+    )
 
-    pd.testing.assert_frame_equal(result, expected, check_less_precise=True)
+    pd.testing.assert_frame_equal(result, expected)
 
 
 # Test 3: Invalid step size
