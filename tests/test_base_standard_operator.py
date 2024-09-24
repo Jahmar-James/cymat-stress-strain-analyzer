@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from standards.base.base_standard_operator import BaseStandardOperator
+from standards.base.properties_calculators.base_standard_operator import BaseStandardOperator
 
 
 # Fixture for typical input data
@@ -311,7 +311,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from standards.base.base_standard_operator import BaseStandardOperator
+from standards.base.properties_calculators.base_standard_operator import BaseStandardOperator
 
 # Test _validate_positive_number
 
