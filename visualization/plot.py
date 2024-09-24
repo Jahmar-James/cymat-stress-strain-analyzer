@@ -38,13 +38,37 @@ class Plot:
         self.fig = fig
         self.axes = axes
         self.style = style
-    
-    @property    
-    def show(self) -> None:
-        if self.fig is None:
-            raise ValueError("Cannot show plot. No figure has been created.")
-        with plt.ioff():
-            self.fig.show()     
+
+    def show(self, block: bool = True) -> None:
+        """Show the plot and keep it open depending on the 'block' parameter."""
+        if self.fig is None or self.axes is None:
+            raise ValueError("Cannot show plot. No figure or axes have been created.")
+
+        # Create a new figure and axis based on plot configuration
+        fig, ax = plt.subplots(figsize=self.plot_config.figsize)
+
+        # Recreate the plot elements from plot state
+        for element_label, plot_element in self.plot_state.elements.items():
+            if plot_element.plot_type == "line":
+                ax.plot(plot_element.x_data, plot_element.y_data, label=plot_element.element_label)
+            elif plot_element.plot_type == "scatter":
+                ax.scatter(plot_element.x_data, plot_element.y_data, label=plot_element.element_label)
+            elif plot_element.plot_type == "bar":
+                ax.bar(plot_element.x_data, plot_element.y_data, label=plot_element.element_label)
+
+        # Apply plot configuration
+        ax.set_title(self.plot_config.title)
+        ax.set_xlabel(self.plot_config.xlabel)
+        ax.set_ylabel(self.plot_config.ylabel)
+        ax.grid(self.plot_config.grid)
+        ax.legend()
+
+        # Display the plot with blocking behavior
+        if block:
+            plt.show()  # Blocking call: Will keep the plot open until manually closed
+        else:
+            plt.draw()  # Non-blocking call: Updates the plot in interactive mode
+            plt.pause(0.001)  # Short pause to allow for rendering
 
     def add_plot_element(
         self,
@@ -64,7 +88,6 @@ class Plot:
             )
 
         fig, ax = self._get_or_create_axes_and_fig(axes_key)
-        fig.sca(ax)  # Set the current Axes to the one we want to plot on
 
         # Different plot functions based on the plot type
         plot_artist = self._add_plot_artist(

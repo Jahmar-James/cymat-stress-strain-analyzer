@@ -90,7 +90,6 @@ class PlotManager:
             )
         plot = self.plots[plot_name]
         fig, ax = plot._get_or_create_axes_and_fig(axes_key)
-        fig.sca(ax)
 
         # Generate an element label if not provided
         element_label = element_label or f"{type(annotation).__name__}_{len(plot.plot_state.elements) + 1}"

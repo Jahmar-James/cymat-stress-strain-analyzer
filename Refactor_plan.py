@@ -38,61 +38,81 @@ BACKEND
         - __init__.py
         - sample.py
 /Visualization
-    - plotting_manager.py         
-    - plot_data_helpers.py  
+    - plotting_manager.py
+    - plot_data_helpers.py
 /config
     - __init__.py
     /app_settings
     /workflow_settings
 /tests
 """
-import pandas as pd
+
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+
 from standards.base.analyzable_entity import AnalyzableEntity
-
-from visualization.plot_data import HorizontalLineData, VerticalLineData, PlotData
 from visualization.plot import Plot
+from visualization.plot_data import HorizontalLineData, PlotData, VerticalLineData
 
 
-def create_fake_sample()-> AnalyzableEntity:
-     # Create a sample
+def create_fake_sample() -> AnalyzableEntity:
+    # Create a sample
     name = "Test Sample"
     length = 150.0  # mm
-    width = 50.0    # mm
+    width = 50.0  # mm
     thickness = 10.0  # mm
-    mass = 300.0    # g
-    
+    mass = 300.0  # g
+
     # Generate force and displacement data (linear up to a point then plateau)
     displacement_data = pd.Series(np.linspace(0, 1, 100), name="Displacement")  # Displacement in mm
-    force_data = pd.Series(np.concatenate([np.linspace(0, 500, 50), np.full(50, 500)]), name="Force")  # Force in Newtons
-    
+    force_data = pd.Series(
+        np.concatenate([np.linspace(0, 500, 50), np.full(50, 500)]), name="Force"
+    )  # Force in Newtons
+
     # Stress-Strain relationship (linear elastic behavior followed by plastic deformation)
     strain_data = pd.Series(np.linspace(0, 0.02, 100), name="Strain")  # Strain (dimensionless)
-    stress_data = pd.Series(np.concatenate([np.linspace(0, 300, 50), np.linspace(300, 450, 50)]), name="Stress")  # Stress in MPa
-    
-    # Create an instance of AnalyzableEntity
-    return AnalyzableEntity(name, length, width, thickness, mass, force=force_data, displacement=displacement_data, stress=stress_data, strain=strain_data)
-    
+    stress_data = pd.Series(
+        np.concatenate([np.linspace(0, 300, 50), np.linspace(300, 450, 50)]), name="Stress"
+    )  # Stress in MPa
 
-def create_plot()-> "Plot":
+    # Create an instance of AnalyzableEntity
+    return AnalyzableEntity(
+        name,
+        length,
+        width,
+        thickness,
+        mass,
+        force=force_data,
+        displacement=displacement_data,
+        stress=stress_data,
+        strain=strain_data,
+    )
+
+
+def create_plot() -> "Plot":
     return Plot(
         name="Test Plot",
-        plot_type="line",)
+        plot_type="line",
+    )
 
 
 if __name__ == "__main__":
-    # Intergated test 
+    # Intergated test
     plot = create_plot()
     sample = create_fake_sample()
-    
-    
-    plot_1 = sample.plot_force_displacement( plot=plot, update_fig=True) 
-    plot_1.show
-    plot_1.show
 
-    tets_annotation = HorizontalLineData( y=500, color="red", linestyle="--")
-    
-    # plot_2 = sample.plot_stress_strain(plot=plot, update_fig=True)
-    # plot_2.show
-    
+    plot_1 = sample.plot_force_displacement(plot=plot, update_fig=True)
+    plot_1.show()
+
+    plot_2 = sample.plot_stress_strain(plot=plot, update_fig=True)
+    plot_2.show()
+
+    test_h_annotation = HorizontalLineData(y=500, color="red", linestyle="--")
+    test_v_annotation = VerticalLineData(x=0.02, color="red", linestyle="--")
+
+    plot_name = plot_2.name
+    sample.plot_manager.add_annotation_to_plot(plot_name, test_h_annotation)
+    sample.plot_manager.add_annotation_to_plot(plot_name, test_v_annotation)
+
+    plot_2.show()

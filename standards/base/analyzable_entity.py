@@ -1,21 +1,22 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pint
 
-
 from data_extraction import MechanicalTestDataPreprocessor
-from visualization.plot_manager import PlotManager
 from visualization.plot_config import PlotConfig
+from visualization.plot_manager import PlotManager
 
-from ..base.base_standard_operator import BaseStandardOperator
+from .properties_calculators.base_standard_operator import BaseStandardOperator
 
 if TYPE_CHECKING:
+    from visualization.plot import Plot
+
     from ..sample_factory import MechanicalTestStandards
-    from visualization.plot import Plot 
+
 
 class AnalyzableEntity(ABC):
     """
@@ -60,10 +61,16 @@ class AnalyzableEntity(ABC):
         self._area = area
         self._volume = volume
         self._density = density
-        self._force = force
-        self._displacement = displacement
-        self._stress = stress
-        self._strain = strain
+        self._force = force if force is not None else pd.Series(dtype="float64")
+        self._displacement = displacement if displacement is not None else pd.Series(dtype="float64")
+        self._stress = stress if stress is not None else pd.Series(dtype="float64")
+        self._strain = strain if strain is not None else pd.Series(dtype="float64")
+
+        # Add a method to update raw data names with units and for exporting
+        # dataframe columns will always be lowercase to ensure consistency
+        self._raw_data = pd.DataFrame(
+            {"force": self._force, "displacement": self._displacement, "stress": self._stress, "strain": self._strain}
+        )
         
         self.is_sample_group: bool = False
         self.samples: list[AnalyzableEntity] = []
@@ -74,6 +81,13 @@ class AnalyzableEntity(ABC):
         self.data_preprocessor = MechanicalTestDataPreprocessor()
         self.internal_units : dict[str, pint.Unit] = MechanicalTestDataPreprocessor.EXPECTED_UNITS.copy()
         self.target_units : dict[str, pint.Unit] = {}
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"
+
+    def get_raw_data(self) -> pd.DataFrame:
+        # Only return columns in _raw_data that contain actual measurements
+        return self._raw_data.copy().dropna(axis=1, how="all")
         
     def set_target_unit(self, property_name: str, target_unit) -> None:
         """
@@ -231,7 +245,7 @@ class AnalyzableEntity(ABC):
         Strain = Displacement / Length, where Length is the initial length of the sample.
         :return: Strain data as a Pandas Series, optionally converted to the target unit.
         """
-        if self._strain is None:
+        if self._strain is None or (isinstance(self._strain, pd.Series) and self._strain.empty):
             # Calculate strain using the property calculator
             try:
                 self._strain = self.property_calculator.calculate_strain(
@@ -252,7 +266,7 @@ class AnalyzableEntity(ABC):
         Stress = Force / Area, where Area is calculated as
         :return: Stress data as a Pandas Series, optionally converted to the target unit.
         """
-        if self._stress is None:
+        if self._stress is None or (isinstance(self._stress, pd.Series) and self._stress.empty):
             # Calculate stress using the property calculator
             try:
                 self._stress = self.property_calculator.calculate_stress(force_series=self.force, area=self.area)
