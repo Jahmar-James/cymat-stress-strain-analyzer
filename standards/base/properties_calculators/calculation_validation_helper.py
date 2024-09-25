@@ -1,18 +1,20 @@
 from typing import Union
 
 import pandas as pd
+import uncertainties
 
-from uncertainties import Variable
 
 # Define the ValidationHelper class as previously described
 class ValidationHelper:
     """Helper class for validation functions used throughout the materials property calculators."""
     
     @staticmethod
-    def validate_positive_number(value: Union[float, int, Variable], var_name: str = "", func_name: str = "") -> None:
+    def validate_positive_number(
+        value: Union[float, int, uncertainties.UFloat], var_name: str = "", func_name: str = ""
+    ) -> None:
         """Ensure that a value is a positive number."""
          # Check if value is ufloat and validate its nominal value
-        if isinstance(value, Variable) and value.nominal_value <= 0:
+        if isinstance(value, uncertainties.UFloat) and value.nominal_value <= 0:
                 context_info = f" in function [{func_name}]" if func_name else ""
                 raise ValueError(f"{var_name} must have a positive nominal value{context_info}. Received: {value}")
         if not isinstance(value, (float, int)) or value <= 0:

@@ -5,8 +5,9 @@ from warnings import warn
 import numpy as np
 import pandas as pd
 import scipy as sp
+import uncertainties
 from scipy.interpolate import CubicSpline, PchipInterpolator, interp1d
-from uncertainties import Variable, ufloat
+from uncertainties import ufloat
 from uncertainties import unumpy as unp
 
 # Define a namedtuple for consistent return format
@@ -24,20 +25,68 @@ class BaseStandardOperator:
 
     Will provide all the property calculation methods needed by the SampleGeneric class.
     """
-    
+
+    @staticmethod
+    def calculate_cross_sectional_area(
+        length: float,
+        width: float,
+        conversion_factor: float = 1.0,
+        length_uncertainty: Optional[Union[float, str]] = None,
+        width_uncertainty: Optional[Union[float, str]] = None,
+    ) -> CalculationResult:
+        """
+        Calculate the cross-sectional area of a sample given its length and width.
+
+        Preconditions:
+        - `length` and `width` must be positive float values.
+        - `conversion_factor` is optional, and defaults to 1. It is used to convert the area into desired units.
+        - `length_uncertainty` and `width_uncertainty` are optional; if provided, they should be positive floats or
+            relative uncertainties in string format (e.g., '5%').
+
+        Postconditions:
+        - Returns the cross-sectional area of the sample, adjusted by `conversion_factor`. If uncertainties are provided,
+        returns a `ufloat` representing the area with its uncertainty.
+        """
+        # Validate inputs
+        ValidationHelper.validate_positive_number(length, "Length", "calculate_cross_sectional_area")
+        ValidationHelper.validate_positive_number(width, "Width", "calculate_cross_sectional_area")
+        ValidationHelper.validate_positive_number(
+            conversion_factor, "Conversion factor", "calculate_cross_sectional_area"
+        )
+
+        # Convert to ufloat if uncertainties are provided
+        if length_uncertainty is not None:
+            length = BaseStandardOperator._convert_to_uncertain_values(
+                length, length_uncertainty, "Length", "calculate_cross_sectional_area"
+            )
+        if width_uncertainty is not None:
+            width = BaseStandardOperator._convert_to_uncertain_values(
+                width, width_uncertainty, "Width", "calculate_cross_sectional_area"
+            )
+
+        # Calculate the cross-sectional area (A = length * width)
+        area = length * width * conversion_factor
+        # Check if the result is a ufloat (Variable)
+        if isinstance(area, uncertainties.UFloat):
+            # Return nominal value and standard deviation as uncertainty
+            return CalculationResult(value=area.nominal_value, uncertainty=area.std_dev)
+
+        # Return the result as a float with zero uncertainty if no ufloat was used
+        return CalculationResult(value=area, uncertainty=0.0)
+
     @staticmethod
     def _convert_to_uncertain_values(
-        data: Union[float, pd.Series], 
+        data: Union[float, pd.Series],
         uncertainty: Optional[Union[float, str, pd.Series]] = None,
         var_name: str = "",
-        func_name: str = ""
-    ) -> Union[Variable, np.ndarray]:
+        func_name: str = "",
+    ) -> Union[uncertainties.UFloat, np.ndarray]:
         """
         Convert a scalar value or pandas Series to a ufloat or array of ufloats with uncertainties.
 
         :param data: The value or data series to be converted.
-        :param uncertainty: The uncertainty for the value/series. 
-                            Can be absolute (float), relative percentage (str, e.g., '5%'), 
+        :param uncertainty: The uncertainty for the value/series.
+                            Can be absolute (float), relative percentage (str, e.g., '5%'),
                             or a pandas Series with element-wise uncertainties.
         :param var_name: Name of the variable being processed (optional, for error messages).
         :param func_name: Name of the function calling this helper (optional, for error messages).
@@ -48,98 +97,69 @@ class BaseStandardOperator:
             # Handle Series input
             if uncertainty is None:
                 return unp.uarray(data.values, 0)  # Return data with zero uncertainty
-            
-            elif isinstance(uncertainty, str) and uncertainty.endswith('%'):
+
+            elif isinstance(uncertainty, str) and uncertainty.endswith("%"):
                 # Relative uncertainty provided as a percentage string (e.g., '5%')
-                relative_value = float(uncertainty.strip('%')) / 100.0
-                return unp.uarray(data.values, data.values * relative_value)
-            
+                try:
+                    relative_value = float(uncertainty.strip("%")) / 100.0
+                    return unp.uarray(data.values, data.values * relative_value)
+                except ValueError:
+                    raise ValueError(
+                        "Invalid relative uncertainty provided as a percentage string. Expected format: '5%' Received: '{uncertainty}'."
+                    )
+
             elif isinstance(uncertainty, (float, int)):
                 # Absolute uncertainty provided as a float or int
+                if uncertainty <= 0:
+                    raise ValueError(
+                        f"{func_name}: Invalid absolute uncertainty for {var_name}. Must be a positive value. Received: {uncertainty}"
+                    )
                 return unp.uarray(data.values, uncertainty)
-            
+
             elif isinstance(uncertainty, pd.Series):
                 # Element-wise uncertainty provided as a Series
                 if not data.index.equals(uncertainty.index):
                     raise ValueError(f"{func_name}: Data series and uncertainty series must have the same index.")
                 return unp.uarray(data.values, uncertainty.values)
-            
+
             else:
-                raise ValueError(f"{func_name}: Invalid uncertainty type for {var_name}. "
-                                f"Must be float, str, or pd.Series. Received: {type(uncertainty)}")
+                raise ValueError(
+                    f"{func_name}: Invalid uncertainty type for {var_name}. "
+                    f"Must be float, str, or pd.Series. Received: {type(uncertainty)}"
+                )
 
         # when data is a scalar value
         elif isinstance(data, (float, int)):
             # Handle scalar input
             if uncertainty is None:
-                return ufloat(data, 0)  # Return ufloat with zero uncertainty
-            
-            elif isinstance(uncertainty, str) and uncertainty.endswith('%'):
+                return uncertainties.ufloat(data, 0)  # Return ufloat with zero uncertainty
+
+            elif isinstance(uncertainty, str) and uncertainty.endswith("%"):
                 # Relative uncertainty provided as a percentage string (e.g., '5%')
-                relative_value = float(uncertainty.strip('%')) / 100.0
-                return ufloat(data, data * relative_value)
-            
+                relative_value = float(uncertainty.strip("%")) / 100.0
+                return uncertainties.ufloat(data, data * relative_value)
+
             elif isinstance(uncertainty, (float, int)) and uncertainty > 0:
                 # Absolute uncertainty
-                return ufloat(data, uncertainty)
-            
+                return uncertainties.ufloat(data, uncertainty)
+
             else:
-                raise ValueError(f"{func_name}: Invalid uncertainty for {var_name}. "
-                                f"Must be a positive float or a percentage string. Received: {uncertainty}")
+                raise ValueError(
+                    f"{func_name}: Invalid uncertainty for {var_name}. "
+                    f"Must be a positive float or a percentage string. Received: {uncertainty}"
+                )
 
         else:
-            raise TypeError(f"{func_name}: Invalid type for data. Must be float, int, or pd.Series. Received: {type(data)}")
-
-
-
-    @staticmethod
-    def calculate_cross_sectional_area( 
-                                        length: float,
-                                        width: float, 
-                                        conversion_factor: float = 1.0,
-                                        length_uncertainty: Optional[Union[float, str]] = None, 
-                                        width_uncertainty: Optional[Union[float, str]] = None
-                                       ) -> CalculationResult:
-        """
-        Calculate the cross-sectional area of a sample given its length and width.
-
-        Preconditions:
-        - `length` and `width` must be positive float values.
-        - `conversion_factor` is optional, and defaults to 1. It is used to convert the area into desired units.
-        - `length_uncertainty` and `width_uncertainty` are optional; if provided, they should be positive floats or 
-            relative uncertainties in string format (e.g., '5%').
-
-        Postconditions:
-        - Returns the cross-sectional area of the sample, adjusted by `conversion_factor`. If uncertainties are provided, 
-        returns a `ufloat` representing the area with its uncertainty.
-        """
-        # Validate inputs
-        ValidationHelper.validate_positive_number(length, "Length", "calculate_cross_sectional_area")
-        ValidationHelper.validate_positive_number(width, "Width", "calculate_cross_sectional_area")
-        ValidationHelper.validate_positive_number(conversion_factor, "Conversion factor", "calculate_cross_sectional_area")
-
-        # Convert to ufloat if uncertainties are provided
-        if length_uncertainty is not None:
-            length = BaseStandardOperator._convert_to_uncertain_values(length, length_uncertainty, "Length", "calculate_cross_sectional_area")
-        if width_uncertainty is not None:
-            width = BaseStandardOperator._convert_to_uncertain_values(width, width_uncertainty, "Width", "calculate_cross_sectional_area")
-
-        # Calculate the cross-sectional area (A = length * width)
-        area = length * width * conversion_factor
-        # Check if the result is a ufloat (Variable)
-        if isinstance(area, Variable):
-            # Return nominal value and standard deviation as uncertainty
-            return CalculationResult(value=area.nominal_value, uncertainty=area.std_dev)
-        
-        # Return the result as a float with zero uncertainty if no ufloat was used
-        return CalculationResult(value=area, uncertainty=0.0)
+            raise TypeError(
+                f"{func_name}: Invalid type for data. Must be float, int, or pd.Series. Received: {type(data)}"
+            )
 
     @staticmethod
     def calculate_volume(
-        area: float, 
-        thickness: float, 
-        area_uncertainty: Optional[Union[float, str]] = None, 
-        thickness_uncertainty: Optional[Union[float, str]] = None
+        area: float,
+        thickness: float,
+        area_uncertainty: Optional[Union[float, str]] = None,
+        thickness_uncertainty: Optional[Union[float, str]] = None,
     ) -> CalculationResult:
         """
         Calculate the volume of a sample given its area and thickness.
@@ -147,7 +167,7 @@ class BaseStandardOperator:
 
         Preconditions:
         - `area` and `thickness` must be positive float values.
-        - `area_uncertainty` and `thickness_uncertainty` are optional; if provided, they should be positive floats or 
+        - `area_uncertainty` and `thickness_uncertainty` are optional; if provided, they should be positive floats or
         relative uncertainties in string format (e.g., '5%').
 
         Postconditions:
@@ -162,12 +182,14 @@ class BaseStandardOperator:
         if area_uncertainty is not None:
             area = BaseStandardOperator._convert_to_uncertain_values(area, area_uncertainty, "Area", "calculate_volume")
         if thickness_uncertainty is not None:
-            thickness = BaseStandardOperator._convert_to_uncertain_values(thickness, thickness_uncertainty, "Thickness", "calculate_volume")
+            thickness = BaseStandardOperator._convert_to_uncertain_values(
+                thickness, thickness_uncertainty, "Thickness", "calculate_volume"
+            )
 
         # Calculate the volume (V = area * thickness)
         volume = area * thickness
-        
-        if isinstance(volume, Variable):
+
+        if isinstance(volume, uncertainties.UFloat):
             return CalculationResult(value=volume.nominal_value, uncertainty=volume.std_dev)
         
         return CalculationResult(value=volume, uncertainty=0.0)
@@ -211,7 +233,7 @@ class BaseStandardOperator:
         # Calculate the volume (V = length * width * thickness)
         volume = length * width * thickness
 
-        if isinstance(volume, Variable):
+        if isinstance(volume, uncertainties.UFloat):
             return CalculationResult(value=volume.nominal_value, uncertainty=volume.std_dev)
         
         return CalculationResult(value=volume, uncertainty=0.0)
@@ -252,7 +274,7 @@ class BaseStandardOperator:
         # Calculate the density (density = mass / volume)
         density = (mass / volume) * conversion_factor
 
-        if isinstance(density, Variable):
+        if isinstance(density, uncertainties.UFloat):
             return CalculationResult(value=density.nominal_value, uncertainty=density.std_dev)
         
         return CalculationResult(value=density, uncertainty=0.0)
@@ -283,7 +305,7 @@ class BaseStandardOperator:
         # Preconditions: Validate inputs
         ValidationHelper.validate_type(force_series, pd.Series, "force_series", "calculate_stress")
         if force_series.empty:
-            raise ValueError("force_series must not be empty.")
+            raise ValueError("force_series must not be empty. Force Series must contain at least one force value.")
         ValidationHelper.validate_positive_number(area, "Area", "calculate_stress")
         ValidationHelper.validate_positive_number(conversion_factor, "Conversion Factor", "calculate_stress")
         
@@ -294,8 +316,8 @@ class BaseStandardOperator:
             
         # Calculate stress (stress = force / area)
         stress_series = (force_series / area) * conversion_factor
-            
-        if isinstance(stress_series, np.ndarray) or isinstance(stress_series.iloc[0], Variable):
+
+        if isinstance(stress_series, np.ndarray) or isinstance(stress_series.iloc[0], uncertainties.UFloat):
             stress_values = pd.Series(unp.nominal_values(stress_series), name="stress")
             stress_uncertainties = pd.Series(unp.std_devs(stress_series), name="stress uncertainty")
         else:
@@ -307,7 +329,7 @@ class BaseStandardOperator:
         if inversion_check and stress_values.mean() < 0:
             # If the mean stress is negative, assume it's a compression test and invert the values
             stress_values *= -1
-            
+
         return CalculationResult(value=stress_values, uncertainty=stress_uncertainties)
 
     @staticmethod
@@ -334,23 +356,27 @@ class BaseStandardOperator:
         """
         # Preconditions: Validate inputs
         ValidationHelper.validate_type(displacement_series, pd.Series, "displacement_series", "calculate_strain")
-        
+
         if displacement_series.empty:
             raise ValueError("displacement_series must not be empty.")
-        
+
         ValidationHelper.validate_positive_number(initial_length, "Initial Length", "calculate_strain")
         ValidationHelper.validate_positive_number(conversion_factor, "Conversion Factor", "calculate_strain")
-        
+
         if displacement_uncertainty is not None:
-            displacement_series = BaseStandardOperator._convert_to_uncertain_values(displacement_series, displacement_uncertainty, "Displacement", "calculate_strain")
-            
+            displacement_series = BaseStandardOperator._convert_to_uncertain_values(
+                displacement_series, displacement_uncertainty, "Displacement", "calculate_strain"
+            )
+
         if length_uncertainty is not None:
-            initial_length = BaseStandardOperator._convert_to_uncertain_values(initial_length, length_uncertainty, "Initial Length", "calculate_strain")
+            initial_length = BaseStandardOperator._convert_to_uncertain_values(
+                initial_length, length_uncertainty, "Initial Length", "calculate_strain"
+            )
 
         # Calculate strain (strain = displacement / initial length)
         strain_series = (displacement_series / initial_length) * conversion_factor
-        
-        if isinstance(strain_series, np.ndarray) or isinstance(strain_series.iloc[0], Variable):
+
+        if isinstance(strain_series, np.ndarray) or isinstance(strain_series.iloc[0], uncertainties.UFloat):
             strain_values = pd.Series(unp.nominal_values(strain_series), name="strain")
             strain_uncertainties = pd.Series(unp.std_devs(strain_series), name="strain uncertainty")
         else:
@@ -938,7 +964,7 @@ class BaseStandardOperator:
             )
 
         # Handle uncertainty extraction if ufloat objects are present
-        if isinstance(derivative_values[0], Variable):
+        if isinstance(derivative_values[0], uncertainties.UFloat):
             nominal_derivative = unp.nominal_values(derivative_values)  # Renamed from `derivative_nominal`
             derivative_uncertainties = unp.std_devs(derivative_values)
         else:
@@ -1042,7 +1068,7 @@ class BaseStandardOperator:
         )
 
         # Handle uncertainty extraction if ufloat objects are present
-        if isinstance(integral_value, Variable):
+        if isinstance(integral_value, uncertainties.UFloat):
             nominal_integral = integral_value.nominal_value
             integral_uncertainty = integral_value.std_dev
         else:
