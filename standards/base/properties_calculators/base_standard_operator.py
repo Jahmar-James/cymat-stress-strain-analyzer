@@ -684,29 +684,187 @@ class BaseStandardOperator:
         raise NotImplementedError("Method not implemented yet.")
 
     @staticmethod
-    def intersection_finder():
-        from shapely.geometry import LineString, MultiPoint, Point
+    def find_intersections(
+        series1: Union[pd.Series, tuple[np.ndarray, np.ndarray]],
+        series2: Union[pd.Series, tuple[np.ndarray, np.ndarray]],
+        method: str = "linear_interpolation",
+        tolerance: Optional[float] = None,
+        range: Optional[tuple[float, float]] = None,
+        finding_func: Optional[callable] = None,
+        first_only: bool = False,
+    ) -> list:
+        """
+        Find the intersection points between two series or arrays.
 
-        raise NotImplementedError("Method not implemented yet.")
+        Preconditions:
+        - `series1` and `series2` must be pandas Series or tuples of numpy arrays.
+        - If tuples are provided, they must contain two arrays representing x and y values.
+
+        Parameters:
+        - `series1`: The first pandas Series or tuple of numpy arrays.
+        - `series2`: The second pandas Series or tuple of numpy arrays.
+        - `method`: The method used to find the intersection points. Can be "linear_interpolation" or "numpy".
+        - `tolerance`: (Optional) The tolerance value for intersection detection.
+        - `range`: (Optional) The range of x-values to consider for intersection detection.
+
+        This method provides two options for finding intersections:
+        1. 'linear_interpolation' (default): Uses fast approximate intersection detection with numpy.
+        2. 'exact': Uses precise geometric intersection detection with the Shapely library.
+        3. Custom function: Allows using a custom function for intersection detection.
+
+        Choose the method based on the following criteria:
+        - Use 'linear_interpolation' when the two series share the same x-values, and you need fast performance.
+          This method finds approximate intersections using linear interpolation, which is sufficient for many practical applications.
+        - Use 'exact' when the two series have different x-values or when precise geometric intersections are required.
+          This method is slower but provides accurate intersection points using geometric operations.
+
+        Returns:
+        - A list of intersection points as tuples (x, y).
+        """
+
+        # Validate the input series and convert them to numpy arrays
+        ValidationHelper.validate_type(series1, (pd.Series, tuple), "series1", "find_intersections")
+        ValidationHelper.validate_type(series2, (pd.Series, tuple), "series2", "find_intersections")
+
+        # Convert series1 and series2 to numpy arrays using the helper function
+        x1, y1 = BaseStandardOperator._convert_series_to_arrays(series1)
+        x2, y2 = BaseStandardOperator._convert_series_to_arrays(series2)
+
+        # Apply range restrictions using the helper function
+        x1, y1 = BaseStandardOperator._apply_range_mask(x1, y1, range)
+        x2, y2 = BaseStandardOperator._apply_range_mask(x2, y2, range)
+
+        if finding_func is not None and callable(finding_func):
+            try:
+                return finding_func(x1, y1, x2, y2)
+            except Exception as e:
+                raise ValueError(f"Error occurred while using the custom finding function: {e}")
+
+        # Select the appropriate intersection method
+        if method == "linear_interpolation":
+            return BaseStandardOperator._find_intersections_numpy(x1, y1, x2, y2, tolerance, first_only)
+        elif method == "exact":
+            return BaseStandardOperator._find_intersections_shapely(x1, y1, x2, y2, first_only)
+        else:
+            raise ValueError(f"Unknown method: {method}. Supported methods are 'linear_interpolation' and 'exact'.")
 
     @staticmethod
-    def numerical_integration():
-        raise NotImplementedError("Method not implemented yet.")
+    def _convert_series_to_arrays(
+        series: Union[pd.Series, tuple[np.ndarray, np.ndarray]],
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Convert a pandas Series or a tuple of (x, y) values into separate x and y numpy arrays.
+        """
+        if isinstance(series, pd.Series):
+            x = series.index.values
+            y = series.values
+        else:
+            x, y = series
+        return x, y
 
     @staticmethod
-    def calculate_area_in_region(
-        stress_series: pd.Series, strain_series: pd.Series, start_strain: float, end_strain: float
-    ) -> float:
+    def _apply_range_mask(
+        x: np.ndarray, y: np.ndarray, range: Optional[tuple[float, float]]
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
-        Calculate the area under the curve (energy) within a user-specified strain region.
+        Apply a range mask to limit the data to a specified range of x values.
         """
-        mask = (strain_series >= start_strain) & (strain_series <= end_strain)
-        region_stress = stress_series[mask]
-        region_strain = strain_series[mask]
+        if range is not None:
+            start, end = range
+            mask = (x >= start) & (x <= end)
+            return x[mask], y[mask]
+        return x, y
 
-        # Use trapezoidal integration to calculate the area
-        area = np.trapz(region_stress, region_strain)
-        raise NotImplementedError("Method not implemented yet. Add integration methods.")
+    @staticmethod
+    def _find_intersections_numpy(
+        x1: np.ndarray,
+        y1: np.ndarray,
+        x2: np.ndarray,
+        y2: np.ndarray,
+        tolerance: Optional[float] = 1e-6,
+        first_only: bool = False,
+    ) -> list:
+        """
+        Find approximate intersections using numpy for fast performance.
+
+        This method finds intersections by detecting sign changes in the difference between
+        the two curves (y1 - y2) over a common set of x-values (x1). It assumes that both
+        curves are defined over the same set of x-values.
+
+        - The difference `y_diff = y1 - y2` is calculated at each point on the common x-axis.
+        - Sign changes in `y_diff` indicate potential intersections.
+        - For each sign change, the x-coordinate of the intersection is calculated using linear interpolation.
+        - The y-coordinate is approximated as the midpoint between the two y-values at the intersection.
+
+        **Complexity**:
+        - Time: O(n), where n is the number of data points.
+        - Space: O(n).
+
+        **Use Case**:
+        - Best suited for cases where both series share the same x-values and fast,
+          approximate intersection detection is sufficient.
+
+        Returns:
+        - A list of approximate intersection points as tuples (x, y).
+        """
+        y_diff = y1 - y2
+        sign_changes = np.where(np.diff(np.sign(y_diff)))[0]
+        intersections = []
+        for idx in sign_changes:
+            x_intersect = (x1[idx] * y_diff[idx + 1] - x1[idx + 1] * y_diff[idx]) / (y_diff[idx + 1] - y_diff[idx])
+            y_intersect = (y1[idx] + y1[idx + 1]) / 2
+
+            if tolerance is None or abs(y_diff[idx]) <= tolerance:
+                intersections.append((x_intersect, y_intersect))
+                if first_only:
+                    break  # Return only the first intersection found
+        return intersections
+
+    @staticmethod
+    def _find_intersections_shapely(
+        x1: np.ndarray, y1: np.ndarray, x2: np.ndarray, y2: np.ndarray, first_only: bool = False
+    ) -> list:
+        """
+        Find exact intersections using Shapely for precise geometric operations.
+
+        This method constructs geometric LineString objects from the two curves and uses Shapely's
+        intersection functionality to find precise geometric intersection points.
+
+        - LineString objects are created from the (x, y) coordinates of each curve.
+        - Shapely's `intersection` method is used to find all intersection points.
+        - The method supports single points, multiple points, and collections of geometries.
+
+        **Complexity**:
+        - Time: O(n * log(n)), where n is the number of data points (depends on the geometric complexity).
+        - Space: O(n).
+
+        **Use Case**:
+        - Best suited for cases where the two series have different x-values or when precise
+          geometric intersections are required, such as for complex curves or geometries.
+
+         Returns:
+            A list of exact intersection points as tuples (x, y).
+        """
+        from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPoint, Point
+
+        line1 = LineString(np.column_stack((x1, y1)))
+        line2 = LineString(np.column_stack((x2, y2)))
+        intersection = line1.intersection(line2)
+        intersections = []
+
+        if isinstance(intersection, Point):
+            intersections.append((intersection.x, intersection.y))
+        elif isinstance(intersection, MultiPoint):
+            for point in intersection.geoms:
+                intersections.append((point.x, point.y))
+        elif isinstance(intersection, MultiLineString) or isinstance(intersection, GeometryCollection):
+            for geom in intersection.geoms:
+                if isinstance(geom, Point):
+                    intersections.append((geom.x, geom.y))
+                elif isinstance(geom, LineString):
+                    intersections.extend([(pt.x, pt.y) for pt in geom.coords])
+
+        return intersections
 
     @staticmethod
     def calculate_derivative(
@@ -740,6 +898,7 @@ class BaseStandardOperator:
         ValidationHelper.validate_positive_number(order, "Order", "calculate_derivative")
         ValidationHelper.validate_type(data_series, pd.Series, "data_series", "calculate_derivative")
         data_series = data_series.copy()
+
         if independent_variable is not None:
             ValidationHelper.validate_type(
                 independent_variable, pd.Series, "independent_variable", "calculate_derivative"
@@ -866,12 +1025,9 @@ class BaseStandardOperator:
         else:
             independent_values = data_series.index.values
 
-        # Apply integration range if provided
+        # Apply range restrictions using the helper function
         if integration_range is not None:
-            start, end = integration_range
-            mask = (independent_values >= start) & (independent_values <= end)
-            data_series = data_series[mask]
-            independent_values = independent_values[mask]
+            independent_values = BaseStandardOperator._apply_range_mask(independent_values, integration_range)
 
         # Extract data values and handle uncertainty conversion if applicable
         data_values = data_series.values
