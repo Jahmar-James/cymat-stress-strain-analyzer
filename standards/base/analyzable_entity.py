@@ -89,7 +89,7 @@ class AnalyzableEntity(ABC):
         self.internal_units : dict[str, pint.Unit] = MechanicalTestDataPreprocessor.EXPECTED_UNITS.copy()
         self.target_units : dict[str, pint.Unit] = {}
         # To store the uncertainty for each property
-        self.uncertainty: dict[str, float] = {}
+        self.uncertainty: dict[str, Union[float, str]] = {}
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"

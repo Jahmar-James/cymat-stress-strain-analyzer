@@ -4,6 +4,7 @@ from warnings import warn
 
 import numpy as np
 import pandas as pd
+import scipy as sp
 from scipy.interpolate import CubicSpline, PchipInterpolator, interp1d
 from uncertainties import Variable, ufloat
 from uncertainties import unumpy as unp
@@ -214,8 +215,6 @@ class BaseStandardOperator:
             return CalculationResult(value=volume.nominal_value, uncertainty=volume.std_dev)
         
         return CalculationResult(value=volume, uncertainty=0.0)
-        
-
 
     @staticmethod
     def calculate_density(
@@ -710,12 +709,214 @@ class BaseStandardOperator:
         raise NotImplementedError("Method not implemented yet. Add integration methods.")
 
     @staticmethod
-    def calculate_first_derivative() -> pd.Series:
-        raise NotImplementedError("Method not implemented yet.")
+    def calculate_derivative(
+        data_series: pd.Series,
+        independent_variable: Optional[pd.Series] = None,
+        step_size: Optional[Union[float, np.ndarray]] = None,
+        method: Union[str, callable] = "central",
+        order: int = 1,
+        uncertainty: Optional[Union[float, str, pd.Series]] = None,
+        use_optimal_step: bool = True,
+        **kwargs,
+    ) -> CalculationResult:
+        """
+        Calculate the first derivative of a data series using finite differences with optional uncertainty handling.
+
+        Preconditions:
+        - `data_series` must be a pandas Series of numeric values.
+        - `independent_variable` is optional and must be a pandas Series with the independent variable values.
+        - `step_size` is optional and can be a float or an array of step sizes.
+        - `method` can be a string ('central', 'forward', 'backward') or a callable function.
+        - `order` specifies the order of the derivative (1 for first derivative, 2 for second derivative, etc.).
+        - `uncertainty` is optional and can be a float, a string (percentage), or a pandas Series with uncertainties.
+        - `use_optimal_step` is optional and defaults to True. If True, the optimal step size will be calculated.
+
+        Postconditions:
+        - Returns a CalculationResult namedtuple with the derivative values and uncertainties (if provided).
+        - Drops NaN values and keeps the same index as the input data series.
+        """
+
+        # Validate and prepare data and independent series
+        ValidationHelper.validate_positive_number(order, "Order", "calculate_derivative")
+        ValidationHelper.validate_type(data_series, pd.Series, "data_series", "calculate_derivative")
+        data_series = data_series.copy()
+        if independent_variable is not None:
+            ValidationHelper.validate_type(
+                independent_variable, pd.Series, "independent_variable", "calculate_derivative"
+            )
+            independent_variable = independent_variable.copy()
+            if not data_series.index.equals(independent_variable.index):
+                raise ValueError("Data series and independent variable must have the same index.")
+            independent_values = independent_variable.values
+        else:
+            independent_values = data_series.index.values
+
+        name = data_series.name if independent_variable is None else f"{data_series.name}-{independent_variable.name}"
+
+        # Calculate the optimal step size if needed
+        if use_optimal_step and step_size is None:
+            step_size = np.gradient(independent_values)  # Use numpy's gradient to determine step sizes
+        elif step_size is None:
+            step_size = np.diff(independent_values)
+            step_size = np.concatenate(([step_size[0]], step_size))  # Ensure length matches independent_values
+
+        # If step_size is a single float, repeat it to match data length
+        if isinstance(step_size, (float, int)):
+            step_size = np.full(len(data_series), step_size)
+
+        # Convert data_series to numpy array and handle uncertainty conversion if applicable
+        data_values = data_series.values
+        if uncertainty is not None:
+            data_values = BaseStandardOperator._convert_to_uncertain_values(
+                data_values, uncertainty, data_series.name, "calculate_derivative"
+            )
+
+        # Calculate the derivative of the specified order
+        derivative_values = data_values
+        for _ in range(order):
+            derivative_values = BaseStandardOperator._apply_differentiation_method(
+                derivative_values, step_size, method, **kwargs
+            )
+
+        # Handle uncertainty extraction if ufloat objects are present
+        if isinstance(derivative_values[0], Variable):
+            nominal_derivative = unp.nominal_values(derivative_values)  # Renamed from `derivative_nominal`
+            derivative_uncertainties = unp.std_devs(derivative_values)
+        else:
+            nominal_derivative = derivative_values
+            derivative_uncertainties = np.zeros_like(derivative_values)
+
+        # Create output series with proper index alignment
+        derivative_series = pd.Series(nominal_derivative, index=data_series.index, name=f"{name}_derivative")
+        derivative_uncertainty_series = pd.Series(
+            derivative_uncertainties, index=data_series.index, name=f"{name}_derivative_uncertainty"
+        )
+
+        # Drop NaN values while preserving index alignment
+        derivative_series = derivative_series.dropna()
+        derivative_uncertainty_series = derivative_uncertainty_series.dropna()
+
+        return CalculationResult(derivative_series, derivative_uncertainty_series)
 
     @staticmethod
-    def calculate_second_derivative() -> pd.Series:
-        raise NotImplementedError("Method not implemented yet.")
+    def _apply_differentiation_method(
+        data: np.ndarray, step_size: np.ndarray, method: Union[str, callable], **kwargs
+    ) -> np.ndarray:
+        """
+        Apply the chosen differentiation method to the data array.
+        """
+        if isinstance(method, str):
+            if method == "central":
+                return np.gradient(data, step_size, **kwargs)
+            elif method == "forward":
+                derivative_values = (np.diff(data) / step_size[:-1]).tolist()
+                derivative_values.append(derivative_values[-1])  # Repeat last value for alignment
+                return np.array(derivative_values)
+            elif method == "backward":
+                derivative_values = (np.diff(data) / step_size[:-1]).tolist()
+                derivative_values.insert(0, derivative_values[0])  # Repeat first value for alignment
+                return np.array(derivative_values)
+            else:
+                raise ValueError(
+                    f"Unknown differentiation method: {method}. Choose 'central', 'forward', or 'backward'."
+                )
+        elif callable(method):
+            try:
+                return method(data, step_size, **kwargs)
+            except Exception as e:
+                raise ValueError(f"Error occurred while applying custom differentiation method: {e}")
+        else:
+            raise ValueError(f"Invalid method type: {type(method)}. Must be a string or callable function.")
+
+    @staticmethod
+    def calculate_integral(
+        data_series: pd.Series,
+        independent_variable: Optional[pd.Series] = None,
+        method: Union[str, callable] = "trapezoidal",
+        integration_range: Optional[tuple] = None,
+        uncertainty: Optional[Union[float, str, pd.Series]] = None,
+        **kwargs,
+    ) -> CalculationResult:
+        """
+        Calculate the numerical integral of a data series over a specified range using various integration methods.
+
+        Preconditions:
+        - `data_series` must be a pandas Series of numeric values.
+        - `independent_variable` is optional and must be a pandas Series with the independent variable values.
+        - `method` can be a string ('trapezoidal', 'simpson') or a callable function for custom integration.
+        - `integration_range` is optional and defines the range within the independent variable to perform integration.
+        - `uncertainty` is optional and can be a float, a string (percentage), or a pandas Series with uncertainties.
+
+        Postconditions:
+        - Returns a CalculationResult namedtuple with the integrated value and uncertainties (if provided).
+        - If integration_range is provided, integrates only over the specified range.
+        """
+
+        # Validate and prepare data and independent series
+        ValidationHelper.validate_type(data_series, pd.Series, "data_series", "calculate_integral")
+        data_series = data_series.copy()
+        if independent_variable is not None:
+            ValidationHelper.validate_type(
+                independent_variable, pd.Series, "independent_variable", "calculate_integral"
+            )
+            independent_variable = independent_variable.copy()
+            if not data_series.index.equals(independent_variable.index):
+                raise ValueError("Data series and independent variable must have the same index.")
+            independent_values = independent_variable.values
+        else:
+            independent_values = data_series.index.values
+
+        # Apply integration range if provided
+        if integration_range is not None:
+            start, end = integration_range
+            mask = (independent_values >= start) & (independent_values <= end)
+            data_series = data_series[mask]
+            independent_values = independent_values[mask]
+
+        # Extract data values and handle uncertainty conversion if applicable
+        data_values = data_series.values
+        if uncertainty is not None:
+            data_values = BaseStandardOperator._convert_to_uncertain_values(
+                data_values, uncertainty, data_series.name, "calculate_integral"
+            )
+
+        # Calculate the integral using the specified method
+        integral_value = BaseStandardOperator._apply_integration_method(
+            data_values, independent_values, method, **kwargs
+        )
+
+        # Handle uncertainty extraction if ufloat objects are present
+        if isinstance(integral_value, Variable):
+            nominal_integral = integral_value.nominal_value
+            integral_uncertainty = integral_value.std_dev
+        else:
+            nominal_integral = integral_value
+            integral_uncertainty = 0.0
+
+        # Return Value should be a scalar, not an array
+        return CalculationResult(nominal_integral, integral_uncertainty)
+
+    @staticmethod
+    def _apply_integration_method(
+        data: np.ndarray, independent_variable: np.ndarray, method: Union[str, callable], **kwargs
+    ) -> float:
+        """
+        Apply the chosen integration method to the data array.
+        """
+        if isinstance(method, str):
+            if method == "trapezoidal":
+                return np.trapz(data, independent_variable, **kwargs)
+            elif method == "simpson":
+                return sp.integrate.simps(data, independent_variable, **kwargs)
+            else:
+                raise ValueError(f"Unknown integration method: {method}. Choose 'trapezoidal' or 'simpson'.")
+        elif callable(method):
+            try:
+                return method(data, independent_variable, **kwargs)
+            except Exception as e:
+                raise ValueError(f"Error occurred while applying custom integration method: {e}")
+        else:
+            raise ValueError(f"Invalid method type: {type(method)}. Must be a string or callable function.")
 
 
 if __name__ == "__main__":
