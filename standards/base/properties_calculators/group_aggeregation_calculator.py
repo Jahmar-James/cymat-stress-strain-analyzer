@@ -31,10 +31,8 @@ class GroupAggregationOperator:
         """
         # Validate inputs
         ValidationHelper.validate_non_empty_list(values, "aggregate_scalar_properties")
-        if not all(isinstance(v, (float, int)) for v in values):
-            raise TypeError("All elements in `values` must be floats or integers.")
-        if not isinstance(method, (str, callable)):
-            raise TypeError("Aggregation method must be a string or a callable function.")
+        ValidationHelper.validate_types_in_list(values, (float, int), "aggregate_scalar_properties")
+        ValidationHelper.validate_type(method, (str, callable), "aggregate_scalar_properties")
 
         values_np = np.array(values)
 
@@ -73,8 +71,8 @@ class GroupAggregationOperator:
         """
         # Validate inputs
         ValidationHelper.validate_series_list(series_list, "aggregate_series")
-        if not isinstance(method, (str, callable)):
-            raise TypeError("Aggregation method must be a string or a callable function.")
+        ValidationHelper.validate_type(method, (str, callable), "aggregate_series")
+   
 
         # Apply aggregation method
         if method == "mean":
