@@ -250,6 +250,6 @@ def test_accessing_strain_without_length(analyzable_entity_with_default_units):
     # Remove length
     analyzable_entity_with_default_units.length = None
 
-    # Expected error: Cannot calculate strain for entity 'Sample 1': Initial length must be a positive float or int.
-    with pytest.raises(ValueError, match=r".*Initial length must be a positive float or int.*"):
+    # Expected error: Cannot calculate strain for entity 'Sample 1': Initial Length must be a positive float or int in function [calculate_strain]. Received: None
+    with pytest.raises(ValueError, match=r".*Initial Length must be a positive float or int.*"):
         _ = analyzable_entity_with_default_units.strain

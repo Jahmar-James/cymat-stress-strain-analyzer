@@ -51,36 +51,45 @@ class AnalyzableEntity(ABC):
                  property_calculator: Optional[BaseStandardOperator] = None,
                  plot_manager: Optional[PlotManager] = None
                  ):
-        
+        # Typical required properties for a sample
+        # _ prefix indicates that the property is cached and can be converted to different units
         self.name = name
         self.length = length 
         self.width = width
         self.thickness = thickness
         self.mass = mass
-        
+        # Create Empty Series if None to ensure data aligns for dataframe eg. raw_data which is used for export
+        self._force = force if force is not None else pd.Series(dtype="float64")
+        self._displacement = displacement if displacement is not None else pd.Series(dtype="float64")
+
+        # Optional properties that can be calculated from the required properties
         self._area = area
         self._volume = volume
         self._density = density
-        self._force = force if force is not None else pd.Series(dtype="float64")
-        self._displacement = displacement if displacement is not None else pd.Series(dtype="float64")
         self._stress = stress if stress is not None else pd.Series(dtype="float64")
         self._strain = strain if strain is not None else pd.Series(dtype="float64")
 
-        # Add a method to update raw data names with units and for exporting
+        # TODO: Add a method to update raw data names with units and for exporting
         # dataframe columns will always be lowercase to ensure consistency
         self._raw_data = pd.DataFrame(
             {"force": self._force, "displacement": self._displacement, "stress": self._stress, "strain": self._strain}
         )
-        
+
+        # Attributes for determining the type of entity
         self.is_sample_group: bool = False
-        self.samples: list[AnalyzableEntity] = []
         self.analysis_standard: Optional["MechanicalTestStandards"] = None
-        
+        self.samples: list[AnalyzableEntity] = []
+
+        # Dependency inversion class helpers
         self.plot_manager = plot_manager or PlotManager()
         self.property_calculator = property_calculator or BaseStandardOperator()
         self.data_preprocessor = MechanicalTestDataPreprocessor()
+
+        # To store and convert the units for each property
         self.internal_units : dict[str, pint.Unit] = MechanicalTestDataPreprocessor.EXPECTED_UNITS.copy()
         self.target_units : dict[str, pint.Unit] = {}
+        # To store the uncertainty for each property
+        self.uncertainty: dict[str, float] = {}
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
@@ -172,7 +181,12 @@ class AnalyzableEntity(ABC):
 
             # Calculate area
             try:
-                self._area = self.property_calculator.calculate_cross_sectional_area(self.length, width_converted)
+                self._area, area_uncertainty = self.property_calculator.calculate_cross_sectional_area(
+                    self.length, width_converted
+                )
+                if area_uncertainty and area_uncertainty > 0:
+                    # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
+                    self.uncertainty.setdefault("area", area_uncertainty)
             except ValueError as e:
                 raise ValueError(f"Cannnot calculate area for entity '{self.name}': {str(e)}")
 
@@ -191,10 +205,16 @@ class AnalyzableEntity(ABC):
             )
 
             # Calculate volume
-            self._volume = self.property_calculator.calculate_volume(area=self.area, thickness=thickness_converted)
+            self._volume, volumne_uncertainty = self.property_calculator.calculate_volume(
+                area=self.area, thickness=thickness_converted
+            )
 
             # Set internal unit for volume if not already set
             self.internal_units.setdefault("volume", self.internal_units["area"] * self.internal_units["length"])
+
+            if volumne_uncertainty and volumne_uncertainty > 0:
+                # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
+                self.uncertainty.setdefault("volume", volumne_uncertainty)
 
         elif self.length is not None and self.width is not None and self.thickness is not None:
             # Convert width and thickness to the same unit as length
@@ -204,11 +224,15 @@ class AnalyzableEntity(ABC):
                 self.thickness, current_unit_key="thickness", target_unit_key="length"
             )
             # Calculate volume directly
-            self._volume = self.property_calculator.calculate_volume_direct(
+            self._volume, volumne_uncertainty = self.property_calculator.calculate_volume_direct(
                 length=self.length, width=width_converted, thickness=thickness_converted
             )
             # Set internal unit for volume if not already set
             self.internal_units.setdefault("volume", self.internal_units["length"] ** 3)
+
+            if volumne_uncertainty and volumne_uncertainty > 0:
+                # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
+                self.uncertainty.setdefault("volume", volumne_uncertainty)
         else:
             raise ValueError("Insufficient data to calculate volume.")
 
@@ -220,7 +244,12 @@ class AnalyzableEntity(ABC):
         if self._density is None and self.mass is not None:
             # Calculate density
             try:
-                self._density = self.property_calculator.calculate_density(mass=self.mass, volume=self.volume)
+                self._density, density_uncertainty = self.property_calculator.calculate_density(
+                    mass=self.mass, volume=self.volume
+                )
+                if density_uncertainty and density_uncertainty > 0:
+                    # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
+                    self.uncertainty.setdefault("density", density_uncertainty)
             except ValueError as e:
                 raise ValueError(f"Cannot calculate density for entity '{self.name}': {str(e)}")
 
@@ -248,9 +277,16 @@ class AnalyzableEntity(ABC):
         if self._strain is None or (isinstance(self._strain, pd.Series) and self._strain.empty):
             # Calculate strain using the property calculator
             try:
-                self._strain = self.property_calculator.calculate_strain(
+                self._strain, strain_uncertainty = self.property_calculator.calculate_strain(
                     displacement_series=self.displacement, initial_length=self.length
                 )
+
+                # Store the uncertainty if meaningfully (1) pd.Series with a value > 0 (absolute value) or (2) str ending with % (relative value)
+                if (isinstance(strain_uncertainty, pd.Series) and any(strain_uncertainty > 0)) or (
+                    isinstance(strain_uncertainty, str) and strain_uncertainty.endswith("%")
+                ):
+                    # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
+                    self.uncertainty.setdefault("strain", strain_uncertainty)
             except ValueError as e:
                 raise ValueError(f"Cannot calculate strain for entity '{self.name}': {str(e)}")
 
@@ -269,7 +305,16 @@ class AnalyzableEntity(ABC):
         if self._stress is None or (isinstance(self._stress, pd.Series) and self._stress.empty):
             # Calculate stress using the property calculator
             try:
-                self._stress = self.property_calculator.calculate_stress(force_series=self.force, area=self.area)
+                self._stress, stress_uncertainty = self.property_calculator.calculate_stress(
+                    force_series=self.force, area=self.area
+                )
+
+                # Store the uncertainty meaningfully (1) pd.Series with a value > 0 (absolute value) or (2) str ending with % (relative value)
+                if (isinstance(stress_uncertainty, pd.Series) and any(stress_uncertainty > 0)) or (
+                    isinstance(stress_uncertainty, str) and stress_uncertainty.endswith("%")
+                ):
+                    # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
+                    self.uncertainty.setdefault("stress", stress_uncertainty)
             except ValueError as e:
                 raise ValueError(f"Cannot calculate stress for entity '{self.name}': {str(e)}")
 

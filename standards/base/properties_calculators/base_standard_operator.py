@@ -1,18 +1,18 @@
+from collections import namedtuple
 from typing import Optional, Union
 from warnings import warn
 
 import numpy as np
 import pandas as pd
 from scipy.interpolate import CubicSpline, PchipInterpolator, interp1d
-
-from uncertainties import ufloat, Variable
+from uncertainties import Variable, ufloat
 from uncertainties import unumpy as unp
-from collections import namedtuple
 
 # Define a namedtuple for consistent return format
 CalculationResult = namedtuple("CalculationResult", ["value", "uncertainty"])
 
 from .calculation_validation_helper import ValidationHelper
+
 
 # SamplePropertyCalculator
 class BaseStandardOperator:
@@ -297,17 +297,17 @@ class BaseStandardOperator:
         stress_series = (force_series / area) * conversion_factor
             
         if isinstance(stress_series, np.ndarray) or isinstance(stress_series.iloc[0], Variable):
-            stress_values = pd.Series(unp.nominal_values(stress_series), name="Stress")
-            stress_uncertainties = pd.Series(unp.std_devs(stress_series), name="Stress Uncertainty")
+            stress_values = pd.Series(unp.nominal_values(stress_series), name="stress")
+            stress_uncertainties = pd.Series(unp.std_devs(stress_series), name="stress uncertainty")
         else:
-            stress_values = stress_series
+            stress_values = stress_series.rename("stress")
             # Assume zero uncertainty, use int for smaller memory footprint
-            stress_uncertainties = pd.Series(0, name="Stress Uncertainty", dtype=int) 
-            
+            stress_uncertainties = pd.Series(0, name="stress uncertainty", dtype=int)
+
         # Optionally, invert stress values for correct plotting (tensile vs compression)
-        if inversion_check and stress_series.mean() < 0:
+        if inversion_check and stress_values.mean() < 0:
             # If the mean stress is negative, assume it's a compression test and invert the values
-            stress_series *= -1
+            stress_values *= -1
             
         return CalculationResult(value=stress_values, uncertainty=stress_uncertainties)
 
@@ -352,17 +352,17 @@ class BaseStandardOperator:
         strain_series = (displacement_series / initial_length) * conversion_factor
         
         if isinstance(strain_series, np.ndarray) or isinstance(strain_series.iloc[0], Variable):
-            strain_values = pd.Series(unp.nominal_values(strain_series), name="Strain")
-            strain_uncertainties = pd.Series(unp.std_devs(strain_series), name="Strain Uncertainty")
+            strain_values = pd.Series(unp.nominal_values(strain_series), name="strain")
+            strain_uncertainties = pd.Series(unp.std_devs(strain_series), name="strain uncertainty")
         else:
-            strain_values = strain_series
+            strain_values = strain_series.rename("strain")
             # Assume zero uncertainty, use int for smaller memory footprint
-            strain_uncertainties = pd.Series(0, name="Strain Uncertainty", dtype=int)
+            strain_uncertainties = pd.Series(0, name="strain uncertainty", dtype=int)
 
         # Optionally, invert strain values for correct plotting (tensile vs compression)
-        if inversion_check and strain_series.mean() < 0:
+        if inversion_check and strain_values.mean() < 0:
             # If the mean strain is negative, assume it's a compression test and invert the values
-            strain_series *= -1
+            strain_values *= -1
 
         return CalculationResult(value=strain_values, uncertainty=strain_uncertainties)
 

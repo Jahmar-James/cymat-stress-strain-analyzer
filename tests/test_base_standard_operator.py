@@ -28,43 +28,48 @@ def mixed_data() -> pd.Series:
 # Test 1: Basic functionality
 def test_calculate_stress_basic(typical_data):
     """Test stress calculation for typical values."""
-    result = BaseStandardOperator.calculate_stress(typical_data, area=10.0)
+    result, uncertainty = BaseStandardOperator.calculate_stress(typical_data, area=10.0)
     expected = pd.Series(
-        [10.0, 15.0, 20.0], name="force"
+        [10.0, 15.0, 20.0], name="stress"
     )  # Expected stress = force / area  - will be a float because of area
     pd.testing.assert_series_equal(result, expected)
+    # Uncertainty should be 0 as no uncertainty is provided
+    pd.testing.assert_series_equal(uncertainty, pd.Series([0.0], name="stress uncertainty", dtype=int))
 
 
 # Test 2: With conversion factor
 def test_calculate_stress_with_conversion(typical_data):
     """Test stress calculation with a conversion factor."""
-    result = BaseStandardOperator.calculate_stress(typical_data, area=10.0, conversion_factor=2.0)
-    expected = pd.Series([20.0, 30.0, 40.0], name="force")  # Expected stress with conversion factor
+    result, uncertainty = BaseStandardOperator.calculate_stress(typical_data, area=10.0, conversion_factor=2.0)
+    expected = pd.Series([20.0, 30.0, 40.0], name="stress")  # Expected stress with conversion factor
     pd.testing.assert_series_equal(result, expected)
+    pd.testing.assert_series_equal(uncertainty, pd.Series([0.0], name="stress uncertainty", dtype=int))
 
 
 # Test 3: Inversion check for compression (negative stress values)
 def test_calculate_stress_inversion(large_negative_data):
     """Test stress inversion for negative stress values."""
-    result = BaseStandardOperator.calculate_stress(large_negative_data, area=10.0)
-    expected = pd.Series([10.0, 15.0, 20.0], name="force")  # Expected inverted stress for negative values
+    result, uncertainty = BaseStandardOperator.calculate_stress(large_negative_data, area=10.0)
+    expected = pd.Series([10.0, 15.0, 20.0], name="stress")  # Expected inverted stress for negative values
     pd.testing.assert_series_equal(result, expected)
+    pd.testing.assert_series_equal(uncertainty, pd.Series([0.0], name="stress uncertainty", dtype=int))
 
 
 # Test 4: No inversion when inversion_check is False
 def test_calculate_stress_no_inversion(large_negative_data):
     """Test no inversion when inversion_check is False."""
-    result = BaseStandardOperator.calculate_stress(large_negative_data, area=10.0, inversion_check=False)
-    expected = pd.Series([-10.0, -15.0, -20.0], name="force")  # No inversion expected
+    result, uncertainty = BaseStandardOperator.calculate_stress(large_negative_data, area=10.0, inversion_check=False)
+    expected = pd.Series([-10.0, -15.0, -20.0], name="stress")  # No inversion expected
     pd.testing.assert_series_equal(result, expected)
-
+    pd.testing.assert_series_equal(uncertainty, pd.Series([0.0], name="stress uncertainty", dtype=int))
 
 # Test 5: Mixed forces with inversion check
 def test_calculate_stress_mixed_data_inversion(mixed_data):
     """Test stress calculation for mixed positive and negative forces."""
-    result = BaseStandardOperator.calculate_stress(mixed_data, area=10.0)
-    expected = pd.Series([10.0, -15.0, 20.0], name="force")  # Expected: no inversion as mean is not negative
+    result, uncertainty = BaseStandardOperator.calculate_stress(mixed_data, area=10.0)
+    expected = pd.Series([10.0, -15.0, 20.0], name="stress")  # Expected: no inversion as mean is not negative
     pd.testing.assert_series_equal(result, expected)
+    pd.testing.assert_series_equal(uncertainty, pd.Series([0.0], name="stress uncertainty", dtype=int))
 
 
 # Test 6: Invalid area (zero or negative)
@@ -78,7 +83,8 @@ def test_calculate_stress_invalid_area(typical_data, invalid_area):
 # Test 7: Invalid force_series type
 def test_calculate_stress_invalid_force_series():
     """Test that passing an invalid force_series raises a TypeError."""
-    with pytest.raises(TypeError, match="force_series must be a pandas Series."):
+    with pytest.raises(TypeError, match=r".*force_series must be.*"):
+        # Expect: force_series must be of type(s) Series in function [calculate_stress]. Received: list
         BaseStandardOperator.calculate_stress([100, 150, 200], area=10.0)  # Passing a list instead of Series
 
 
@@ -86,7 +92,8 @@ def test_calculate_stress_invalid_force_series():
 @pytest.mark.parametrize("invalid_conversion", [0, -5])
 def test_calculate_stress_invalid_conversion_factor(typical_data, invalid_conversion):
     """Test that invalid conversion factors raise an exception."""
-    with pytest.raises(ValueError, match="Conversion factor must be a positive float or int."):
+    # Expect: 'Conversion Factor must be a positive float or int in function [calculate_stress]. Received: 0'
+    with pytest.raises(ValueError, match="Conversion Factor must be a positive float or int"):
         BaseStandardOperator.calculate_stress(typical_data, area=10.0, conversion_factor=invalid_conversion)
 
 
@@ -115,57 +122,66 @@ def mixed_displacement_data() -> pd.Series:
 # Test 1: Basic functionality
 def test_calculate_strain_basic(displacement_data):
     """Test strain calculation for typical values."""
-    result = BaseStandardOperator.calculate_strain(displacement_data, initial_length=1.0)
-    expected = pd.Series([0.05, 0.10, 0.15], name="displacement")  # Strain = displacement / initial length
+    result, uncertainty = BaseStandardOperator.calculate_strain(displacement_data, initial_length=1.0)
+    # Strain = displacement / initial length
+    expected = pd.Series([0.05, 0.10, 0.15], name="strain")  # Expected strain values
     pd.testing.assert_series_equal(result, expected)
+    pd.testing.assert_series_equal(uncertainty, pd.Series([0.0], name="strain uncertainty", dtype=int))
 
 
 # Test 2: With conversion factor
 def test_calculate_strain_with_conversion(displacement_data):
     """Test strain calculation with a conversion factor."""
-    result = BaseStandardOperator.calculate_strain(displacement_data, initial_length=1.0, conversion_factor=2.0)
-    expected = pd.Series([0.10, 0.20, 0.30], name="displacement")  # Strain with conversion factor
+    result, uncertainty = BaseStandardOperator.calculate_strain(
+        displacement_data, initial_length=1.0, conversion_factor=2.0
+    )
+    # Strain with conversion factor
+    expected = pd.Series([0.10, 0.20, 0.30], name="strain")
     pd.testing.assert_series_equal(result, expected)
+    pd.testing.assert_series_equal(uncertainty, pd.Series([0.0], name="strain uncertainty", dtype=int))
 
 
 # Test 3: Inversion check for compression (negative strain values)
 def test_calculate_strain_inversion(large_negative_displacement):
     """Test strain inversion for negative strain values."""
-    result = BaseStandardOperator.calculate_strain(large_negative_displacement, initial_length=1.0)
-    expected = pd.Series([0.05, 0.10, 0.15], name="displacement")  # Expected inverted strain for negative values
+    result, uncertainty = BaseStandardOperator.calculate_strain(large_negative_displacement, initial_length=1.0)
+    expected = pd.Series([0.05, 0.10, 0.15], name="strain")  # Expected inverted strain for negative values
     pd.testing.assert_series_equal(result, expected)
+    pd.testing.assert_series_equal(uncertainty, pd.Series([0.0], name="strain uncertainty", dtype=int))
 
 
 # Test 4: No inversion when inversion_check is False
 def test_calculate_strain_no_inversion(large_negative_displacement):
     """Test no inversion when inversion_check is False."""
-    result = BaseStandardOperator.calculate_strain(
+    result, uncertainty = BaseStandardOperator.calculate_strain(
         large_negative_displacement, initial_length=1.0, inversion_check=False
     )
-    expected = pd.Series([-0.05, -0.10, -0.15], name="displacement")  # No inversion expected
+    expected = pd.Series([-0.05, -0.10, -0.15], name="strain")  # No inversion expected
     pd.testing.assert_series_equal(result, expected)
+    pd.testing.assert_series_equal(uncertainty, pd.Series([0.0], name="strain uncertainty", dtype=int))
 
 
 # Test 5: Mixed displacement data with inversion check
 def test_calculate_strain_mixed_data_inversion(mixed_displacement_data):
     """Test strain calculation for mixed positive and negative displacements."""
-    result = BaseStandardOperator.calculate_strain(mixed_displacement_data, initial_length=1.0)
-    expected = pd.Series([0.05, -0.10, 0.15], name="displacement")  # No inversion expected (mean is not negative)
+    result, uncertainty = BaseStandardOperator.calculate_strain(mixed_displacement_data, initial_length=1.0)
+    expected = pd.Series([0.05, -0.10, 0.15], name="strain")  # No inversion expected (mean is not negative)
     pd.testing.assert_series_equal(result, expected)
+    pd.testing.assert_series_equal(uncertainty, pd.Series([0.0], name="strain uncertainty", dtype=int))
 
 
 # Test 6: Invalid initial length (zero or negative)
 @pytest.mark.parametrize("invalid_length", [0, -10])
 def test_calculate_strain_invalid_initial_length(displacement_data, invalid_length):
     """Test that invalid initial length values raise an exception."""
-    with pytest.raises(ValueError, match="Initial length must be a positive float or int."):
+    with pytest.raises(ValueError, match=r".*Initial Length must be a positive float or int.*"):
         BaseStandardOperator.calculate_strain(displacement_data, initial_length=invalid_length)
 
 
 # Test 7: Invalid displacement_series type
 def test_calculate_strain_invalid_displacement_series():
     """Test that passing an invalid displacement_series raises a TypeError."""
-    with pytest.raises(TypeError, match="displacement_series must be a pandas Series."):
+    with pytest.raises(TypeError, match=r".*displacement_series must be.*"):
         BaseStandardOperator.calculate_strain(
             [0.05, 0.10, 0.15], initial_length=1.0
         )  # Passing a list instead of Series
@@ -175,7 +191,7 @@ def test_calculate_strain_invalid_displacement_series():
 @pytest.mark.parametrize("invalid_conversion", [0, -5])
 def test_calculate_strain_invalid_conversion_factor(displacement_data, invalid_conversion):
     """Test that invalid conversion factors raise an exception."""
-    with pytest.raises(ValueError, match="Conversion factor must be a positive float or int."):
+    with pytest.raises(ValueError, match=r".*Conversion Factor must be a positive float or int.*"):
         BaseStandardOperator.calculate_strain(
             displacement_data, initial_length=1.0, conversion_factor=invalid_conversion
         )
