@@ -221,19 +221,18 @@ def test_calculate_stress_with_scalar_uncertainty():
 
     # Step 1: Calculate expected stress
     # Nominal stress = force / area, basic calculation.
-    expected_stress = force_series / area  # Expected stress: [10.0, 15.0, 20.0]
-    pd.testing.assert_series_equal(expected_stress, pd.Series([10.0, 15.0, 20.0], name="force"))
+    # Expected stress: [10.0, 15.0, 20.0]
+    expected_stress = force_series / area
+    # Rename Force to Stress (As series / scalar give Series with the same name 'force')
+    expected_stress = expected_stress.rename("stress")
 
     # Step 2: Calculate relative uncertainty for force
     # Relative uncertainty for force is calculated as sigma(force) / force.
     relative_uncertainty_force = force_uncertainty / force_series
-    expected_relative_uncertainty_force = pd.Series([0.05, 0.03333, 0.025], name="force")
-    pd.testing.assert_series_equal(
-        relative_uncertainty_force,
-        expected_relative_uncertainty_force,
-        rtol=RELATIVE_TOLERANCE_G,  # Choosing 1e-9 to ensure high precision, reflecting engineering safety standards.
-        atol=ABSOLUTE_TOLERANCE_G,  # Absolute tolerance is low as we are working with relative uncertainties.
-    )
+    # Rename Force to Force Uncertainty As series / scalar give Series with the same name 'force')
+    relative_uncertainty_force = relative_uncertainty_force.rename("force uncertainty")
+    # Expected: [0.05, 0.03333, 0.025]
+    expected_relative_uncertainty_force = pd.Series([0.05, 0.03333333333333333, 0.025], name="force uncertainty")
 
     # Step 3: Calculate relative uncertainty for area (scalar)
     # Relative uncertainty for area, which is a constant here. A small change in area (e.g., 0.1 cm^2) can have significant
@@ -245,8 +244,10 @@ def test_calculate_stress_with_scalar_uncertainty():
     # The combined relative uncertainty considers both force and area uncertainties.
     # This calculation is crucial for understanding the overall uncertainty in stress due to input uncertainties.
     combined_relative_uncertainty = np.sqrt(relative_uncertainty_force**2 + relative_uncertainty_area**2)
+    # Rename Force to Stress (As series *  scalar give the same name 'force uncertainty')
+    combined_relative_uncertainty = combined_relative_uncertainty.rename("force uncertainty")
     expected_combined_relative_uncertainty = pd.Series(
-        np.sqrt([0.05**2 + 0.01**2, 0.03333**2 + 0.01**2, 0.025**2 + 0.01**2]), name="force"
+        np.sqrt([0.05**2 + 0.01**2, 0.03333333333333333**2 + 0.01**2, 0.025**2 + 0.01**2]), name="force uncertainty"
     )
     pd.testing.assert_series_equal(
         combined_relative_uncertainty,
@@ -258,10 +259,29 @@ def test_calculate_stress_with_scalar_uncertainty():
     # Step 5: Calculate absolute uncertainty in stress
     # Absolute uncertainty in stress is calculated as stress * combined_relative_uncertainty.
     expected_stress_uncertainty = expected_stress * combined_relative_uncertainty
+    # Rename None to Stress Uncertainty (As series * series give a Series with the name = None)
+    expected_stress_uncertainty = expected_stress_uncertainty.rename("stress uncertainty")
     expected_absolute_stress_uncertainty = pd.Series(
-        [10.0 * np.sqrt(0.05**2 + 0.01**2), 15.0 * np.sqrt(0.03333**2 + 0.01**2), 20.0 * np.sqrt(0.025**2 + 0.01**2)],
-        name="force",
+        [
+            10.0 * np.sqrt(0.05**2 + 0.01**2),
+            15.0 * np.sqrt(0.03333333333333333**2 + 0.01**2),
+            20.0 * np.sqrt(0.025**2 + 0.01**2),
+        ],
+        name="stress uncertainty",
     )
+
+    # Check all intermediate calculations
+    # Check Nominal Value for Stress
+    pd.testing.assert_series_equal(expected_stress, pd.Series([10.0, 15.0, 20.0], name="stress"))
+    # Check Relative Uncertainty for Force
+    pd.testing.assert_series_equal(
+        relative_uncertainty_force,
+        expected_relative_uncertainty_force,
+        rtol=RELATIVE_TOLERANCE_G,  # Choosing 1e-9 to ensure high precision, reflecting engineering safety standards.
+        atol=ABSOLUTE_TOLERANCE_G,  # Absolute tolerance is low as we are working with relative uncertainties.
+    )
+    # Check combined relative uncertainty of area and force with error propagation
+
     pd.testing.assert_series_equal(
         expected_stress_uncertainty,
         expected_absolute_stress_uncertainty,
@@ -295,46 +315,32 @@ def test_calculate_stress_with_percentage_uncertainty():
 
     # Nominal stress = force / area
     expected_stress = force_series / area  # Expected stress: [10.0, 15.0, 20.0]
-    pd.testing.assert_series_equal(expected_stress, pd.Series([10.0, 15.0, 20.0], name="stress"))
+    expected_stress = expected_stress.rename(
+        "stress"
+    )  # Raneme Force to Stress (As series *  scalar give the same name)
 
     # 5% uncertainty means relative uncertainty is 0.05 for all forces
     relative_uncertainty_force = 0.05
-    expected_relative_uncertainty_force = pd.Series([relative_uncertainty_force] * 3, name="force")
-    pd.testing.assert_series_equal(
-        pd.Series([relative_uncertainty_force] * 3, name="force"),
-        expected_relative_uncertainty_force,
-        rtol=RELATIVE_TOLERANCE_G,
-        atol=ABSOLUTE_TOLERANCE_G,
-    )
+    expected_relative_uncertainty_force = pd.Series([relative_uncertainty_force] * 3, name="force uncertainty")
 
-    relative_uncertainty_area = 0.02
-    assert relative_uncertainty_area == 0.02
+    relative_uncertainty_area = 0.02  # 2% uncertainty in area
 
     # Combined relative uncertainty considers both force and area uncertainties
     combined_relative_uncertainty = np.sqrt(relative_uncertainty_force**2 + relative_uncertainty_area**2)
-    expected_combined_relative_uncertainty = pd.Series([combined_relative_uncertainty] * 3, name="force")
-    pd.testing.assert_series_equal(
-        pd.Series([combined_relative_uncertainty] * 3, name="force"),
-        expected_combined_relative_uncertainty,
-        rtol=RELATIVE_TOLERANCE_G,
-        atol=ABSOLUTE_TOLERANCE_G,
-    )
+    expected_combined_relative_uncertainty = pd.Series([combined_relative_uncertainty] * 3, name="stress uncertainty")
 
     # Absolute uncertainty in stress = stress * combined relative uncertainty
     expected_stress_uncertainty = expected_stress * combined_relative_uncertainty
+    expected_stress_uncertainty = expected_stress_uncertainty.rename(
+        "stress uncertainty"
+    )  # Rename Stress to Stress Uncertainty (As series *  scalar give the same name)
     expected_absolute_stress_uncertainty = pd.Series(
         [
             10.0 * combined_relative_uncertainty,
             15.0 * combined_relative_uncertainty,
             20.0 * combined_relative_uncertainty,
         ],
-        name="force",
-    )
-    pd.testing.assert_series_equal(
-        expected_stress_uncertainty,
-        expected_absolute_stress_uncertainty,
-        rtol=RELATIVE_TOLERANCE_G,
-        atol=ABSOLUTE_TOLERANCE_G,
+        name="stress uncertainty",
     )
 
     result = BaseStandardOperator.calculate_stress(
@@ -342,7 +348,33 @@ def test_calculate_stress_with_percentage_uncertainty():
     )
 
     # Check final calculated stress values and uncertainties
+    # Check Nominal Value
+    pd.testing.assert_series_equal(expected_stress, pd.Series([10.0, 15.0, 20.0], name="stress"))
+    # Check Relative Uncertainty for Force
+    pd.testing.assert_series_equal(
+        pd.Series([relative_uncertainty_force] * 3, name="force uncertainty"),
+        expected_relative_uncertainty_force,
+        rtol=RELATIVE_TOLERANCE_G,
+        atol=ABSOLUTE_TOLERANCE_G,
+    )
+    # Check combined relative uncertainty of area and force with error propagation
+    pd.testing.assert_series_equal(
+        pd.Series([combined_relative_uncertainty] * 3, name="stress uncertainty"),
+        expected_combined_relative_uncertainty,
+        rtol=RELATIVE_TOLERANCE_G,
+        atol=ABSOLUTE_TOLERANCE_G,
+    )
+    # Check absolute uncertainty in stress
+    pd.testing.assert_series_equal(
+        expected_stress_uncertainty,
+        expected_absolute_stress_uncertainty,
+        rtol=RELATIVE_TOLERANCE_G,
+        atol=ABSOLUTE_TOLERANCE_G,
+    )
+    # Check BaseStandardOperator.calculate_stress output is similar to manual calculation
+    # stress check
     pd.testing.assert_series_equal(result.value, expected_stress)
+    # uncertantiy check
     pd.testing.assert_series_equal(
         result.uncertainty,
         expected_stress_uncertainty,
@@ -357,22 +389,21 @@ def test_calculate_stress_with_percentage_uncertainty():
 def test_calculate_stress_with_series_uncertainty():
     force_series = pd.Series([100, 150, 200], name="force")
     area = 10.0
-    force_uncertainty = pd.Series([5, 7, 10], name="force_uncertainty")  # Different uncertainty for each force
+    force_uncertainty = pd.Series([5, 7, 10], name="force uncertainty")  # Different uncertainty for each force
     area_uncertainty = 0.1  # Scalar uncertainty for area
 
     # Step 1: Calculate expected stress
-    expected_stress = force_series / area  # Expected stress: [10.0, 15.0, 20.0]
-    pd.testing.assert_series_equal(expected_stress, pd.Series([10.0, 15.0, 20.0], name="force"))
+    # Expected stress: [10.0, 15.0, 20.0]
+    expected_stress = force_series / area
+    # Rename None to Stress (As series / scalar give None)
+    expected_stress = expected_stress.rename("stress")
 
     # Step 2: Calculate relative uncertainty for force
+    # Expected: [0.05, 0.04667, 0.05]
     relative_uncertainty_force = force_uncertainty / force_series
-    expected_relative_uncertainty_force = pd.Series([0.05, 0.04667, 0.05], name="force")
-    pd.testing.assert_series_equal(
-        relative_uncertainty_force,
-        expected_relative_uncertainty_force,
-        rtol=RELATIVE_TOLERANCE_G,
-        atol=ABSOLUTE_TOLERANCE_G,
-    )
+    # Rename Nonw to Force Uncertainty (As series / series give None)
+    relative_uncertainty_force = relative_uncertainty_force.rename("force uncertainty")
+    expected_relative_uncertainty_force = pd.Series([0.05, 0.04666666666666667, 0.05], name="force uncertainty")
 
     # Step 3: Calculate relative uncertainty for area (scalar)
     relative_uncertainty_area = area_uncertainty / area  # Expected: 0.01
@@ -380,28 +411,24 @@ def test_calculate_stress_with_series_uncertainty():
 
     # Step 4: Combine relative uncertainties (element-wise)
     combined_relative_uncertainty = np.sqrt(relative_uncertainty_force**2 + relative_uncertainty_area**2)
+    # Rename Force to Stress (As series *  scalar give the same name)
+    combined_relative_uncertainty = combined_relative_uncertainty.rename("stress uncertainty")
+
     expected_combined_relative_uncertainty = pd.Series(
-        np.sqrt([0.05**2 + 0.01**2, 0.04667**2 + 0.01**2, 0.05**2 + 0.01**2]), name="force"
-    )
-    pd.testing.assert_series_equal(
-        combined_relative_uncertainty,
-        expected_combined_relative_uncertainty,
-        rtol=RELATIVE_TOLERANCE_G,
-        atol=ABSOLUTE_TOLERANCE_G,
+        np.sqrt([0.05**2 + 0.01**2, 0.04666666666666667**2 + 0.01**2, 0.05**2 + 0.01**2]), name="stress uncertainty"
     )
 
     # Step 5: Calculate absolute uncertainty in stress
     expected_stress_uncertainty = expected_stress * combined_relative_uncertainty
+    # Rename None to Stress Uncertainty As series * series give None
+    expected_stress_uncertainty = expected_stress_uncertainty.rename("stress uncertainty")
     expected_absolute_stress_uncertainty = pd.Series(
-        [10.0 * np.sqrt(0.05**2 + 0.01**2), 15.0 * np.sqrt(0.04667**2 + 0.01**2), 20.0 * np.sqrt(0.05**2 + 0.01**2)],
-        name="force",
-    )
-
-    pd.testing.assert_series_equal(
-        expected_stress_uncertainty,
-        expected_absolute_stress_uncertainty,
-        rtol=RELATIVE_TOLERANCE_G,
-        atol=ABSOLUTE_TOLERANCE_G,
+        [
+            10.0 * np.sqrt(0.05**2 + 0.01**2),
+            15.0 * np.sqrt(0.04666666666666667**2 + 0.01**2),
+            20.0 * np.sqrt(0.05**2 + 0.01**2),
+        ],
+        name="stress uncertainty",
     )
 
     # Step 6: Call the function and compare all outputs
@@ -410,7 +437,33 @@ def test_calculate_stress_with_series_uncertainty():
     )
 
     # Check final calculated stress values and uncertainties
+    # Check Nominal Value
+    pd.testing.assert_series_equal(expected_stress, pd.Series([10.0, 15.0, 20.0], name="stress"))
+    # Check Relative Uncertainty for Force
+    pd.testing.assert_series_equal(
+        relative_uncertainty_force,
+        expected_relative_uncertainty_force,
+        rtol=RELATIVE_TOLERANCE_G,
+        atol=ABSOLUTE_TOLERANCE_G,
+    )
+    # Check combined relative uncertainty of area and force with error propagation
+    pd.testing.assert_series_equal(
+        combined_relative_uncertainty,
+        expected_combined_relative_uncertainty,
+        rtol=RELATIVE_TOLERANCE_G,
+        atol=ABSOLUTE_TOLERANCE_G,
+    )
+    # Check absolute uncertainty in stress
+    pd.testing.assert_series_equal(
+        expected_stress_uncertainty,
+        expected_absolute_stress_uncertainty,
+        rtol=RELATIVE_TOLERANCE_G,
+        atol=ABSOLUTE_TOLERANCE_G,
+    )
+    # Check BaseStandardOperator.calculate_stress output is similar to manual calculation
+    # stress check
     pd.testing.assert_series_equal(result.value, expected_stress)
+    # uncertantiy check
     pd.testing.assert_series_equal(
         result.uncertainty,
         expected_stress_uncertainty,
@@ -677,12 +730,6 @@ def test_interpolate_dataframes_quadratic(df_list, common_axis):
 
     assert df_1.loc[3, "value"] == 30.0
 
-
-import numpy as np
-import pandas as pd
-import pytest
-
-from standards.base.properties_calculators.base_standard_operator import BaseStandardOperator
 
 # Test _validate_positive_number
 
