@@ -7,7 +7,6 @@ import pandas as pd
 import scipy as sp
 import uncertainties
 from scipy.interpolate import CubicSpline, PchipInterpolator, interp1d
-from uncertainties import ufloat
 from uncertainties import unumpy as unp
 
 # Define a namedtuple for consistent return format
@@ -392,100 +391,6 @@ class BaseStandardOperator:
         return CalculationResult(value=strain_values, uncertainty=strain_uncertainties)
 
     @staticmethod
-    def _validate_positive_number(number: Union[float, int], var_name: str, parent_func_name=None) -> None:
-        """Validate if the provided number is a positive float or int."""
-        if not isinstance(number, (float, int)) or number <= 0:
-            if parent_func_name:
-                raise ValueError(f"Func [{parent_func_name}] | {var_name} must be a positive float or int.")
-            else:
-                raise ValueError(f"{var_name} must be a positive float or int. But got {number}.")
-
-    @staticmethod
-    def _validate_columns_exist(dataframes: list[pd.DataFrame], required_columns: list[str]) -> list[int]:
-        """
-        Validate that all DataFrames contain the specified required columns.
-
-        Raises:
-        ValueError with detailed information on missing columns if validation fails.
-        """
-        missing_info = []
-
-        for i, df in enumerate(dataframes):
-            missing_columns = [column_name for column_name in required_columns if column_name not in df.columns]
-            if missing_columns:
-                df_name = df.name if hasattr(df, "name") else f"DataFrame at index {i}"
-                missing_info.append((i, df_name, missing_columns))
-
-        if missing_info:
-            error_message = "\n".join(
-                [
-                    f"{df_name} is missing columns: {', '.join(missing_cols)}"
-                    for _, df_name, missing_cols in missing_info
-                ]
-            )
-            raise ValueError(f"The following DataFrames are missing columns:\n{error_message}")
-        
-
-    @staticmethod
-    def _get_dataframes_with_required_columns(
-        dataframes: list[pd.DataFrame], required_columns: list[str]
-    ) -> list[pd.DataFrame]:
-        return [df for df in dataframes if all(column_name in df.columns for column_name in required_columns)]
-    
-    @staticmethod
-    def calculate_slope_in_region() -> float:
-        raise NotImplementedError("Method not implemented yet.")
-
-    @staticmethod
-    def _clip_data_to_range():
-        # np.clip(a, a_min, a_max, out=None, **kwargs)
-        raise NotImplementedError("Method not implemented yet.")
-
-    def _mask_data_by_condition():
-        raise NotImplementedError("Method not implemented yet.")
-
-    @staticmethod
-    def _generate_common_axis(
-        dataframes: list[pd.DataFrame],
-        reference_column: str,
-        axis_step: float,
-        axis_start: Optional[float] = None,
-        axis_end: Optional[float] = None,
-    ) -> pd.Series:
-        """Generate a common axis based on the reference column."""
-        if axis_start is None:
-            axis_start = min(df[reference_column].min() for df in dataframes)
-        if axis_end is None:
-            axis_end = max(df[reference_column].max() for df in dataframes)
-
-        # Adjust axis_start and axis_end to align with the step size
-        axis_start = np.floor(axis_start / axis_step) * axis_step
-        axis_end = np.ceil(axis_end / axis_step) * axis_step
-        common_axis = pd.Series(np.arange(axis_start, axis_end + axis_step, axis_step), name=reference_column)
-        return common_axis
-
-    @staticmethod
-    def _calculate_column_averages(
-        dataframes: list[pd.DataFrame],
-        avg_columns: list[str],
-        reference_column: str,
-        parent_func_name=None,
-    ) -> pd.DataFrame:
-        """Calculate the averages of specified columns across multiple DataFrames."""
-        result_data = {reference_column: dataframes[0][reference_column]}
-        for column_name in avg_columns:
-            available_dataframes = [df for df in dataframes if column_name in df.columns]
-            if available_dataframes:
-                avg_series = pd.concat([df[column_name] for df in available_dataframes], axis=1).mean(axis=1)
-                result_data[f"avg_{column_name}"] = avg_series
-            else:
-                if parent_func_name:
-                    warn(f"Func [{parent_func_name}] | Column '{column_name}' not found in one or more DataFrames.")
-                else:
-                    warn(f"Column '{column_name}' not found in one or more DataFrames.")
-        return pd.DataFrame(result_data)
-
-    @staticmethod
     def interpolate_dataframes(
         df_list: list[pd.DataFrame],
         interp_column: str,
@@ -552,84 +457,24 @@ class BaseStandardOperator:
         return interpolated_dfs
 
     @staticmethod
-    def average_dataframes(
-        df_list: list,
-        avg_columns: Union[str, list],
-        interp_column: str,
-        step_size: float,
-        start: Optional[float] = None,
-        end: Optional[float] = None,
-        interpolation_method: str = "linear",
-        force_interpolation: bool = False,
-    ) -> pd.DataFrame:
-        """
-        Average specified columns from a list of pandas DataFrames, interpolating them to a common axis if their lengths differ.
+    def _generate_common_axis(
+        dataframes: list[pd.DataFrame],
+        reference_column: str,
+        axis_step: float,
+        axis_start: Optional[float] = None,
+        axis_end: Optional[float] = None,
+    ) -> pd.Series:
+        """Generate a common axis based on the reference column."""
+        if axis_start is None:
+            axis_start = min(df[reference_column].min() for df in dataframes)
+        if axis_end is None:
+            axis_end = max(df[reference_column].max() for df in dataframes)
 
-        Preconditions:
-        - `df_list` must be a list of pandas DataFrames.
-        - Each DataFrame in `df_list` must contain the columns specified in `avg_columns` and `interp_column`.
-        - The specified `step_size` must be a positive number.
-        - If `start` and `end` are not provided, they will be calculated from the minimum and maximum of the interpolation column across all DataFrames.
-        - The `interp_column` must be in increasing order. If not, it will be sorted.
-        - If all DataFrames are of the same length and the `interp_column` is the same across DataFrames, interpolation is skipped unless `force_interpolation` is True.
-
-        Parameters:
-        - `df_list`: List of pandas DataFrames to average.
-        - `avg_columns`: The column name or list of column names to average across the DataFrames.
-        - `interp_column`: The column to use for interpolation.
-        - `step_size`: The step size for the common axis.
-        - `start`: (Optional) The starting point for the common axis. If not provided, it will use the minimum value across all DataFrames.
-        - `end`: (Optional) The ending point for the common axis. If not provided, it will use the maximum value across all DataFrames.
-        - `interpolation_method`: Method to use for interpolation (default is 'linear').
-            Supported methods:
-            - 'linear': Linear interpolation between points.
-            - 'nearest': Use the nearest available value.
-            - 'quadratic': Quadratic interpolation.
-            - 'cubic': Cubic interpolation.
-            - 'polynomial': Polynomial interpolation (requires specifying an order, e.g., 'polynomial', order=2 for quadratic).
-        - `force_interpolation`: (Optional) If True, force interpolation even when DataFrames are of the same length and have identical `interp_column` values.
-
-        Postconditions:
-        - Returns a pandas DataFrame with the common axis and the averaged columns specified in `avg_columns`.
-        """
-
-        # Preconditions: Validate inputs
-        if not isinstance(df_list, list) or not all(isinstance(df, pd.DataFrame) for df in df_list):
-            raise TypeError("df_list must be a list of pandas DataFrames.")
-
-        if isinstance(avg_columns, str):
-            avg_columns = [avg_columns]  # Convert to list for consistent handling
-
-        if not isinstance(avg_columns, list) or not all(isinstance(col, str) for col in avg_columns):
-            raise TypeError("avg_columns must be a string or a list of strings.")
-
-        # Validate step_size
-        BaseStandardOperator._validate_positive_number(step_size, "Step size", "average_dataframes")
-
-        # Check that all DataFrames contain the columns to be averaged
-        BaseStandardOperator._validate_columns_exist(df_list, avg_columns + [interp_column])
-
-        # Check if interpolation is needed
-        same_length: bool = all(len(df) == len(df_list[0]) for df in df_list)
-        axis_is_common: bool = all(df[interp_column].equals(df_list[0][interp_column]) for df in df_list)
-        # Might only need to check is axis is common as that implies same length
-
-        if same_length and axis_is_common and not force_interpolation:
-            # If no interpolation is needed, directly average the columns
-            return BaseStandardOperator._calculate_column_averages(df_list, avg_columns, interp_column)
-
-        # Create the common axis for interpolation
-        common_axis = BaseStandardOperator._generate_common_axis(df_list, interp_column, step_size, start, end)
-
-        # Interpolate the DataFrames to the common axis
-        interpolated_dfs = BaseStandardOperator.interpolate_dataframes(
-            df_list, interp_column, common_axis, interpolation_method, "average_dataframes", set_index=False
-        )
-        # Average the specified columns
-        result_df = BaseStandardOperator._calculate_column_averages(
-            interpolated_dfs, avg_columns, interp_column, "average_dataframes"
-        )
-        return result_df
+        # Adjust axis_start and axis_end to align with the step size
+        axis_start = np.floor(axis_start / axis_step) * axis_step
+        axis_end = np.ceil(axis_end / axis_step) * axis_step
+        common_axis = pd.Series(np.arange(axis_start, axis_end + axis_step, axis_step), name=reference_column)
+        return common_axis
 
     @staticmethod
     def interpolate_to_custom_axis(
@@ -706,8 +551,109 @@ class BaseStandardOperator:
         return interpolated_df
 
     @staticmethod
-    def peak_finder():
-        raise NotImplementedError("Method not implemented yet.")
+    def average_dataframes(
+        df_list: list,
+        avg_columns: Union[str, list],
+        interp_column: str,
+        step_size: float,
+        start: Optional[float] = None,
+        end: Optional[float] = None,
+        interpolation_method: str = "linear",
+        force_interpolation: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Average specified columns from a list of pandas DataFrames, interpolating them to a common axis if their lengths differ.
+
+        Preconditions:
+        - `df_list` must be a list of pandas DataFrames.
+        - Each DataFrame in `df_list` must contain the columns specified in `avg_columns` and `interp_column`.
+        - The specified `step_size` must be a positive number.
+        - If `start` and `end` are not provided, they will be calculated from the minimum and maximum of the interpolation column across all DataFrames.
+        - The `interp_column` must be in increasing order. If not, it will be sorted.
+        - If all DataFrames are of the same length and the `interp_column` is the same across DataFrames, interpolation is skipped unless `force_interpolation` is True.
+
+        Parameters:
+        - `df_list`: List of pandas DataFrames to average.
+        - `avg_columns`: The column name or list of column names to average across the DataFrames.
+        - `interp_column`: The column to use for interpolation.
+        - `step_size`: The step size for the common axis.
+        - `start`: (Optional) The starting point for the common axis. If not provided, it will use the minimum value across all DataFrames.
+        - `end`: (Optional) The ending point for the common axis. If not provided, it will use the maximum value across all DataFrames.
+        - `interpolation_method`: Method to use for interpolation (default is 'linear').
+            Supported methods:
+            - 'linear': Linear interpolation between points.
+            - 'nearest': Use the nearest available value.
+            - 'quadratic': Quadratic interpolation.
+            - 'cubic': Cubic interpolation.
+            - 'polynomial': Polynomial interpolation (requires specifying an order, e.g., 'polynomial', order=2 for quadratic).
+        - `force_interpolation`: (Optional) If True, force interpolation even when DataFrames are of the same length and have identical `interp_column` values.
+
+        Postconditions:
+        - Returns a pandas DataFrame with the common axis and the averaged columns specified in `avg_columns`.
+        """
+        if isinstance(avg_columns, str):
+            avg_columns = [avg_columns]  # Convert to list for consistent handling
+
+        # Preconditions: Validate inputs
+        ValidationHelper.validate_type(df_list, list, "df_list", "average_dataframes")
+        ValidationHelper.validate_types_in_list(df_list, pd.DataFrame, "df_list", "average_dataframes")
+
+        ValidationHelper.validate_type(interp_column, str, "interp_column", "average_dataframes")
+        ValidationHelper.validate_type(interpolation_method, str, "interpolation_method", "average_dataframes")
+        ValidationHelper.validate_type(force_interpolation, bool, "force_interpolation", "average_dataframes")
+
+        ValidationHelper.validate_type(avg_columns, list, "avg_columns", "average_dataframes")
+        ValidationHelper.validate_non_empty_list(avg_columns, "avg_columns", "average_dataframes")
+        ValidationHelper.validate_types_in_list(avg_columns, str, "avg_columns", "average_dataframes")
+
+        # Validate step_size
+        ValidationHelper.validate_positive_number(step_size, "Step size", "average_dataframes")
+
+        # Check that all DataFrames contain the columns to be averaged
+        ValidationHelper.validate_columns_exist(df_list, avg_columns + [interp_column])
+
+        # Check if interpolation is needed
+        same_length: bool = all(len(df) == len(df_list[0]) for df in df_list)
+        axis_is_common: bool = all(df[interp_column].equals(df_list[0][interp_column]) for df in df_list)
+        # Might only need to check is axis is common as that implies same length
+
+        if same_length and axis_is_common and not force_interpolation:
+            # If no interpolation is needed, directly average the columns
+            return BaseStandardOperator._calculate_column_averages(df_list, avg_columns, interp_column)
+
+        # Create the common axis for interpolation
+        common_axis = BaseStandardOperator._generate_common_axis(df_list, interp_column, step_size, start, end)
+
+        # Interpolate the DataFrames to the common axis
+        interpolated_dfs = BaseStandardOperator.interpolate_dataframes(
+            df_list, interp_column, common_axis, interpolation_method, "average_dataframes", set_index=False
+        )
+        # Average the specified columns
+        result_df = BaseStandardOperator._calculate_column_averages(
+            interpolated_dfs, avg_columns, interp_column, "average_dataframes"
+        )
+        return result_df
+
+    @staticmethod
+    def _calculate_column_averages(
+        dataframes: list[pd.DataFrame],
+        avg_columns: list[str],
+        reference_column: str,
+        parent_func_name=None,
+    ) -> pd.DataFrame:
+        """Calculate the averages of specified columns across multiple DataFrames."""
+        result_data = {reference_column: dataframes[0][reference_column]}
+        for column_name in avg_columns:
+            available_dataframes = [df for df in dataframes if column_name in df.columns]
+            if available_dataframes:
+                avg_series = pd.concat([df[column_name] for df in available_dataframes], axis=1).mean(axis=1)
+                result_data[f"avg_{column_name}"] = avg_series
+            else:
+                if parent_func_name:
+                    warn(f"Func [{parent_func_name}] | Column '{column_name}' not found in one or more DataFrames.")
+                else:
+                    warn(f"Column '{column_name}' not found in one or more DataFrames.")
+        return pd.DataFrame(result_data)
 
     @staticmethod
     def find_intersections(
@@ -883,7 +829,7 @@ class BaseStandardOperator:
         elif isinstance(intersection, MultiPoint):
             for point in intersection.geoms:
                 intersections.append((point.x, point.y))
-        elif isinstance(intersection, MultiLineString) or isinstance(intersection, GeometryCollection):
+        elif isinstance(intersection, (MultiLineString, GeometryCollection)):
             for geom in intersection.geoms:
                 if isinstance(geom, Point):
                     intersections.append((geom.x, geom.y))
@@ -1099,6 +1045,32 @@ class BaseStandardOperator:
                 raise ValueError(f"Error occurred while applying custom integration method: {e}")
         else:
             raise ValueError(f"Invalid method type: {type(method)}. Must be a string or callable function.")
+
+    # General Helper Functions
+
+    @staticmethod
+    def _get_dataframes_with_required_columns(
+        dataframes: list[pd.DataFrame], required_columns: list[str]
+    ) -> list[pd.DataFrame]:
+        return [df for df in dataframes if all(column_name in df.columns for column_name in required_columns)]
+
+    # TODO: Implement the following methods
+
+    @staticmethod
+    def peak_finder():
+        raise NotImplementedError("Method not implemented yet.")
+
+    @staticmethod
+    def calculate_slope_in_region() -> float:
+        raise NotImplementedError("Method not implemented yet.")
+
+    @staticmethod
+    def _clip_data_to_range():
+        # np.clip(a, a_min, a_max, out=None, **kwargs)
+        raise NotImplementedError("Method not implemented yet.")
+
+    def _mask_data_by_condition():
+        raise NotImplementedError("Method not implemented yet.")
 
 
 if __name__ == "__main__":

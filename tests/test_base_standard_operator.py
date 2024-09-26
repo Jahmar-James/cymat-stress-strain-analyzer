@@ -8,7 +8,6 @@ from standards.base.properties_calculators.base_standard_operator import BaseSta
 # float64 (double precision floating-point) has:
 # Precision: Approximately 15–17 significant decimal digits.
 # Machine epsilon (eps): 2.220446049250313e-16 (approx. 1e-16) - The smallest difference between two representable numbers.
-# This provides 16 significant digits of precision, or a resolution of approximately 1e-16.
 
 # Relative tolerance (rtol) should be set relative to the scale of the numbers being compared.
 # For float64 precision, an rtol of around 1e-7 to 1e-9 is typically sufficient for most engineering calculations.
@@ -731,65 +730,6 @@ def test_interpolate_dataframes_quadratic(df_list, common_axis):
     assert df_1.loc[3, "value"] == 30.0
 
 
-# Test _validate_positive_number
-
-
-def test_validate_positive_number_valid():
-    """Test that valid positive numbers pass without error."""
-    BaseStandardOperator._validate_positive_number(10, "test_var")
-    BaseStandardOperator._validate_positive_number(5.5, "test_var")
-
-
-def test_validate_positive_number_invalid():
-    """Test that invalid numbers raise the correct error."""
-    with pytest.raises(ValueError, match="test_var must be a positive float or int."):
-        BaseStandardOperator._validate_positive_number(0, "test_var")
-    with pytest.raises(ValueError, match="test_var must be a positive float or int."):
-        BaseStandardOperator._validate_positive_number(-5, "test_var")
-    with pytest.raises(ValueError, match="test_var must be a positive float or int."):
-        BaseStandardOperator._validate_positive_number("string", "test_var")
-
-
-def test_validate_positive_number_with_parent_func_name():
-    """Test error message when parent_func_name is provided."""
-    with pytest.raises(ValueError, match="Func \\[test_func\\] | test_var must be a positive float or int."):
-        BaseStandardOperator._validate_positive_number(-1, "test_var", parent_func_name="test_func")
-
-
-# Test _validate_columns_exist
-
-
-def test_validate_columns_exist_valid():
-    """Test that DataFrames containing the required columns pass without error."""
-    df1 = pd.DataFrame({"time": [1, 2], "value": [10, 20]})
-    df2 = pd.DataFrame({"time": [1, 3], "value": [15, 30]})
-    BaseStandardOperator._validate_columns_exist([df1, df2], ["time", "value"])
-
-
-def test_validate_columns_exist_missing_column():
-    """Test that missing columns raise the correct error and return the index of missing DataFrames."""
-    df1 = pd.DataFrame({"time": [1, 2]})
-    df2 = pd.DataFrame({"time": [1, 3], "value": [15, 30]})
-    df1.name = "DF1"
-    df2.name = "DF2"
-
-    # Expected error message
-    """
-    The following DataFrames are missing columns:
-        DF1 is missing columns: value
-    """
-    with pytest.raises(ValueError, match=r".*DF1 is missing columns.*"):
-        BaseStandardOperator._validate_columns_exist([df1, df2], ["time", "value"])
-
-
-def test_validate_columns_exist_no_name():
-    """Test that unnamed DataFrames return their index in the error message."""
-    df1 = pd.DataFrame({"time": [1, 2]})
-    df2 = pd.DataFrame({"time": [1, 3], "value": [15, 30]})
-
-    with pytest.raises(ValueError, match="DataFrame at index 0 is missing columns: value"):
-        BaseStandardOperator._validate_columns_exist([df1, df2], ["time", "value"])
-
 # Test get_dataframes_with_required_columns
 
 
@@ -988,7 +928,8 @@ def test_average_dataframes_with_interpolation(df_list_different):
 
 # Test 3: Invalid step size
 def test_average_dataframes_invalid_step_size(df_list_same):
-    with pytest.raises(ValueError, match="Func [average_dataframes] | Step size must be a positive float or int."):
+    # Expect: Step size must be a positive float or int in function [average_dataframes]. Received: 0
+    with pytest.raises(ValueError, match=r".*Step size must be a positive float or int.*"):
         BaseStandardOperator.average_dataframes(
             df_list=df_list_same, avg_columns="col1", interp_column="interp_column", step_size=0
         )
@@ -996,7 +937,8 @@ def test_average_dataframes_invalid_step_size(df_list_same):
 
 # Test 4: Invalid df_list input (not a list of DataFrames)
 def test_average_dataframes_invalid_df_list():
-    with pytest.raises(TypeError, match="df_list must be a list of pandas DataFrames."):
+    # Expect: df_list must be of type(s) list in function [average_dataframes]. Received: str
+    with pytest.raises(TypeError, match=r".*df_list must be of type\(s\) list.*"):
         BaseStandardOperator.average_dataframes(
             df_list="not_a_list", avg_columns="col1", interp_column="interp_column", step_size=1.0
         )
