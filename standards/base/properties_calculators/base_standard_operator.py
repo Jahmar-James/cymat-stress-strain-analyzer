@@ -75,7 +75,7 @@ class BaseStandardOperator:
 
     @staticmethod
     def _convert_to_uncertain_values(
-        data: Union[float, pd.Series],
+        data: Union[float, pd.Series, uncertainties.UFloat, np.ndarray],
         uncertainty: Optional[Union[float, str, pd.Series]] = None,
         var_name: str = "",
         func_name: str = "",
@@ -92,7 +92,7 @@ class BaseStandardOperator:
         :return: A ufloat or numpy ndarray representing the data with uncertainties.
         """
         # when data is a vector (pandas Series)
-        if isinstance(data, pd.Series):
+        if isinstance(data, (pd.Series)):
             # Handle Series input
             if uncertainty is None:
                 return unp.uarray(data.values, 0)  # Return data with zero uncertainty
@@ -147,6 +147,23 @@ class BaseStandardOperator:
                     f"{func_name}: Invalid uncertainty for {var_name}. "
                     f"Must be a positive float or a percentage string. Received: {uncertainty}"
                 )
+        elif isinstance(data, uncertainties.UFloat):
+            return data
+        elif isinstance(data, np.ndarray):
+            if isinstance(data[0], uncertainties.UFloat):
+                return data
+            elif uncertainty is None:
+                return unp.uarray(data, np.zeros_like(data))
+            elif isinstance(uncertainty, (pd.Series, np.ndarray, list)):
+                return unp.uarray(data, uncertainty)
+            elif isinstance(uncertainty, str) and uncertainty.endswith("%"):
+                try:
+                    relative_value = float(uncertainty.strip("%")) / 100.0
+                    return unp.uarray(data, data * relative_value)
+                except ValueError:
+                    raise ValueError(
+                        "Invalid relative uncertainty provided as a percentage string. Expected format: '5%' Received: '{uncertainty}'."
+                    )
 
         else:
             raise TypeError(
@@ -842,11 +859,10 @@ class BaseStandardOperator:
     def calculate_derivative(
         data_series: pd.Series,
         independent_variable: Optional[pd.Series] = None,
-        step_size: Optional[Union[float, np.ndarray]] = None,
         method: Union[str, callable] = "central",
         order: int = 1,
-        uncertainty: Optional[Union[float, str, pd.Series]] = None,
-        use_optimal_step: bool = True,
+        uncertainty_y: Optional[Union[float, str, pd.Series]] = None,
+        uncertainty_x: Optional[Union[float, str, pd.Series]] = None,
         **kwargs,
     ) -> CalculationResult:
         """
@@ -859,7 +875,6 @@ class BaseStandardOperator:
         - `method` can be a string ('central', 'forward', 'backward') or a callable function.
         - `order` specifies the order of the derivative (1 for first derivative, 2 for second derivative, etc.).
         - `uncertainty` is optional and can be a float, a string (percentage), or a pandas Series with uncertainties.
-        - `use_optimal_step` is optional and defaults to True. If True, the optimal step size will be calculated.
 
         Postconditions:
         - Returns a CalculationResult namedtuple with the derivative values and uncertainties (if provided).
@@ -884,30 +899,30 @@ class BaseStandardOperator:
 
         name = data_series.name if independent_variable is None else f"{data_series.name}-{independent_variable.name}"
 
-        # Calculate the optimal step size if needed
-        if use_optimal_step and step_size is None:
-            step_size = np.gradient(independent_values)  # Use numpy's gradient to determine step sizes
-        elif step_size is None:
-            step_size = np.diff(independent_values)
-            step_size = np.concatenate(([step_size[0]], step_size))  # Ensure length matches independent_values
-
-        # If step_size is a single float, repeat it to match data length
-        if isinstance(step_size, (float, int)):
-            step_size = np.full(len(data_series), step_size)
-
         # Convert data_series to numpy array and handle uncertainty conversion if applicable
-        data_values = data_series.values
-        if uncertainty is not None:
+        data_values :np.ndarray = data_series.values
+        
+        # Handle uncertainty for data (uncertainty_y)
+        if uncertainty_y is not None:
             data_values = BaseStandardOperator._convert_to_uncertain_values(
-                data_values, uncertainty, data_series.name, "calculate_derivative"
+                data_values, uncertainty_y, data_series.name, "calculate_derivative"
+            )
+
+        # Handle uncertainty for independent variable (uncertainty_x)
+        if uncertainty_x is not None:
+            independent_values = BaseStandardOperator._convert_to_uncertain_values(
+                independent_values, uncertainty_x, independent_variable.name, "calculate_derivative"
             )
 
         # Calculate the derivative of the specified order
-        derivative_values = data_values
+        derivative_values = None # Temporary to ensrue var is defined
         for _ in range(order):
             derivative_values = BaseStandardOperator._apply_differentiation_method(
-                derivative_values, step_size, method, **kwargs
+                data_values, independent_values, method, **kwargs
             )
+            
+        if derivative_values is None:
+            raise ValueError(f"Error occurred while calculating the derivative of order {order}.")
 
         # Handle uncertainty extraction if ufloat objects are present
         if isinstance(derivative_values[0], uncertainties.UFloat):
@@ -931,21 +946,27 @@ class BaseStandardOperator:
 
     @staticmethod
     def _apply_differentiation_method(
-        data: np.ndarray, step_size: np.ndarray, method: Union[str, callable], **kwargs
+        y_data: np.ndarray, x_data: np.ndarray, method: Union[str, callable], **kwargs
     ) -> np.ndarray:
         """
-        Apply the chosen differentiation method to the data array.
+        Apply the chosen differentiation method to the y_data array.
         """
         if isinstance(method, str):
             if method == "central":
-                return np.gradient(data, step_size, **kwargs)
+                # f(x) = (f(x+h) - f(x-h)) / 2h | 1st order Taylor expansion | O(h^2) Error
+                if isinstance(x_data[0], uncertainties.UFloat) or isinstance(y_data[0], uncertainties.UFloat):
+                    return central_difference_with_uncertainty(y_data, x_data)
+                return np.gradient(y_data, x_data, **kwargs)
+            
             elif method == "forward":
-                derivative_values = (np.diff(data) / step_size[:-1]).tolist()
-                derivative_values.append(derivative_values[-1])  # Repeat last value for alignment
+                # f(x) = (f(x+h) - f(x)) / h | 1st order Taylor expansion | O(h) Error
+                derivative_values = np.diff(y_data) / np.diff(x_data)
+                derivative_values = np.append(derivative_values, derivative_values[-1])  # Repeat last value for alignment
                 return np.array(derivative_values)
             elif method == "backward":
-                derivative_values = (np.diff(data) / step_size[:-1]).tolist()
-                derivative_values.insert(0, derivative_values[0])  # Repeat first value for alignment
+                # f(x) = (f(x) - f(x-h)) / h | 1st order Taylor expansion | O(h) Error
+                derivative_values = np.diff(y_data) / np.diff(x_data)
+                derivative_values = np.insert(derivative_values, 0, derivative_values[0])  # Repeat first value for alignment
                 return np.array(derivative_values)
             else:
                 raise ValueError(
@@ -953,7 +974,7 @@ class BaseStandardOperator:
                 )
         elif callable(method):
             try:
-                return method(data, step_size, **kwargs)
+                return method(y_data, x_data, **kwargs)
             except Exception as e:
                 raise ValueError(f"Error occurred while applying custom differentiation method: {e}")
         else:
@@ -984,12 +1005,15 @@ class BaseStandardOperator:
         """
 
         # Validate and prepare data and independent series
-        ValidationHelper.validate_type(data_series, pd.Series, "data_series", "calculate_integral")
+        ValidationHelper.validate_type(data_series, (pd.Series,np.ndarray), "data_series", "calculate_integral")
+        if isinstance(data_series, np.ndarray):
+            data_series = pd.Series(data_series, name="y_data")
+            
         data_series = data_series.copy()
         if independent_variable is not None:
-            ValidationHelper.validate_type(
-                independent_variable, pd.Series, "independent_variable", "calculate_integral"
-            )
+            ValidationHelper.validate_type( independent_variable,  (pd.Series,np.ndarray), "independent_variable", "calculate_integral")
+            if isinstance(independent_variable, np.ndarray):
+                independent_variable = pd.Series(independent_variable, name="x_data")
             independent_variable = independent_variable.copy()
             if not data_series.index.equals(independent_variable.index):
                 raise ValueError("Data series and independent variable must have the same index.")
@@ -1072,6 +1096,19 @@ class BaseStandardOperator:
     def _mask_data_by_condition():
         raise NotImplementedError("Method not implemented yet.")
 
+
+def central_difference_with_uncertainty(y_data, x_data):
+    y_nominal = unp.nominal_values(y_data)
+    x_nominal = unp.nominal_values(x_data)
+    dydx_nominal = np.gradient(y_nominal, x_nominal)
+    
+    y_std = unp.std_devs(y_data)
+    x_diff = np.diff(x_nominal)
+    dydx_uncertainty = np.sqrt((y_std[1:] / x_diff)**2 + (y_std[:-1] / x_diff)**2)
+    dydx_uncertainty_full = np.concatenate((dydx_uncertainty, [dydx_uncertainty[-1]]))
+    
+    dydx = unp.uarray(dydx_nominal, dydx_uncertainty_full)
+    return dydx
 
 if __name__ == "__main__":
     pass
