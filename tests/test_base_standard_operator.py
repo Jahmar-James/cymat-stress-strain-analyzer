@@ -5,6 +5,9 @@ from uncertainties import ufloat
 
 from standards.base.properties_calculators.base_standard_operator import BaseStandardOperator
 
+# Round-off error comes from the approximation of real numbers. eg. 1/3 = 0.3333333333333333 (infinite decimal places)
+# the acuracy is dependent on the anount of memory (bits) allocated to store the number.
+
 # float64 (double precision floating-point) has:
 # Precision: Approximately 15–17 significant decimal digits.
 # Machine epsilon (eps): 2.220446049250313e-16 (approx. 1e-16) - The smallest difference between two representable numbers.
@@ -15,7 +18,7 @@ RELATIVE_TOLERANCE_G = 1e-9
 
 # Absolute tolerance (atol) is useful when comparing numbers near zero, where relative tolerance alone might not be sufficient.
 # It should be set to a small value, such as 1e-8 or 1e-10, to account for very small absolute differences.
-ABSOLUTE_TOLERANCE_G = 1e-10
+ABSOLUTE_TOLERANCE_G = 1e-10  # 10 decimal places
 
 # BaseStandardOperator test: Cross-sectional area calculation
 # Testing this function in detail with uncertainty handling due to the additional complexity
@@ -23,6 +26,14 @@ ABSOLUTE_TOLERANCE_G = 1e-10
 # would not be thoroughly tested due to its simplicity. However, uncertainties require
 # validation to ensure no unintended side effects.
 
+# Truncation error is t
+# eg.1 taylor series expansion of sin(x) = x - x^3/3! + x^5/5! - x^7/7! + ...
+# if we truncate the series at x^3 (term), we have an  (truncation) error of x^5/5! + x^7/7! + ...
+# eg.2 derivative of f(x) = (f(x+h) - f(x))/h as h -> 0, the error is O(h) (order of h)
+# the error is proportional to step size h, thus the (truncation) error is dependent on the step size.
+
+
+# BaseStandardOperator test calculate_cross_sectional_area
 
 # Test 1: Basic area calculation
 def test_calculate_cross_sectional_area_basic():
@@ -942,3 +953,127 @@ def test_average_dataframes_invalid_df_list():
         BaseStandardOperator.average_dataframes(
             df_list="not_a_list", avg_columns="col1", interp_column="interp_column", step_size=1.0
         )
+
+# BaseStandardOperator test find_intersections
+
+# --- Fixtures ---
+
+
+@pytest.fixture
+def linear_quadratic_data():
+    x = np.linspace(-5, 5, 100)
+    # data frequencis is 10/100 = 0.1 | (Range/# pts)
+    # Range = 10, [end (5) - start (-5) ]
+    # data feq 10 [Hz] there is a point every 0.1 | (1/0.1)
+    y1 = 2 * x + 1  # Linear: y = 2x + 1
+    y2 = (x**2) - 4  # Quadratic: y = x^2 - 4
+    # Analytical intersections
+    expected_intersections = [(-1.44949, -1.89898), (3.44949, 7.89898)]
+    return (x, y1), (x, y2), expected_intersections
+
+
+@pytest.fixture
+def sin_cos_data():
+    x = np.linspace(0, 10, 100)
+    # data frequencis is 10/100 = 0.1, 1/0.1 = 10 Hx
+    y1 = np.sin(x)  # Curve 1: sin(x)
+    y2 = np.cos(x)  # Curve 2: cos(x)
+    # Expected intersections near pi/4, 5pi/4, etc. | 3 intersections from 0 to 10
+    # 3 intersections, low data frequency, non-linear (close to linear at small angles)
+    first_point = (np.pi / 4, np.sin(np.pi / 4))
+    second_point = (5 * np.pi / 4, np.sin(5 * np.pi / 4))
+    third_point = (9 * np.pi / 4, np.sin(9 * np.pi / 4))
+    expected_intersections = [first_point, second_point, third_point]
+    return (x, y1), (x, y2), expected_intersections
+
+
+@pytest.fixture
+def exponential_logarithmic_data():
+    # Start from 1 to avoid log(0)
+    x = np.linspace(1, 5, 100)
+    # data frequencis is 4/100 = 0.04, 1/0.04 = 25 Hz
+    # no intersections, non-linear, high data frequency
+    y1 = np.exp(x)  # Exponential: y = e^x
+    y2 = np.log(x)  # Logarithmic: y = ln(x)
+    # Expected intersections are not defined explicitly; we will use approximate matches.
+    return (x, y1), (x, y2), None
+
+
+@pytest.fixture
+def inverse_polynomial_data():
+    x = np.linspace(0.1, 3, 100)  # Start from 0.1 to avoid division by zero
+    # Data frequencis is 3/100 = 0.03, 1/0.03 = 33.33 Hz
+    # 1 intersection, High data frequency, Very non-linear
+    y1 = 1 / x  # Inverse: y = 1/x
+    y2 = (x**3) - x  # Polynomial: y = x^3 - x
+    expected_intersections = [(1.27202, 0.78615)]
+    return (x, y1), (x, y2), expected_intersections
+
+
+# Test 1: Basic intersection detection with linear interpolation
+def test_find_intersections_basic_linear(sin_cos_data, linear_quadratic_data, inverse_polynomial_data):
+    for data in [sin_cos_data, linear_quadratic_data, inverse_polynomial_data]:
+        (x, y1), (x, y2), expected_intersections = data
+
+        # None Excat Tolernace - due to linear interpolation in the function
+        # The accuracy depends heavily point concentration of the data as using linear interpolation
+        # Need to detemine what is a acceptable pt concentration to get accurate results from numpy implementation
+        # or just look at my use case, which is 10 hz minimum
+        # it will be bad with non-uniform or non-linear data such as linear_quadratic_data.
+
+        ABSOLUTE_TOLERANCE = 8e-2  # +- 0.08
+
+        # Call the function
+        intersections = BaseStandardOperator.find_intersections((x, y1), (x, y2), method="linear_interpolation")
+        # This will call on the numpy implementation of the find_intersections function
+
+        # Assert that the number of intersections matches and values are close to expected
+        assert len(intersections) == len(expected_intersections)
+        for actual, expected in zip(intersections, expected_intersections):
+            assert actual[0] == pytest.approx(expected[0], abs=ABSOLUTE_TOLERANCE)
+            assert actual[1] == pytest.approx(expected[1], abs=ABSOLUTE_TOLERANCE)
+
+
+# Test 2: Basic intersection detection with exact method
+def test_find_intersections_basic_exact(sin_cos_data, linear_quadratic_data, inverse_polynomial_data):
+    for data in [sin_cos_data, linear_quadratic_data, inverse_polynomial_data]:
+        (x, y1), (x, y2), expected_intersections = data
+
+        # None Excat Tolernace - due to linear interpolation in the function
+        ABSOLUTE_TOLERANCE = 1e-3  # +- 0.001
+
+        # Call the function using the exact method
+        intersections = BaseStandardOperator.find_intersections((x, y1), (x, y2), method="exact")
+        # This will call on the shaply implementation of the find_intersections function
+
+        # Sort actual intersections by x-coordinate for comparison
+        intersections = sorted(intersections, key=lambda pt: pt[0])
+
+        # Print to inspect if needed (uncomment for debugging)
+        print(f"Expected Intersections: {expected_intersections}")
+        print(f"Obtained Intersections: {intersections}")
+
+        # Assert that the number of intersections matches and values are close to expected
+        assert len(intersections) == len(expected_intersections)
+        for actual, expected in zip(intersections, expected_intersections):
+            assert actual[0] == pytest.approx(expected[0], abs=ABSOLUTE_TOLERANCE)
+            assert actual[1] == pytest.approx(expected[1], abs=ABSOLUTE_TOLERANCE)
+
+
+# Test 3: Return only the first intersection
+def test_find_intersections_first_only(sin_cos_data):
+    (x, y1), (x, y2), _ = sin_cos_data
+
+    ABSOLUTE_TOLERANCE = 5e-2  # +- 0.05
+    # Linear near 0 this tolerance is fine
+
+    # Call the function with first_only=True
+    intersections = BaseStandardOperator.find_intersections(
+        (x, y1), (x, y2), method="linear_interpolation", first_only=True
+    )
+
+    # Only the first intersection should be returned
+    assert len(intersections) == 1
+    expected_first_intersection = (np.pi / 4, np.sin(np.pi / 4))
+    assert intersections[0][0] == pytest.approx(expected_first_intersection[0], abs=ABSOLUTE_TOLERANCE)
+    assert intersections[0][1] == pytest.approx(expected_first_intersection[1], abs=ABSOLUTE_TOLERANCE)
