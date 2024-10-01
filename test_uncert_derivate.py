@@ -10,28 +10,30 @@ from standards.base.properties_calculators.base_standard_operator import BaseSta
 # Create a simple data series with uncertainty
 # For example, a linear relationship y = 2x with some uncertainty
 independent_variable = pd.Series(np.linspace(0, 10, 11), name="x")
-data_series = pd.Series(2 * independent_variable + 1, name="y")
+data_series = pd.Series(2 * independent_variable, name="y")
 
-uncertainty_y = [0.1] * len(data_series)
+uncertainty_y = np.array([0.1] * len(data_series))
+uncertainty_x = 0.01
 
 
-# derivative_methods = ["forward", "backward", "central"]
+derivative_methods = ["forward", "backward", "central"]
 
-# # Basic Test Without Uncertainty
-# for method in derivative_methods:
-#     result = BaseStandardOperator.calculate_derivative(
-#         data_series=data_series,
-#         independent_variable=independent_variable,
-#         # uncertainty_y=uncertainty_y,
-#         order=1,
-#         method=method,
-#     )
-#     derivative_series, uncertainty_series = result
-#     print(f"Derivative Series with Uncertainty (Method: {method}):")
-#     print(derivative_series)
-#     print("\nUncertainty in Derivative:")
-#     print(uncertainty_series)
-#     print("\n")
+# Basic Test Without Uncertainty
+for method in derivative_methods:
+    result = BaseStandardOperator.calculate_derivative(
+        data_series=data_series,
+        independent_variable=independent_variable,
+        # uncertainty_y=uncertainty_y,
+        uncertainty_x=uncertainty_x,
+        order=1,
+        method=method,
+    )
+    derivative_series, uncertainty_series = result
+    print(f"Derivative Series with Uncertainty (Method: {method}):")
+    print(derivative_series)
+    print("\nUncertainty in Derivative:")
+    print(uncertainty_series)
+    print("\n")
 
 
 
@@ -152,4 +154,4 @@ def test_derivative_methods():
     return results
 
 
-test_derivative_methods()
+# test_derivative_methods()

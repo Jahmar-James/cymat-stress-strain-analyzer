@@ -11,6 +11,7 @@ from uncertainties import unumpy as unp
 
 # Define a namedtuple for consistent return format
 CalculationResult = namedtuple("CalculationResult", ["value", "uncertainty"])
+PeakResult = namedtuple("PeakResult", ["indices", "values", "metadata", "warning"])
 
 from .calculation_validation_helper import ValidationHelper
 
@@ -92,34 +93,49 @@ class BaseStandardOperator:
         :return: A ufloat or numpy ndarray representing the data with uncertainties.
         """
         # when data is a vector (pandas Series)
-        if isinstance(data, (pd.Series)):
+        if isinstance(data, (pd.Series, np.ndarray)):
+            index = None
+            if isinstance(data, pd.Series):
+                index = data.index
+                data = data.values  # Convert to numpy array for easier handling
+            
             # Handle Series input
             if uncertainty is None:
-                return unp.uarray(data.values, 0)  # Return data with zero uncertainty
+                return unp.uarray(data,0)# Return data with zero uncertainty
 
             elif isinstance(uncertainty, str) and uncertainty.endswith("%"):
                 # Relative uncertainty provided as a percentage string (e.g., '5%')
                 try:
                     relative_value = float(uncertainty.strip("%")) / 100.0
-                    return unp.uarray(data.values, data.values * relative_value)
+                    return unp.uarray(data, data * relative_value)
                 except ValueError:
                     raise ValueError(
                         "Invalid relative uncertainty provided as a percentage string. Expected format: '5%' Received: '{uncertainty}'."
                     )
-
             elif isinstance(uncertainty, (float, int)):
                 # Absolute uncertainty provided as a float or int
                 if uncertainty <= 0:
                     raise ValueError(
                         f"{func_name}: Invalid absolute uncertainty for {var_name}. Must be a positive value. Received: {uncertainty}"
                     )
-                return unp.uarray(data.values, uncertainty)
-
-            elif isinstance(uncertainty, pd.Series):
+                return unp.uarray(data, uncertainty)
+            elif isinstance(uncertainty, (pd.Series, np.ndarray)):
                 # Element-wise uncertainty provided as a Series
-                if not data.index.equals(uncertainty.index):
-                    raise ValueError(f"{func_name}: Data series and uncertainty series must have the same index.")
-                return unp.uarray(data.values, uncertainty.values)
+                if index: # Data was a pandas Series
+                    if isinstance(uncertainty, pd.Series) and uncertainty.index.equals(index):
+                        return unp.uarray(data, uncertainty.values)
+                    else:
+                        raise ValueError(f"{func_name}: Data series and uncertainty series must have the same index.")
+                
+                if isinstance(uncertainty, pd.Series):
+                    uncertainty = uncertainty.values # Convert to numpy array for easier handling
+                    
+                if len(data) != len(uncertainty):
+                    raise ValueError(
+                        f"{func_name}: Data and uncertainty arrays must have the same length. "
+                        f"Data length: {len(data)}, Uncertainty length: {len(uncertainty)}")
+                
+                return unp.uarray(data, uncertainty)
 
             else:
                 raise ValueError(
@@ -149,22 +165,6 @@ class BaseStandardOperator:
                 )
         elif isinstance(data, uncertainties.UFloat):
             return data
-        elif isinstance(data, np.ndarray):
-            if isinstance(data[0], uncertainties.UFloat):
-                return data
-            elif uncertainty is None:
-                return unp.uarray(data, np.zeros_like(data))
-            elif isinstance(uncertainty, (pd.Series, np.ndarray, list)):
-                return unp.uarray(data, uncertainty)
-            elif isinstance(uncertainty, str) and uncertainty.endswith("%"):
-                try:
-                    relative_value = float(uncertainty.strip("%")) / 100.0
-                    return unp.uarray(data, data * relative_value)
-                except ValueError:
-                    raise ValueError(
-                        "Invalid relative uncertainty provided as a percentage string. Expected format: '5%' Received: '{uncertainty}'."
-                    )
-
         else:
             raise TypeError(
                 f"{func_name}: Invalid type for data. Must be float, int, or pd.Series. Received: {type(data)}"
@@ -986,7 +986,8 @@ class BaseStandardOperator:
         independent_variable: Optional[pd.Series] = None,
         method: Union[str, callable] = "trapezoidal",
         integration_range: Optional[tuple] = None,
-        uncertainty: Optional[Union[float, str, pd.Series]] = None,
+        uncertainty_y: Optional[Union[float, str, pd.Series]] = None,
+        uncertainty_x: Optional[Union[float, str, pd.Series]] = None,
         **kwargs,
     ) -> CalculationResult:
         """
@@ -1027,9 +1028,14 @@ class BaseStandardOperator:
 
         # Extract data values and handle uncertainty conversion if applicable
         data_values = data_series.values
-        if uncertainty is not None:
+        if uncertainty_y is not None:
             data_values = BaseStandardOperator._convert_to_uncertain_values(
-                data_values, uncertainty, data_series.name, "calculate_integral"
+                data_values, uncertainty_y, data_series.name, "calculate_integral"
+            )
+        
+        if uncertainty_x is not None:
+            independent_values = BaseStandardOperator._convert_to_uncertain_values(
+                independent_values, uncertainty_x, independent_variable.name, "calculate_integral"
             )
 
         # Calculate the integral using the specified method
@@ -1059,7 +1065,19 @@ class BaseStandardOperator:
             if method == "trapezoidal":
                 return np.trapz(data, independent_variable, **kwargs)
             elif method == "simpson":
-                return sp.integrate.simps(data, independent_variable, **kwargs)
+                try:
+                    return sp.integrate.simps(data, independent_variable, **kwargs)
+                except TypeError:
+                    print(f"Simpson's Rule does not support uncertainties Natively. Calculating manually.")
+                    # Manually calculate uncertainty using simpson_uncertainty function
+                    nominal_data = unp.nominal_values(data)
+                    nominal_independent = unp.nominal_values(independent_variable)
+                    
+                    nominal_integral = sp.integrate.simps(nominal_data, nominal_independent, **kwargs)
+                    integral_uncertainty = simpson_uncertainty(data, independent_variable)
+                    
+                    # Return integral with uncertainty
+                    return uncertainties.ufloat(nominal_integral, integral_uncertainty)
             else:
                 raise ValueError(f"Unknown integration method: {method}. Choose 'trapezoidal' or 'simpson'.")
         elif callable(method):
@@ -1069,6 +1087,83 @@ class BaseStandardOperator:
                 raise ValueError(f"Error occurred while applying custom integration method: {e}")
         else:
             raise ValueError(f"Invalid method type: {type(method)}. Must be a string or callable function.")
+         
+    def calculate_cumulative_integral(
+        data_series: pd.Series,
+        independent_variable: Optional[pd.Series] = None,
+        method: Union[str, callable] = "trapezoidal",
+        uncertainty_y: Optional[Union[float, str, pd.Series]] = None,
+        uncertainty_x: Optional[Union[float, str, pd.Series]] = None,
+        initial: Optional[float] = 0,
+        dx: float = 1.0,
+        **kwargs
+        ) -> tuple[pd.Series, Optional[pd.Series]]:
+        """
+        Calculate the cumulative integral of a data series at each point.
+
+        Parameters:
+        - data_series: pd.Series of numeric values representing the y-values to be integrated.
+        - independent_variable: Optional pd.Series of the independent variable (x-values).
+        - method: Integration method ('trapezoidal', 'simpson', or callable).
+        - uncertainty_y: Optional uncertainty in y-values (can be float, str, or pd.Series).
+        - uncertainty_x: Optional uncertainty in x-values (can be float, str, or pd.Series).
+
+        Returns:
+        - pd.Series: Series representing the cumulative integral at each point.
+        """
+        
+        # Validate and prepare data and independent series
+        ValidationHelper.validate_type(data_series, pd.Series, "data_series", "calculate_cumulative_integral")
+        ValidationHelper.validate_type(initial, (int, float), "initial", "calculate_cumulative_integral")
+        ValidationHelper.validate_positive_number(dx, "dx", "calculate_cumulative_integral")
+        
+        data_series = data_series.copy()
+        
+        if independent_variable is None:
+            ValidationHelper.validate_type(independent_variable, pd.Series, "independent_variable", "calculate_cumulative_integral")
+            independent_variable = independent_variable.copy()
+            # Use the index of data_series as independent variable
+            independent_variable = data_series.index
+        elif len(independent_variable) != len(data_series):
+            # Check if independent_variable and data_series have the same length
+            raise ValueError("The length of independent_variable must match the length of data_series.")
+        
+        # Convert independent and dependent variables to numpy arrays
+        x_values = independent_variable.values
+        y_values = data_series.values
+        
+        # Convert to uncertainty objects if needed
+        if uncertainty_y is not None:
+            y_values = BaseStandardOperator._convert_to_uncertain_values(y_values, uncertainty_y, data_series.name, "calculate_cumulative_integral")
+        if uncertainty_x is not None:
+            x_values = BaseStandardOperator._convert_to_uncertain_values(x_values, uncertainty_x, independent_variable.name, "calculate_cumulative_integral")
+        
+        # Select and compute cumulative integral based on method
+        if method == "trapezoidal":
+            cumulative_integral = sp.integrate.cumulative_trapezoid(y_values, x_values, dx=dx, initial=initial)
+        elif method == "simpson":
+            try:
+                cumulative_integral = sp.integrate.cumulative.simps(y_values, x_values, dx=dx, initial=initial)
+            except TypeError:
+                raise ValueError("Simpson's Rule does not support uncertainties Natively. Calculating manually.| not implemented yet.")
+        else:
+            raise ValueError(f"Unknown integration method: {method}. Choose 'trapezoidal' or 'simpson'.")
+        
+        # if uncertainties are present, convert the first element to UFloat with 0 uncertainty
+        if uncertainty_x is not None or uncertainty_y is not None:
+            cumulative_integral[0] = uncertainties.ufloat(unp.nominal_values(cumulative_integral[0]), 0)
+        
+        # Extract nominal values and uncertainties if using UFloat
+        if isinstance(cumulative_integral[0], uncertainties.UFloat):
+            cumulative_integral_nominal = unp.nominal_values(cumulative_integral)
+            cumulative_integral_uncertainty = unp.std_devs(cumulative_integral)
+            result_series = pd.Series(cumulative_integral_nominal, index=independent_variable, name="Cumulative Integral")
+            result_series_uncertainty = pd.Series(cumulative_integral_uncertainty, index=independent_variable, name="Integral Uncertainty")
+            return result_series, result_series_uncertainty
+        
+        # Return result as a pandas series using independent_variable as index
+        return pd.Series(cumulative_integral, index=independent_variable, name="Cumulative Integral"), None
+
 
     # General Helper Functions
 
@@ -1081,8 +1176,73 @@ class BaseStandardOperator:
     # TODO: Implement the following methods
 
     @staticmethod
-    def peak_finder():
-        raise NotImplementedError("Method not implemented yet.")
+    def peak_finder(
+        data: Union[np.ndarray, pd.Series],
+        expected_peaks: Optional[int] = None,
+        region: Optional[tuple] = None,
+        height: Optional[float] = None,
+        # Default values through experimentation wtih data
+        distance: Optional[float] = None, # 10
+        prominence: Optional[float] = None, # 0.25
+    ) -> PeakResult:
+        """
+        Find peaks in the provided data.
+        
+        Preconditions:
+        - The data must be a numpy array or pandas Series of numeric values.
+        - The expected number of peaks must be a positive integer.
+        - The region must be a tuple of (start, end) indices.
+        - The height, distance, and prominence must be positive float values.
+        
+        Postconditions:
+        - Returns a PeakResult namedtuple with the peak indices and peak values.
+        
+        Assumptions:
+        - The data is assumed to be a 1D array or Series.
+        
+        Returns:
+        - PeakResult: Named tuple containing indices, values, metadata, and any warnings.
+        """
+        # Validate inputs
+        ValidationHelper.validate_type(data, (np.ndarray, pd.Series), "data", "peak_finder")
+        if isinstance(data, pd.Series):
+            data = data.values
+        
+        if expected_peaks:
+            ValidationHelper.validate_positive_number(expected_peaks, "Expected peaks", "peak_finder")
+        if region:
+            ValidationHelper.validate_type(region, tuple, "region", "peak_finder")
+        if height:
+            ValidationHelper.validate_positive_number(height, "Height", "peak_finder")
+        if distance:
+            ValidationHelper.validate_positive_number(distance, "Distance", "peak_finder")
+        if prominence:
+            ValidationHelper.validate_positive_number(prominence, "Prominence", "peak_finder")
+        
+        # Mask the data based on the specified region
+        if region:
+            start, end = region
+            data = data[start:end]
+        
+        # Detect peaks using scipy's find_peaks
+        peaks, properties = sp.signal.find_peaks(data, height=height, distance=distance, prominence=prominence)
+        peak_values = data[peaks]
+        
+        warning_message = None
+        if expected_peaks is not None and len(peaks) > expected_peaks:
+            warning_message = f"Detected {len(peaks)} peaks, which is more than the expected {expected_peaks}. Consider using a filtering function."
+            
+        
+        metadata = {
+            "prominences": properties.get("prominences", []),
+            "heights": properties.get("peak_heights", []),
+            "widths": properties.get("widths", [])
+        }
+        
+        return PeakResult(indices=peaks, values=peak_values, metadata=metadata, warning=warning_message)
+        
+        
+        
 
     @staticmethod
     def calculate_slope_in_region() -> float:
@@ -1098,17 +1258,86 @@ class BaseStandardOperator:
 
 
 def central_difference_with_uncertainty(y_data, x_data):
+    # Extract nominal values and standard deviations from the uncertainties arrays
     y_nominal = unp.nominal_values(y_data)
     x_nominal = unp.nominal_values(x_data)
-    dydx_nominal = np.gradient(y_nominal, x_nominal)
-    
     y_std = unp.std_devs(y_data)
+    x_std = unp.std_devs(x_data)
+    # Calculate the nominal derivative using central difference
+    dydx_nominal = np.gradient(y_nominal, x_nominal)
+    # Calculate the difference between consecutive x points (dx)
     x_diff = np.diff(x_nominal)
-    dydx_uncertainty = np.sqrt((y_std[1:] / x_diff)**2 + (y_std[:-1] / x_diff)**2)
+    y_diff = np.diff(y_nominal)
+    
+    # Calculate uncertainty in dy/dx due to uncertainties in y
+    # Here, we use np.abs because the term np.diff(y_nominal) can be negative,
+    # but the uncertainty we calculate should be based on the absolute magnitude of change.
+    # The division by (x_diff**2) accounts for how the changes in x affect the derivative.
+    dydx_uncertainty_y  = np.sqrt((y_std[1:] / x_diff)**2 + (y_std[:-1] / x_diff)**2)
+    
+    # Calculate uncertainty in dy/dx due to uncertainties in x
+    dydx_uncertainty_x = np.abs(y_diff / x_diff**2) * np.sqrt(x_std[:-1]**2 + x_std[1:]**2)
+    
+    dydx_uncertainty = np.sqrt(dydx_uncertainty_y**2 + dydx_uncertainty_x**2)
+    
     dydx_uncertainty_full = np.concatenate((dydx_uncertainty, [dydx_uncertainty[-1]]))
     
     dydx = unp.uarray(dydx_nominal, dydx_uncertainty_full)
     return dydx
+
+def simpson_uncertainty(data, x_values):
+    """
+    Calculate the uncertainty in the integral using Simpson's rule.
+    
+    Parameters:
+    data (array-like): The array of `ufloat` values representing the y-values with uncertainties.
+    x_values (array-like): The array of x-values.
+    
+    Returns:
+    float: The uncertainty in the integral.
+    """
+    # Extract nominal values and uncertainties from y and x arrays
+    y_nominal = unp.nominal_values(data)
+    y_uncertainty = unp.std_devs(data)
+    x_nominal = unp.nominal_values(x_values)
+    x_uncertainty = unp.std_devs(x_values)
+    
+    n = len(y_nominal) - 1
+    if n % 2 != 0:
+        raise ValueError("Simpson's rule requires an even number of intervals (n must be odd).")
+    
+    # Step size (nominal)
+    delta_x = (x_nominal[-1] - x_nominal[0]) / n
+
+    # Simpson's rule weights
+    weights = np.zeros_like(y_nominal)
+    weights[0] = 1
+    weights[-1] = 1
+    weights[1:-1:2] = 4  # Weights for odd indexed elements
+    weights[2:-1:2] = 2  # Weights for even indexed elements
+    
+    # Calculate uncertainty in the integral due to y-values
+    integral_uncertainty_y = (delta_x / 3) * np.sqrt(np.sum((weights * y_uncertainty) ** 2))
+
+    # Calculate uncertainty in the integral due to x-values
+    if np.any(x_uncertainty > 0):  # Only calculate if there's uncertainty in x
+        integral_uncertainty_x = 0
+        # Sum up contributions from uncertainties in delta_x for all intervals
+        for i in range(n):
+            if i == 0 or i == n:  # First and last points
+                delta_x_uncertainty = x_uncertainty[i]
+            else:  # Internal points, weight based on Simpson's rule
+                delta_x_uncertainty = (x_uncertainty[i-1] + x_uncertainty[i]) / 2
+            # Accumulate weighted uncertainty
+            integral_uncertainty_x += (delta_x_uncertainty * y_nominal[i])**2
+        integral_uncertainty_x = (delta_x / 3) * np.sqrt(integral_uncertainty_x)
+    else:
+        integral_uncertainty_x = 0
+
+    # Combine uncertainties from y and x
+    total_integral_uncertainty = np.sqrt(integral_uncertainty_y**2 + integral_uncertainty_x**2)
+    
+    return total_integral_uncertainty
 
 if __name__ == "__main__":
     pass
