@@ -8,7 +8,7 @@ Backend Focus: No UI considerations within these classes, focusing on data stora
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from utlils.pattern_based_mapper import PatternBasedMapper
 
@@ -91,7 +91,7 @@ class BaseStandardIOManager:
         dto_data["raw_data"] = BaseStandardIOManager._map_raw_data(entity)
         dto_data["processed_data"] = BaseStandardIOManager._map_processed_data(entity)
         dto_data["test_conditions"] = BaseStandardIOManager._map_test_conditions(entity)
-        dto_data["standard_kpis"] = BaseStandardIOManager._map_standard_kpis(entity)
+        dto_data["standard_kpis"] = entity._kpis.copy()
 
         return SampleDTO(**dto_data)
 
@@ -146,18 +146,6 @@ class BaseStandardIOManager:
             test_date=datetime.utcnow(),  # You can update to use actual date if present
         )
 
-    @staticmethod
-    def _map_standard_kpis(entity: "AnalyzableEntity") -> "SampleStandardKPIS":
-        return SampleStandardKPIS(
-            youngs_modulus=entity.property_calculator.calculate_youngs_modulus()
-            if entity.property_calculator
-            else None,
-            yield_strength=entity.property_calculator.calculate_yield_strength()
-            if entity.property_calculator
-            else None,
-            additional_kpis={},  # You can handle this dynamically if you have more KPI logic
-        )
-
 
 from pathlib import Path
 
@@ -178,6 +166,34 @@ class FileOIManager:
 
     def __init__(self, file_path: Path) -> bool:
         raise NotImplementedError("This class is not implemented yet.")
+
+    def get_sample(self, file_path: Union[list[Path], Path]) -> list[AnalyzableEntity]:
+        if isinstance(Path):
+            file_path = list(file_path)
+
+        samples = []
+        for file in file_path:
+            if not isinstance(file, Path) or not file.exists():
+                print(
+                    f"File '{file.name} of type {type(file)} does not exist or was not a Path object. It will be skipped."
+                )
+                continue
+            # Extract data from file
+            sample_data = self.extract_sample_data(file_path)
+            # Recreate AnalyzableEntity from the data
+            sample = self.recreate_sample_dto(sample_data)
+            if sample:
+                samples.append(sample)
+
+        return samples
+
+    @staticmethod
+    def extract_sample_data(file_path: Path) -> dict:
+        raise NotImplementedError()
+
+    @staticmethod
+    def recreate_sample_dto(sample_data: dict) -> AnalyzableEntity:
+        raise NotImplementedError()
 
 
 class DatabaseIOManager:

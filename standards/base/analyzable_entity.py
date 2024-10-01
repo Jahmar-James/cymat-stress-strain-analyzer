@@ -30,44 +30,64 @@ class AnalyzableEntity(ABC):
         - For example, `SampleGeneric` must implement `_Strength` as part of the `AnalyzableEntity` interface.
     - Utilize `BaseStandardOperator` for performing calculations and processing data.
     - Assume that input data has been preprocessed and normalized according to `MechanicalTestDataPreprocessor`.
-        
-    Abstract Methods:
-    - Define methods that subclasses must implement, such as plotting or data extraction.
+
+     Attributes:
+    - internal_units (dict[str, pint.Unit]): Stores internal units for each property which all calculations are based on.
+        - Example: `internal_units['force'] = ureg.newton`
+    - target_units (dict[str, pint.Unit]): Stores the target units for each property, to be set if unit desired is different from internal units.
+    - uncertainty (dict[str, Union[float, str]]): Stores uncertainty values for each property.
+        - Expected format: `uncertainty['force'] = {'value': pd.Series or float, 'type': 'absolute'}` where type is either "relative" or "absolute".
+    - _kpis (dict[str, any]): Stores flexible and custom calculations dependent on the standard (e.g., Strength, Young's Modulus).
     """
 
-    def __init__(self,
-                 name: str,
-                 length: Optional[float] = None,
-                 width: Optional[float] = None,
-                 thickness: Optional[float] = None,
-                 mass: Optional[float] = None,
-                 area: Optional[float] = None,
-                 volume: Optional[float] = None,
-                 density: Optional[float] = None,
-                 force: Optional[pd.Series] = None,
-                 displacement: Optional[pd.Series] = None,
-                 stress: Optional[pd.Series] = None,
-                 strain: Optional[pd.Series] = None,
-                 property_calculator: Optional[BaseStandardOperator] = None,
-                 plot_manager: Optional[PlotManager] = None
-                 ):
-        # Typical required properties for a sample
-        # _ prefix indicates that the property is cached and can be converted to different units
+    def __init__(
+        self,
+        name: str,
+        length: Optional[float] = None,
+        width: Optional[float] = None,
+        thickness: Optional[float] = None,
+        mass: Optional[float] = None,
+        area: Optional[float] = None,
+        volume: Optional[float] = None,
+        density: Optional[float] = None,
+        force: Optional[pd.Series] = pd.Series(dtype="float64", name="force"),
+        displacement: Optional[pd.Series] = pd.Series(dtype="float64", name="displacement"),
+        stress: Optional[pd.Series] = pd.Series(dtype="float64", name="stress"),
+        strain: Optional[pd.Series] = pd.Series(dtype="float64", name="strain"),
+        property_calculator: Optional[BaseStandardOperator] = BaseStandardOperator(),
+        plot_manager: Optional[PlotManager] = PlotManager(),
+        is_for_visualization: Optional[bool] = False,
+    ):
+        """
+        Initializes the AnalyzableEntity with various attributes for mechanical testing data.
+
+
+        Parameters:
+        - name (str): The name of the sample.
+        - length, width, thickness, mass (Optional[float]): Physical properties of the sample.
+        - force, displacement, stress, strain (Optional[pd.Series]): Data series related to the sample's performance.
+        - property_calculator (Optional[BaseStandardOperator]): A helper class for performing calculations.
+        - plot_manager (Optional[PlotManager]): A helper class for plotting results.
+
+        Notes
+            _ prefix indicates that the property is cached and can be converted to different units
+        """
+        # Typically Required properties
         self.name = name
         self.length = length 
         self.width = width
         self.thickness = thickness
         self.mass = mass
         # Create Empty Series if None to ensure data aligns for dataframe eg. raw_data which is used for export
-        self._force = force if force is not None else pd.Series(dtype="float64")
-        self._displacement = displacement if displacement is not None else pd.Series(dtype="float64")
+        self._force = force
+        self._displacement = displacement
 
         # Optional properties that can be calculated from the required properties
         self._area = area
         self._volume = volume
         self._density = density
-        self._stress = stress if stress is not None else pd.Series(dtype="float64")
-        self._strain = strain if strain is not None else pd.Series(dtype="float64")
+        self._stress = stress
+        self._strain = strain
 
         # TODO: Add a method to update raw data names with units and for exporting
         # dataframe columns will always be lowercase to ensure consistency
@@ -75,21 +95,44 @@ class AnalyzableEntity(ABC):
             {"force": self._force, "displacement": self._displacement, "stress": self._stress, "strain": self._strain}
         )
 
-        # Attributes for determining the type of entity
-        self.is_sample_group: bool = False
+        # Entity determination
+        self.is_sample_group: bool = False  # idenitfy if is a collection of samples
+        self.is_visualization: bool = is_for_visualization  # idenitfy is only for plot purpsoe? make serperate?
+        self.id = None  # Database id
         self.analysis_standard: Optional["MechanicalTestStandards"] = None
         self.samples: list[AnalyzableEntity] = []
 
         # Dependency inversion class helpers
-        self.plot_manager = plot_manager or PlotManager()
-        self.property_calculator = property_calculator or BaseStandardOperator()
+        self.plot_manager = plot_manager
+        self.property_calculator = property_calculator
         self.data_preprocessor = MechanicalTestDataPreprocessor()
 
-        # To store and convert the units for each property
+        # Unit Management
         self.internal_units : dict[str, pint.Unit] = MechanicalTestDataPreprocessor.EXPECTED_UNITS.copy()
         self.target_units : dict[str, pint.Unit] = {}
-        # To store the uncertainty for each property
+        """
+        Unit Management:
+        - internal_units (dict): Dictionary to store and convert units for each property, using pint units.
+            Example: `internal_units['force'] = ureg.newton`
+        - target_units (dict): Dictionary for storing target units for conversion purposes.
+        """
+
+        # Uncertainty management
         self.uncertainty: dict[str, Union[float, str]] = {}
+        """
+        Uncertainty Management:
+        - Stores uncertainty values for each property.
+        - Example: `uncertainty['force'] = {'value': pd.Series, float, str, 'type': 'absolute'}` where type is either
+          'relative' or 'absolute'. A string value such as '5%' indicates a relative uncertainty.
+        """
+
+        # Key Performance Indicators (KPIs)
+        self._kpis: dict[str, any] = {}
+        """
+        Key Performance Indicators (KPIs):
+        - Stores custom calculations depending on the applied mechanical test standard.
+        - Example: `self._kpis['strength'] = 250` (strength could be a calculated property such as maximum stress).
+        """
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
@@ -120,6 +163,17 @@ class AnalyzableEntity(ABC):
         :param property_name: Name of the property (e.g., "force", "displacement").
         """
         return self.target_units.pop(property_name, None)
+
+    def set_uncertainty(
+        self, key: str, value: Union[pd.Series, float, str], uncertainty_type: str = "absolute"
+    ) -> None:
+        """Helper method to set the uncertainty for a given property."""
+        self.uncertainty[key] = {"value": value, "type": uncertainty_type}
+
+    def set_kpi(self, key: str, value: any) -> None:
+        """Helper method to set a custom KPI for the entity."""
+        # As the Kpis get more complex, will need this function to enforce a uniform interface
+        self._kpis[key] = value
             
     def recalculate_properties(self, property_name: str) -> None:
         """

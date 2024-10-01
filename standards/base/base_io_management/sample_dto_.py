@@ -55,7 +55,7 @@ class SampleDTO(BaseModel):
     raw_data: "SampleRawData"
     processed_data: "SampleProcessedData"
     test_conditions: "SampleTestConditions"
-    standard_kpis: "SampleStandardKPIS"
+    standard_kpis: dict
     recalculation_properties: bool = False
     internal_units: dict
     target_units: Optional[dict] = None
@@ -107,20 +107,6 @@ class SampleTestConditions(BaseModel):
     equipment_details: str
     operator_name: str
     test_date: datetime
-
-
-class SampleStandardKPIS(BaseModel):
-    """
-    Represents key performance indicators (KPIs) derived from a sample according to a specific standard.
-
-    Assumptions:
-    - Additional KPIs can be added dynamically, allowing flexibility in representing various testing standards.
-    """
-
-    youngs_modulus: Optional[float] = None
-    yield_strength: Optional[float] = None
-    additional_kpis: Optional[dict] = None
-
 
 # Visualization DTOs varys to much.
 class VisualizationSampleDTO(BaseModel):
