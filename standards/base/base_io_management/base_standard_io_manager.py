@@ -59,7 +59,7 @@ class BaseStandardIOManager:
         """
         Converts an AnalyzableEntity to its corresponding DTO based on its type.
         """
-        if entity.is_visualization:
+        if entity.is_visualization_only:
             return self._convert_to_visualization_dto(entity)
         elif entity.is_sample_group:
             return self._convert_to_sample_group_dto(entity)
@@ -102,7 +102,7 @@ class BaseStandardIOManager:
         """
         return VisualizationSampleDTO(
             name=entity.name,
-            sample_id=entity.sample_id,
+            sample_id=entity.database_id,
             plotted_force=entity._force.tolist(),  # Assuming _force is a pd.Series
             plotted_displacement=entity._displacement.tolist(),  # Assuming _displacement is a pd.Series
             processed_data=BaseStandardIOManager._map_processed_data(entity),
@@ -121,6 +121,7 @@ class BaseStandardIOManager:
     @staticmethod
     def _map_raw_data(entity: "AnalyzableEntity") -> "SampleRawData":
         raw_data = entity.get_raw_data()
+        
         return SampleRawData(
             force_measurements=raw_data["force"].tolist() if "force" in raw_data else [],
             displacement_measurements=raw_data["displacement"].tolist() if "displacement" in raw_data else [],
@@ -130,10 +131,18 @@ class BaseStandardIOManager:
 
     @staticmethod
     def _map_processed_data(entity: "AnalyzableEntity") -> "SampleProcessedData":
+        if entity.has_hysteresis:
+            return SampleProcessedData(
+                calculated_stress=entity._stress.tolist() if entity._stress is not None else [],
+                calculated_strain=entity._strain.tolist() if entity._strain is not None else [],
+                calculated_hysteresis_stress=entity._hysteresis_stress.tolist() if entity._hysteresis_stress is not None else [],
+                calculated_hysteresis_strain=entity._hysteresis_strain.tolist() if entity._hysteresis_strain is not None else [],
+            )
+            
         return SampleProcessedData(
             calculated_stress=entity._stress.tolist() if entity._stress is not None else [],
             calculated_strain=entity._strain.tolist() if entity._strain is not None else [],
-            # You can add more fields if needed, based on your requirements
+           
         )
 
     @staticmethod

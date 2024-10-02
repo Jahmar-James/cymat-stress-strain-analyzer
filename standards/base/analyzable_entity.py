@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional, Union
 
+import datetime
+from enum import Enum
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -11,12 +13,19 @@ from visualization.plot_config import PlotConfig
 from visualization.plot_manager import PlotManager
 
 from .properties_calculators.base_standard_operator import BaseStandardOperator
+from .base_io_management.serializer import Serializer, AttributeField
 
 if TYPE_CHECKING:
     from visualization.plot import Plot
 
     from ..sample_factory import MechanicalTestStandards
 
+
+class DataState(Enum):
+    RAW = "raw"
+    PREPROCESSED = "preprocessed"
+    VALIDATED = "validated"
+    ANALYZED = "analyzed"
 
 class AnalyzableEntity(ABC):
     """
@@ -54,9 +63,12 @@ class AnalyzableEntity(ABC):
         displacement: Optional[pd.Series] = pd.Series(dtype="float64", name="displacement"),
         stress: Optional[pd.Series] = pd.Series(dtype="float64", name="stress"),
         strain: Optional[pd.Series] = pd.Series(dtype="float64", name="strain"),
+        specialized_data: Optional[dict] = None,
         property_calculator: Optional[BaseStandardOperator] = BaseStandardOperator(),
         plot_manager: Optional[PlotManager] = PlotManager(),
-        is_for_visualization: Optional[bool] = False,
+        test_metadata: Optional[dict] = None,
+        has_hysteresis: bool = False,
+        uncertainty: Optional[dict] = None,
     ):
         """
         Initializes the AnalyzableEntity with various attributes for mechanical testing data.
@@ -88,6 +100,9 @@ class AnalyzableEntity(ABC):
         self._density = density
         self._stress = stress
         self._strain = strain
+        
+        # Hysteresis data | Specialized data
+        self.specialized_data = specialized_data or {}
 
         # TODO: Add a method to update raw data names with units and for exporting
         # dataframe columns will always be lowercase to ensure consistency
@@ -95,17 +110,29 @@ class AnalyzableEntity(ABC):
             {"force": self._force, "displacement": self._displacement, "stress": self._stress, "strain": self._strain}
         )
 
-        # Entity determination
-        self.is_sample_group: bool = False  # idenitfy if is a collection of samples
-        self.is_visualization: bool = is_for_visualization  # idenitfy is only for plot purpsoe? make serperate?
-        self.id = None  # Database id
-        self.analysis_standard: Optional["MechanicalTestStandards"] = None
-        self.samples: list[AnalyzableEntity] = []
-
+        # Entity determination  
+        self.version: str = "1.0"  # Entity version
+        self.database_id: Optional[int] = None  # Database identifier (if applicable)
+        self.created_at: str = datetime.datetime.now().isoformat()  # ISO 8601 format for creation time
+        self.last_modified_at: Optional[str] = None  # Last modified timestamp in ISO 8601 format
+        self.data_state:  DataState = DataState.RAW  # Current state of the data (raw, preprocessed, validated, etc.)
+        self.is_data_valid: bool = False  # Indicates if the data has been validated
+        self.is_saved: bool = False  # Indicates if the entity has been saved
+        self.has_hysteresis: bool = has_hysteresis  # True if the sample has hysteresis data
+        self.is_visualization_only: bool = False  # True if entity is for visualization purposes only
+        self.analysis_standard: Optional["MechanicalTestStandards"] = None  # Associated analysis standard
+        self.is_sample_group: bool = False  # True if the entity represents a collection of samples
+        self.samples: list[AnalyzableEntity] = []  # List of associated sample entities
+        
         # Dependency inversion class helpers
         self.plot_manager = plot_manager
         self.property_calculator = property_calculator
         self.data_preprocessor = MechanicalTestDataPreprocessor()
+        self.serializer = Serializer(tracked_object=self)
+        self._exportable_fields: list[AttributeField] = self._initialize_exportable_fields()
+        
+        # Test metadata
+        self.test_metadata = test_metadata or {} # e.g. test conditions, operator, machine, etc.
 
         # Unit Management
         self.internal_units : dict[str, pint.Unit] = MechanicalTestDataPreprocessor.EXPECTED_UNITS.copy()
@@ -118,7 +145,7 @@ class AnalyzableEntity(ABC):
         """
 
         # Uncertainty management
-        self.uncertainty: dict[str, Union[float, str]] = {}
+        self.uncertainty: dict[str, Union[float, str]] = uncertainty or {}
         """
         Uncertainty Management:
         - Stores uncertainty values for each property.
@@ -133,6 +160,45 @@ class AnalyzableEntity(ABC):
         - Stores custom calculations depending on the applied mechanical test standard.
         - Example: `self._kpis['strength'] = 250` (strength could be a calculated property such as maximum stress).
         """
+        
+        if self.has_hysteresis:
+            self._initialize_hysteresis()
+        
+        self.serializer.register_list(self._exportable_fields)
+        
+    def _initialize_hysteresis(self):
+        """Initialize and register hysteresis-related data."""
+        self.specialized_data['hysteresis_stress'] = pd.Series(dtype="float64", name="hysteresis_stress")
+        self.specialized_data['hysteresis_strain'] = pd.Series(dtype="float64", name="hysteresis_strain")
+        self.specialized_data['hysteresis_force'] = pd.Series(dtype="float64", name="hysteresis_force")
+        self.specialized_data['hysteresis_displacement'] = pd.Series(dtype="float64", name="hysteresis_displacement")
+
+        for key, value in self.specialized_data.items():
+            if 'hysteresis' in key:
+                self._raw_data[key] = value
+                
+        # Remove _raw_data from exportable fields and re-register
+        self._exportable_fields = [field for field in self._exportable_fields if field.attribute_name != '_raw_data']
+        
+        data_field = AttributeField(
+            attribute_name='_raw_data', 
+            value=self._raw_data, 
+            unit=None, 
+            output_name=['Force [N]', 'Displacement [mm]', 'Stress [MPa]', 'Strain', 'Hysteresis Stress [MPa]', 'Hysteresis Strain', 'Hysteresis Force [N]', 'Hysteresis Displacement [mm]'],
+            category='data'
+        )
+        self._exportable_fields.append(data_field)
+        
+
+    def _initialize_exportable_fields(self) -> list:
+        """Initialize the list of exportable fields for serialization."""
+        return [
+            AttributeField(attribute_name='name', value=self.name, unit=None, output_name="Name", category='attributes'),
+            AttributeField(attribute_name='length', value=self.length, unit=self.internal_units.get('length'), output_name="Length", category='attributes'),
+            AttributeField(attribute_name='width', value=self.width, unit=self.internal_units.get('length'), output_name="Width", category='attributes'),
+            AttributeField(attribute_name='thickness', value=self.thickness, unit=self.internal_units.get('length'), output_name="Thickness", category='attributes'),
+            AttributeField(attribute_name='_raw_data', value=self._raw_data, unit=None, output_name=['Force [N]', 'Displacement [mm]', 'Stress [MPa]', 'Strain'], category='data'),
+        ]
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
@@ -174,6 +240,22 @@ class AnalyzableEntity(ABC):
         """Helper method to set a custom KPI for the entity."""
         # As the Kpis get more complex, will need this function to enforce a uniform interface
         self._kpis[key] = value
+        
+    def set_test_metadata(self, key: str, value: any) -> None:
+        """Helper method to set test metadata for the entity."""
+        self.test_metadata[key] = value
+        
+    def register_property(self, property_name: str, value: any, unit: Union[str,pint.Unit, None], output_name: Optional[str] = None) -> None:
+        category = "data" if isinstance(value, (pd.Series, pd.DataFrame)) else "attributes"
+        data_field = AttributeField(
+            attribute_name=property_name, 
+            value=value, 
+            unit=unit, 
+            output_name=output_name or property_name.capitalize(), 
+            category=category
+        )
+        self.serializer.register_field(data_field)
+            
             
     def recalculate_properties(self, property_name: str) -> None:
         """

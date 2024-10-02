@@ -190,4 +190,3 @@ def resize_image_by_factor(image: "PIL.Image", resize_factor: float) -> np.ndarr
     resized_image = image.resize((new_width, new_height), PIL.LANCZOS)
 
     return np.asarray(resized_image)
-    return np.asarray(resized_image)
