@@ -22,6 +22,54 @@ if TYPE_CHECKING:
     
 Value: TypeAlias = Union[float,int,pd.Series, pd.DataFrame, np.ndarray]
 
+def exportable_property(unit=None, output_name=None, category="attributes"):
+    """
+    A decorator to mark properties for export with optional additional metadata.
+        
+        This decorator dynamically retrieves the value of the property every time it is accessed. 
+        This means that the most up-to-date value is fetched whenever the property is called or 
+        exported, allowing for dynamic data that may change during the object's lifecycle.
+
+        Parameters:
+        -----------
+        unit: str or None
+            Optional unit for the property (e.g., 'cm', 'kg'). Defaults to None if no unit is needed.
+
+        output_name: str, list, or None
+            For 'attributes' category:
+                - The custom name to be used when exporting the property. If None, the property's 
+                name is used.
+            For 'data' category:
+                - A list of column names or the name of the series to be used when exporting 
+                the `pandas.Series` or `pandas.DataFrame` object.
+                - This value defines how the columns or data series are labeled when serialized.
+                - Example: ['Force [N]', 'Displacement [mm]', 'Stress [MPa]', 'Strain'] for a 
+                `pandas.DataFrame`.
+
+        category: str
+            The category under which the property should be registered:
+            - 'attributes': for simple object properties.
+            - 'data': for complex data such as `pandas.Series` or `pandas.DataFrame`.
+
+        Note:
+        -----
+        - For attributes, `output_name` is used as a display name for serialization.
+        - For data (e.g., `pandas.Series` or `pandas.DataFrame`), `output_name` refers to the names of 
+        the columns or the name of the series when serialized. The data itself is saved in a file 
+        named "{property_name}_data.csv", and the `output_name` defines the labels used in that file.
+    """
+    def decorator(func):
+        # Attach metadata to the function
+        func._is_exportable = True
+        func._export_metadata = {
+            'unit': unit,
+            'output_name': output_name or func.__name__.capitalize(),
+            'category': category
+        }
+        return property(func)
+    
+    return decorator
+
 class DataState(Enum):
     RAW = "raw"
     PREPROCESSED = "preprocessed"
@@ -137,8 +185,8 @@ class AnalyzableEntity(ABC):
         self.test_metadata = test_metadata or {} # e.g. test conditions, operator, machine, etc.
 
         # Unit Management
-        self.internal_units : dict[str, pint.Unit] = MechanicalTestDataPreprocessor.EXPECTED_UNITS.copy()
-        self.target_units : dict[str, pint.Unit] = {}
+        self._internal_units : dict[str, pint.Unit] = MechanicalTestDataPreprocessor.EXPECTED_UNITS.copy()
+        self._target_units : dict[str, pint.Unit] = {}
         """
         Unit Management:
         - internal_units (dict): Dictionary to store and convert units for each property, using pint units.
@@ -147,7 +195,7 @@ class AnalyzableEntity(ABC):
         """
 
         # Uncertainty management
-        self.uncertainty: dict[str, Union[float, str]] = uncertainty or {}
+        self._uncertainty: dict[str, Union[float, str]] = uncertainty or {}
         """
         Uncertainty Management:
         - Stores uncertainty values for each property.
@@ -166,6 +214,10 @@ class AnalyzableEntity(ABC):
         if self.has_hysteresis:
             self._initialize_hysteresis()
         
+        # Register all public attributes for serializatiom ( all attributes not starting with _ ) Exclude blacklisted attributes 
+        # Reasons for blacklisting: Simple one-time values, Helper classes, and complex data
+        black_list = ["name", "length", "width", "thickness", "mass", "plot_manager", "property_calculator", "data_preprocessor", "serializer"]
+        self.serializer.register_all_public_attributes(blacklist=black_list)
         self.serializer.register_list(self._exportable_fields)
         
     def _initialize_hysteresis(self):
@@ -178,27 +230,46 @@ class AnalyzableEntity(ABC):
         for key, value in self.specialized_data.items():
             if 'hysteresis' in key:
                 self._raw_data[key] = value
-                
-        # Remove _raw_data from exportable fields and re-register
-        self._exportable_fields = [field for field in self._exportable_fields if field.attribute_name != '_raw_data']
-        
-        data_field = AttributeField(
-            attribute_name='_raw_data', 
-            value=self._raw_data, 
-            unit=None, 
-            output_name=['Force [N]', 'Displacement [mm]', 'Stress [MPa]', 'Strain', 'Hysteresis Stress [MPa]', 'Hysteresis Strain', 'Hysteresis Force [N]', 'Hysteresis Displacement [mm]'],
-            category='data'
-        )
-        self._exportable_fields.append(data_field)
+
+        # Update the existing _raw_data field in _exportable_fields
+        for field in self._exportable_fields:
+            if field.attribute_name == '_raw_data':
+                field.output_name.extend([
+                    'Hysteresis Stress [MPa]', 'Hysteresis Strain', 'Hysteresis Force [N]', 'Hysteresis Displacement [mm]'
+                ])
+                break
         
 
     def _initialize_exportable_fields(self) -> list:
-        """Initialize the list of exportable fields for serialization."""
+        """
+        Initialize the list of exportable fields for serialization.
+        
+        This method manually registers fields and stores their values at the time of initialization. 
+        Once the fields are registered, their values are stored statically and will not update unless 
+        the fields are manually re-registered after their values change.
+
+        Use this method for fields that are unlikely to change frequently or for more complex fields 
+        (such as data sets or raw data) that may require custom handling.
+
+        Returns:
+        --------
+        list:
+            A list of AttributeField objects, each representing an attribute or data field to be 
+            serialized. This list is initialized once and should be reinitialized if any attribute 
+            values need to be updated.
+
+        Note:
+        -----
+        - For attributes, `output_name` defines a display name for serialization.
+        - For data (e.g., `pandas.Series` or `pandas.DataFrame`), `output_name` defines the column 
+        names or series name. The data will be saved as "{property_name}_data.csv", with 
+        `output_name` specifying how the data is labeled within the file.
+        """
         return [
             AttributeField(attribute_name='name', value=self.name, unit=None, output_name="Name", category='attributes'),
-            AttributeField(attribute_name='length', value=self.length, unit=self.internal_units.get('length'), output_name="Length", category='attributes'),
-            AttributeField(attribute_name='width', value=self.width, unit=self.internal_units.get('length'), output_name="Width", category='attributes'),
-            AttributeField(attribute_name='thickness', value=self.thickness, unit=self.internal_units.get('length'), output_name="Thickness", category='attributes'),
+            AttributeField(attribute_name='length', value=self.length, unit=self._internal_units.get('length'), output_name="Length", category='attributes'),
+            AttributeField(attribute_name='width', value=self.width, unit=self._internal_units.get('length'), output_name="Width", category='attributes'),
+            AttributeField(attribute_name='thickness', value=self.thickness, unit=self._internal_units.get('length'), output_name="Thickness", category='attributes'),
             AttributeField(attribute_name='_raw_data', value=self._raw_data, unit=None, output_name=['Force [N]', 'Displacement [mm]', 'Stress [MPa]', 'Strain'], category='data'),
         ]
 
@@ -223,21 +294,21 @@ class AnalyzableEntity(ABC):
         elif not isinstance(target_unit, pint.Unit):
             raise TypeError("target_unit must be a str, pint.Unit, or pint.Quantity.")
 
-        self.target_units[property_name] = target_unit
+        self._target_units[property_name] = target_unit
     
     def reset_target_unit(self, property_name: str) -> Any:
         """
         Resets the target unit for a property to the default internal unit.
         :param property_name: Name of the property (e.g., "force", "displacement").
         """
-        return self.target_units.pop(property_name, None)
+        return self._target_units.pop(property_name, None)
 
     def set_uncertainty(
         self, key: str, value: Union[pd.Series, float, str], uncertainty_type: str = "absolute"
     ) -> bool:
         """Helper method to set the uncertainty for a given property."""
-        self.uncertainty[key] = {"value": value, "type": uncertainty_type}
-        return bool( key in self.uncertainty)
+        self._uncertainty[key] = {"value": value, "type": uncertainty_type}
+        return bool( key in self._uncertainty)
 
     def set_kpi(self, key: str, value: Value) -> bool:
         """Helper method to set a custom KPI for the entity."""
@@ -285,9 +356,9 @@ class AnalyzableEntity(ABC):
         Converts the units of a property value if a target unit is specified.
         """
         if value is not None:
-            current_unit = self.internal_units.get(current_unit_key)
+            current_unit = self._internal_units.get(current_unit_key)
             # target_unit protity 1. Explicit units 2. Target unit key 3. Current unit key
-            target_unit = target_unit or self.target_units.get(target_unit_key or current_unit_key, current_unit)
+            target_unit = target_unit or self._target_units.get(target_unit_key or current_unit_key, current_unit)
             if target_unit and current_unit != target_unit:
                 try:
                     conversion_factor = self.data_preprocessor._get_conversion_factor(current_unit, target_unit)
@@ -303,7 +374,7 @@ class AnalyzableEntity(ABC):
 
     def _get_proprety_with_units(self, property_name: str) -> Optional[pint.Quantity]:
         if hasattr(self, f"_{property_name}") or hasattr(self, property_name):
-            units = self.internal_units.get(property_name)
+            units = self._internal_units.get(property_name)
             _property = getattr(property_name)
             if isinstance(_property, (float, int)):
                 return getattr(property_name) * units
@@ -312,12 +383,13 @@ class AnalyzableEntity(ABC):
                     f"Cannot get the units for {property_name} as of the types {type(_property)} instead of being a number"
                 )
 
+    @exportable_property(output_name="Cross-Sectional Area", unit="mm^2")
     @property
     def area(self) -> Optional[float]:
         # Inital First time calculation
         if self._area is None:
             # Convert width to the same unit as length using a local variable
-            length_unit = self.internal_units.get("length")
+            length_unit = self._internal_units.get("length")
             width_converted = self._convert_units(value=self.width, current_unit_key="width", target_unit=length_unit)
 
             # Calculate area
@@ -327,12 +399,12 @@ class AnalyzableEntity(ABC):
                 )
                 if area_uncertainty and area_uncertainty > 0:
                     # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
-                    self.uncertainty.setdefault("area", area_uncertainty)
+                    self._uncertainty.setdefault("area", area_uncertainty)
             except ValueError as e:
                 raise ValueError(f"Cannnot calculate area for entity '{self.name}': {str(e)}")
 
             # Set internal unit for area if not already set
-            self.internal_units.setdefault("area", self.internal_units["length"] ** 2)
+            self._internal_units.setdefault("area", self._internal_units["length"] ** 2)
 
         # Convert area to target unit if needed
         _area = self._convert_units(self._area, current_unit_key="area")
@@ -341,7 +413,7 @@ class AnalyzableEntity(ABC):
     @property
     def volume(self) -> Optional[float]:
         if self.area is not None and self.thickness is not None:
-            length_unit = self.internal_units.get("length")
+            length_unit = self._internal_units.get("length")
             thickness_converted = self._convert_units(
                 self.thickness, current_unit_key="thickness", target_unit=length_unit
             )
@@ -352,15 +424,15 @@ class AnalyzableEntity(ABC):
             )
 
             # Set internal unit for volume if not already set
-            self.internal_units.setdefault("volume", self.internal_units["area"] * self.internal_units["length"])
+            self._internal_units.setdefault("volume", self._internal_units["area"] * self._internal_units["length"])
 
             if volumne_uncertainty and volumne_uncertainty > 0:
                 # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
-                self.uncertainty.setdefault("volume", volumne_uncertainty)
+                self._uncertainty.setdefault("volume", volumne_uncertainty)
 
         elif self.length is not None and self.width is not None and self.thickness is not None:
             # Convert width and thickness to the same unit as length
-            length_unit = self.internal_units.get("length")
+            length_unit = self._internal_units.get("length")
             width_converted = self._convert_units(self.width, current_unit_key="width", target_unit=length_unit)
             thickness_converted = self._convert_units(
                 self.thickness, current_unit_key="thickness", target_unit_key="length"
@@ -370,11 +442,11 @@ class AnalyzableEntity(ABC):
                 length=self.length, width=width_converted, thickness=thickness_converted
             )
             # Set internal unit for volume if not already set
-            self.internal_units.setdefault("volume", self.internal_units["length"] ** 3)
+            self._internal_units.setdefault("volume", self._internal_units["length"] ** 3)
 
             if volumne_uncertainty and volumne_uncertainty > 0:
                 # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
-                self.uncertainty.setdefault("volume", volumne_uncertainty)
+                self._uncertainty.setdefault("volume", volumne_uncertainty)
         else:
             raise ValueError("Insufficient data to calculate volume.")
 
@@ -392,12 +464,12 @@ class AnalyzableEntity(ABC):
                 )
                 if density_uncertainty and density_uncertainty > 0:
                     # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
-                    self.uncertainty.setdefault("density", density_uncertainty)
+                    self._uncertainty.setdefault("density", density_uncertainty)
             except ValueError as e:
                 raise ValueError(f"Cannot calculate density for entity '{self.name}': {str(e)}")
 
             # Set internal unit for density if not already set
-            self.internal_units.setdefault("density", self.internal_units["mass"] / self.internal_units["volume"])
+            self._internal_units.setdefault("density", self._internal_units["mass"] / self._internal_units["volume"])
 
         # Convert density to target unit if needed
         _density = self._convert_units(self._density, current_unit_key="density")
@@ -432,12 +504,12 @@ class AnalyzableEntity(ABC):
                     isinstance(strain_uncertainty, str) and strain_uncertainty.endswith("%")
                 ):
                     # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
-                    self.uncertainty.setdefault("strain", strain_uncertainty)
+                    self._uncertainty.setdefault("strain", strain_uncertainty)
             except ValueError as e:
                 raise ValueError(f"Cannot calculate strain for entity '{self.name}': {str(e)}")
 
             # Set internal unit for strain if not already set
-            self.internal_units.setdefault("strain", pint.Unit("dimensionless"))
+            self._internal_units.setdefault("strain", pint.Unit("dimensionless"))
 
         _strain = self._convert_units(self._strain, current_unit_key="strain")
         return _strain if isinstance(_strain, pd.Series) and not _strain.empty else None
@@ -461,12 +533,12 @@ class AnalyzableEntity(ABC):
                     isinstance(stress_uncertainty, str) and stress_uncertainty.endswith("%")
                 ):
                     # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
-                    self.uncertainty.setdefault("stress", stress_uncertainty)
+                    self._uncertainty.setdefault("stress", stress_uncertainty)
             except ValueError as e:
                 raise ValueError(f"Cannot calculate stress for entity '{self.name}': {str(e)}")
 
             # Set internal unit for stress if not already set
-            self.internal_units.setdefault("stress", self.internal_units["force"] / self.internal_units["area"])
+            self._internal_units.setdefault("stress", self._internal_units["force"] / self._internal_units["area"])
 
         _stress = self._convert_units(self._stress, current_unit_key="stress")
         return _stress if isinstance(_stress, pd.Series) and not _stress.empty else None
@@ -476,7 +548,7 @@ class AnalyzableEntity(ABC):
     def _get_output_units(self, property_name: str) -> pint.Unit:
         """Get output units for a property."""
         # 1. try target units 2. internal units 3. raise error
-        return self.target_units.get(property_name, self.internal_units.get(property_name)) or self.internal_units[property_name] 
+        return self._target_units.get(property_name, self._internal_units.get(property_name)) or self._internal_units[property_name] 
         
     def plot_stress_strain(self, 
                            plot: Optional["Plot"] = None,

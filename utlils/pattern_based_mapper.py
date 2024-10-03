@@ -1,14 +1,14 @@
-from typing import Callable, Optional
+from typing import Callable, Optional, Any
 
 
 class PatternBasedMapper:
     @staticmethod
     def map_attributes(
-        source: any,
-        target: any,
+        source: object,
+        target: object,
         source_pattern: Optional[dict] = None,
         target_pattern: Optional[dict] = None,
-        custom_mapping: Optional[dict[str, any]] = None,
+        custom_mapping: Optional[dict[str, Any]] = None,
         verbose: bool = False,
         transfer_values: bool = False,
         use_partial_matching: bool = True,
@@ -42,7 +42,7 @@ class PatternBasedMapper:
         return mapped_attributes
 
     @staticmethod
-    def _verify_custom_mapping(source: any, target: any, custom_mapping: dict[str, any]) -> dict[str, any]:
+    def _verify_custom_mapping(source: object, target: object, custom_mapping: dict[str, Any]) -> dict[str, Any]:
         """Verifies custom mappings and returns a dictionary of valid mappings."""
         verified_mappings = {}
         for s_attr, t_attr_info in custom_mapping.items():
@@ -58,7 +58,7 @@ class PatternBasedMapper:
 
     @staticmethod
     def _apply_custom_mapping(
-        source: any, target: any, verified_mappings: dict[str, any], transfer_values: bool = True, verbose: bool = False
+        source: object, target: object, verified_mappings: dict[str, Any], transfer_values: bool = True, verbose: bool = False
     ) -> None:
         """Applies the verified custom mappings from the source to the target object."""
         for s_attr, t_attr_info in verified_mappings.items():
@@ -81,8 +81,8 @@ class PatternBasedMapper:
     def _map_pattern_attributes(
         source_attrs: list[str],
         target_attrs: list[str],
-        source: any,
-        target: any,
+        source: object,
+        target: object,
         source_pattern: Optional[dict],
         target_pattern: Optional[dict],
         transfer_values: bool = False,
@@ -112,8 +112,8 @@ class PatternBasedMapper:
     def _match_partial_attributes(
         source_attrs: list[str],
         target_attrs: list[str],
-        source: any,
-        target: any,
+        source: object,
+        target: object,
         transfer_values: bool = False,
         verbose: bool = False,
     ) -> dict[str, str]:
@@ -140,7 +140,7 @@ class PatternBasedMapper:
         return mapped_attributes
 
     @staticmethod
-    def _extract_attributes(obj: any) -> list[str]:
+    def _extract_attributes(obj: object) -> list[str]:
         """Extracts non-builtin attributes from the object."""
         return [attr for attr in dir(obj) if not attr.startswith("__") and not callable(getattr(obj, attr))]
 
@@ -157,9 +157,9 @@ class PatternBasedMapper:
 
     @staticmethod
     def recursive_map(
-        source: any,
+        source: object,
         source_path: str,
-        target: any,
+        target: object,
         target_path: str,
         transformation: Optional[Callable] = None,
         verbose: bool = False,

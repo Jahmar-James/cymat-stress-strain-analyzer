@@ -91,7 +91,7 @@ def test_area_calculation_with_unit_conversion():
     # Volume and area already | I am not how - Maybe because they are @property
 
     # Width in centimeters, will be converted to millimeters
-    entity.internal_units["width"] = ureg.centimeter
+    entity._internal_units["width"] = ureg.centimeter
     entity.recalculate_properties("area")  # Recalculate area with the new width unit
 
     # Act
@@ -103,8 +103,8 @@ def test_area_calculation_with_unit_conversion():
         expected_area, rel=1e-3
     ), f"Expected area: {expected_area} mm^2, but got: {calculated_area} mm^2"
     assert (
-        str(entity.internal_units["area"]) == "millimeter ** 2"
-    ), f"Expected area units: 'millimeter ** 2', but got: {entity.internal_units['area']}"
+        str(entity._internal_units["area"]) == "millimeter ** 2"
+    ), f"Expected area units: 'millimeter ** 2', but got: {entity._internal_units['area']}"
 
 
 def test_reset_target_unit(analyzable_entity_with_default_units):
@@ -127,7 +127,7 @@ def test_reset_target_unit(analyzable_entity_with_default_units):
 
     # Verify that force is now back to its default unit (newton)
     assert (
-        "force" not in analyzable_entity_with_default_units.target_units
+        "force" not in analyzable_entity_with_default_units._target_units
     ), "Expected 'force' to have been reset to its internal unit."
 
     # Check that accessing force now returns in newtons
