@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union, TypeAlias, Any
 
 import datetime
 from enum import Enum
@@ -19,7 +19,8 @@ if TYPE_CHECKING:
     from visualization.plot import Plot
 
     from ..sample_factory import MechanicalTestStandards
-
+    
+Value: TypeAlias = Union[float,int,pd.Series, pd.DataFrame, np.ndarray]
 
 class DataState(Enum):
     RAW = "raw"
@@ -64,8 +65,8 @@ class AnalyzableEntity(ABC):
         stress: Optional[pd.Series] = pd.Series(dtype="float64", name="stress"),
         strain: Optional[pd.Series] = pd.Series(dtype="float64", name="strain"),
         specialized_data: Optional[dict] = None,
-        property_calculator: Optional[BaseStandardOperator] = BaseStandardOperator(),
-        plot_manager: Optional[PlotManager] = PlotManager(),
+        property_calculator: BaseStandardOperator = BaseStandardOperator(),
+        plot_manager: PlotManager = PlotManager(),
         test_metadata: Optional[dict] = None,
         has_hysteresis: bool = False,
         uncertainty: Optional[dict] = None,
@@ -111,7 +112,7 @@ class AnalyzableEntity(ABC):
         )
 
         # Entity determination  
-        self.version: str = "1.0"  # Entity version
+        self.software_version: str = "1.0"  # Software version used to generate the entity
         self.database_id: Optional[int] = None  # Database identifier (if applicable)
         self.created_at: str = datetime.datetime.now().isoformat()  # ISO 8601 format for creation time
         self.last_modified_at: Optional[str] = None  # Last modified timestamp in ISO 8601 format
@@ -123,6 +124,7 @@ class AnalyzableEntity(ABC):
         self.analysis_standard: Optional["MechanicalTestStandards"] = None  # Associated analysis standard
         self.is_sample_group: bool = False  # True if the entity represents a collection of samples
         self.samples: list[AnalyzableEntity] = []  # List of associated sample entities
+        self.tags = []  # Tags associated with the entity
         
         # Dependency inversion class helpers
         self.plot_manager = plot_manager
@@ -154,7 +156,7 @@ class AnalyzableEntity(ABC):
         """
 
         # Key Performance Indicators (KPIs)
-        self._kpis: dict[str, any] = {}
+        self._kpis: dict[str, Value] = {}
         """
         Key Performance Indicators (KPIs):
         - Stores custom calculations depending on the applied mechanical test standard.
@@ -223,7 +225,7 @@ class AnalyzableEntity(ABC):
 
         self.target_units[property_name] = target_unit
     
-    def reset_target_unit(self, property_name: str) -> any:
+    def reset_target_unit(self, property_name: str) -> Any:
         """
         Resets the target unit for a property to the default internal unit.
         :param property_name: Name of the property (e.g., "force", "displacement").
@@ -232,20 +234,23 @@ class AnalyzableEntity(ABC):
 
     def set_uncertainty(
         self, key: str, value: Union[pd.Series, float, str], uncertainty_type: str = "absolute"
-    ) -> None:
+    ) -> bool:
         """Helper method to set the uncertainty for a given property."""
         self.uncertainty[key] = {"value": value, "type": uncertainty_type}
+        return bool( key in self.uncertainty)
 
-    def set_kpi(self, key: str, value: any) -> None:
+    def set_kpi(self, key: str, value: Value) -> bool:
         """Helper method to set a custom KPI for the entity."""
         # As the Kpis get more complex, will need this function to enforce a uniform interface
         self._kpis[key] = value
+        return bool(key in self._kpis)
         
-    def set_test_metadata(self, key: str, value: any) -> None:
+    def set_test_metadata(self, key: str, value: Value) -> bool:
         """Helper method to set test metadata for the entity."""
         self.test_metadata[key] = value
+        return bool(key in self.test_metadata)
         
-    def register_property(self, property_name: str, value: any, unit: Union[str,pint.Unit, None], output_name: Optional[str] = None) -> None:
+    def register_property(self, property_name: str, value: Value, unit: Union[str,pint.Unit, None], output_name: Optional[str] = None) -> None:
         category = "data" if isinstance(value, (pd.Series, pd.DataFrame)) else "attributes"
         data_field = AttributeField(
             attribute_name=property_name, 
@@ -275,7 +280,7 @@ class AnalyzableEntity(ABC):
         current_unit_key: str,
         target_unit_key: Optional[str] = None,
         target_unit: Optional[pint.Unit] = None,
-    ) -> Optional[Union[float, pd.Series]]:
+    ) -> Union[float, pd.Series, None]:
         """
         Converts the units of a property value if a target unit is specified.
         """
@@ -296,7 +301,7 @@ class AnalyzableEntity(ABC):
         else:
             return None
 
-    def _get_proprety_with_units(self, property_name: str) -> pint.Quantity:
+    def _get_proprety_with_units(self, property_name: str) -> Optional[pint.Quantity]:
         if hasattr(self, f"_{property_name}") or hasattr(self, property_name):
             units = self.internal_units.get(property_name)
             _property = getattr(property_name)
@@ -330,7 +335,8 @@ class AnalyzableEntity(ABC):
             self.internal_units.setdefault("area", self.internal_units["length"] ** 2)
 
         # Convert area to target unit if needed
-        return self._convert_units(self._area, current_unit_key="area")
+        _area = self._convert_units(self._area, current_unit_key="area")
+        return _area if isinstance(_area, (float, int)) else None
 
     @property
     def volume(self) -> Optional[float]:
@@ -373,7 +379,8 @@ class AnalyzableEntity(ABC):
             raise ValueError("Insufficient data to calculate volume.")
 
         # Convert volume to target unit if needed
-        return self._convert_units(self._volume, current_unit_key="volume")
+        _volume = self._convert_units(self._volume, current_unit_key="volume")
+        return _volume if isinstance(_volume, (float, int)) else None
 
     @property
     def density(self) -> Optional[float]:
@@ -393,15 +400,18 @@ class AnalyzableEntity(ABC):
             self.internal_units.setdefault("density", self.internal_units["mass"] / self.internal_units["volume"])
 
         # Convert density to target unit if needed
-        return self._convert_units(self._density, current_unit_key="density")
+        _density = self._convert_units(self._density, current_unit_key="density")
+        return _density if isinstance(_density, (float, int)) else None
 
     @property
     def force(self) -> Optional[pd.Series]:
-        return self._convert_units(self._force, current_unit_key="force")
+        _force = self._convert_units(self._force, current_unit_key="force")
+        return _force if isinstance(_force, pd.Series) and not _force.empty else None
 
     @property
     def displacement(self) -> Optional[pd.Series]:
-        return self._convert_units(self._displacement, current_unit_key="displacement")
+        _displacement = self._convert_units(self._displacement, current_unit_key="displacement")
+        return _displacement if isinstance(_displacement, pd.Series) and not _displacement.empty else None
 
     @property
     def strain(self) -> Optional[pd.Series]:
@@ -429,7 +439,8 @@ class AnalyzableEntity(ABC):
             # Set internal unit for strain if not already set
             self.internal_units.setdefault("strain", pint.Unit("dimensionless"))
 
-        return self._convert_units(self._strain, current_unit_key="strain")
+        _strain = self._convert_units(self._strain, current_unit_key="strain")
+        return _strain if isinstance(_strain, pd.Series) and not _strain.empty else None
 
     @property
     def stress(self) -> Optional[pd.Series]:
@@ -457,7 +468,8 @@ class AnalyzableEntity(ABC):
             # Set internal unit for stress if not already set
             self.internal_units.setdefault("stress", self.internal_units["force"] / self.internal_units["area"])
 
-        return self._convert_units(self._stress, current_unit_key="stress")
+        _stress = self._convert_units(self._stress, current_unit_key="stress")
+        return _stress if isinstance(_stress, pd.Series) and not _stress.empty else None
     
 
     # Common Operations        
@@ -466,7 +478,11 @@ class AnalyzableEntity(ABC):
         # 1. try target units 2. internal units 3. raise error
         return self.target_units.get(property_name, self.internal_units.get(property_name)) or self.internal_units[property_name] 
         
-    def plot_stress_strain(self, plot: Optional["Plot"] = None, plot_name: Optional[str] = None, plot_config: Optional["PlotConfig"] = None, update_fig: bool = False) -> "Plot":
+    def plot_stress_strain(self, 
+                           plot: Optional["Plot"] = None,
+                           plot_name: Optional[str] = None,
+                           plot_config: Optional["PlotConfig"] = None,
+                           update_fig: bool = False) -> Optional["Plot"]:
         """
         Plot the stress-strain curve for a sample.
         Can be used to provide an automated view of the data, potentially overlayed with other samples.
@@ -480,7 +496,7 @@ class AnalyzableEntity(ABC):
         if plot_config is None:
             plot_config = PlotConfig(
                 title=plot_name,
-                xlabel=f"Strain [%]",
+                xlabel="Strain [%]",
                 ylabel=f"Stress [{self._get_output_units('stress')}]",
                 x_percent=True,
             )
@@ -504,7 +520,7 @@ class AnalyzableEntity(ABC):
         plot_name: Optional[str] = None,
         plot_config: Optional["PlotConfig"] = None,
         update_fig: bool = False,
-        ) -> "Plot":
+        ) -> Optional["Plot"]:
         """
         Plot the force-displacement curve for a sample.
         Can be used to provide an automated view of the data, potentially overlayed with other samples.
@@ -536,8 +552,6 @@ class AnalyzableEntity(ABC):
         )
         return plot
         
-        
-
 
     # Interface - Abstract Methods
 
