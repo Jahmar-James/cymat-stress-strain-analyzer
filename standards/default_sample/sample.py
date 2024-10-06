@@ -3,7 +3,7 @@ from typing import Optional
 from standards.sample_factory import MechanicalTestStandards, register_sample
 
 from ..base.analyzable_entity import AnalyzableEntity
-from ..base.base_io_management.base_standard_io_manager import BaseStandardIOManager
+from ..base.base_io_management.ARCHIVE_base_standard_io_manager import BaseStandardIOManager
 from ..base.base_standard_validator import BaseStandardValidator
 from ..base.properties_calculators.base_standard_operator import BaseStandardOperator
 from .validator import GeneralPreliminaryValidator

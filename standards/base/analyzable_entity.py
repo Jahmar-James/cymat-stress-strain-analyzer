@@ -1,9 +1,8 @@
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Optional, Union, TypeAlias, Any
-
 import datetime
+from abc import ABC, abstractmethod
 from enum import Enum
-import matplotlib.pyplot as plt
+from typing import TYPE_CHECKING, Any, Optional, TypeAlias, Union
+
 import numpy as np
 import pandas as pd
 import pint
@@ -12,22 +11,26 @@ from data_extraction import MechanicalTestDataPreprocessor
 from visualization.plot_config import PlotConfig
 from visualization.plot_manager import PlotManager
 
+from .base_io_management.serializer import AttributeField, Serializer
 from .properties_calculators.base_standard_operator import BaseStandardOperator
-from .base_io_management.serializer import Serializer, AttributeField
 
 if TYPE_CHECKING:
     from visualization.plot import Plot
 
     from ..sample_factory import MechanicalTestStandards
-    
-Value: TypeAlias = Union[float,int,pd.Series, pd.DataFrame, np.ndarray]
+
+Value: TypeAlias = Union[float, int, pd.Series, pd.DataFrame, np.ndarray]
+from collections import namedtuple
+
+entity_property = namedtuple("entity_property", ["value", "uncertainty", "unit"])
+
 
 def exportable_property(unit=None, output_name=None, category="attributes"):
     """
     A decorator to mark properties for export with optional additional metadata.
-        
-        This decorator dynamically retrieves the value of the property every time it is accessed. 
-        This means that the most up-to-date value is fetched whenever the property is called or 
+
+        This decorator dynamically retrieves the value of the property every time it is accessed.
+        This means that the most up-to-date value is fetched whenever the property is called or
         exported, allowing for dynamic data that may change during the object's lifecycle.
 
         Parameters:
@@ -37,13 +40,13 @@ def exportable_property(unit=None, output_name=None, category="attributes"):
 
         output_name: str, list, or None
             For 'attributes' category:
-                - The custom name to be used when exporting the property. If None, the property's 
+                - The custom name to be used when exporting the property. If None, the property's
                 name is used.
             For 'data' category:
-                - A list of column names or the name of the series to be used when exporting 
+                - A list of column names or the name of the series to be used when exporting
                 the `pandas.Series` or `pandas.DataFrame` object.
                 - This value defines how the columns or data series are labeled when serialized.
-                - Example: ['Force [N]', 'Displacement [mm]', 'Stress [MPa]', 'Strain'] for a 
+                - Example: ['Force [N]', 'Displacement [mm]', 'Stress [MPa]', 'Strain'] for a
                 `pandas.DataFrame`.
 
         category: str
@@ -54,27 +57,30 @@ def exportable_property(unit=None, output_name=None, category="attributes"):
         Note:
         -----
         - For attributes, `output_name` is used as a display name for serialization.
-        - For data (e.g., `pandas.Series` or `pandas.DataFrame`), `output_name` refers to the names of 
-        the columns or the name of the series when serialized. The data itself is saved in a file 
+        - For data (e.g., `pandas.Series` or `pandas.DataFrame`), `output_name` refers to the names of
+        the columns or the name of the series when serialized. The data itself is saved in a file
         named "{property_name}_data.csv", and the `output_name` defines the labels used in that file.
     """
+
     def decorator(func):
         # Attach metadata to the function
         func._is_exportable = True
         func._export_metadata = {
-            'unit': unit,
-            'output_name': output_name or func.__name__.capitalize(),
-            'category': category
+            "unit": unit,
+            "output_name": output_name or func.__name__.capitalize(),
+            "category": category,
         }
         return property(func)
-    
+
     return decorator
+
 
 class DataState(Enum):
     RAW = "raw"
     PREPROCESSED = "preprocessed"
     VALIDATED = "validated"
     ANALYZED = "analyzed"
+
 
 class AnalyzableEntity(ABC):
     """
@@ -135,7 +141,7 @@ class AnalyzableEntity(ABC):
         """
         # Typically Required properties
         self.name = name
-        self.length = length 
+        self.length = length
         self.width = width
         self.thickness = thickness
         self.mass = mass
@@ -149,7 +155,7 @@ class AnalyzableEntity(ABC):
         self._density = density
         self._stress = stress
         self._strain = strain
-        
+
         # Hysteresis data | Specialized data
         self.specialized_data = specialized_data or {}
 
@@ -159,34 +165,35 @@ class AnalyzableEntity(ABC):
             {"force": self._force, "displacement": self._displacement, "stress": self._stress, "strain": self._strain}
         )
 
-        # Entity determination  
+        # Entity determination
+        self.analysis_standard: Optional["MechanicalTestStandards"] = None  # Associated analysis standard
         self.software_version: str = "1.0"  # Software version used to generate the entity
+        self.entity_version: str = "1.0"  # Entity version revision management for entity standard implementation
         self.database_id: Optional[int] = None  # Database identifier (if applicable)
         self.created_at: str = datetime.datetime.now().isoformat()  # ISO 8601 format for creation time
         self.last_modified_at: Optional[str] = None  # Last modified timestamp in ISO 8601 format
-        self.data_state:  DataState = DataState.RAW  # Current state of the data (raw, preprocessed, validated, etc.)
+        self.data_state: DataState = DataState.RAW  # Current state of the data (raw, preprocessed, validated, etc.)
         self.is_data_valid: bool = False  # Indicates if the data has been validated
         self.is_saved: bool = False  # Indicates if the entity has been saved
         self.has_hysteresis: bool = has_hysteresis  # True if the sample has hysteresis data
         self.is_visualization_only: bool = False  # True if entity is for visualization purposes only
-        self.analysis_standard: Optional["MechanicalTestStandards"] = None  # Associated analysis standard
         self.is_sample_group: bool = False  # True if the entity represents a collection of samples
         self.samples: list[AnalyzableEntity] = []  # List of associated sample entities
         self.tags = []  # Tags associated with the entity
-        
+
         # Dependency inversion class helpers
         self.plot_manager = plot_manager
         self.property_calculator = property_calculator
         self.data_preprocessor = MechanicalTestDataPreprocessor()
         self.serializer = Serializer(tracked_object=self)
         self._exportable_fields: list[AttributeField] = self._initialize_exportable_fields()
-        
+
         # Test metadata
-        self.test_metadata = test_metadata or {} # e.g. test conditions, operator, machine, etc.
+        self.test_metadata = test_metadata or {}  # e.g. test conditions, operator, machine, etc.
 
         # Unit Management
-        self._internal_units : dict[str, pint.Unit] = MechanicalTestDataPreprocessor.EXPECTED_UNITS.copy()
-        self._target_units : dict[str, pint.Unit] = {}
+        self._internal_units: dict[str, pint.Unit] = MechanicalTestDataPreprocessor.EXPECTED_UNITS.copy()
+        self._target_units: dict[str, pint.Unit] = {}
         """
         Unit Management:
         - internal_units (dict): Dictionary to store and convert units for each property, using pint units.
@@ -210,81 +217,117 @@ class AnalyzableEntity(ABC):
         - Stores custom calculations depending on the applied mechanical test standard.
         - Example: `self._kpis['strength'] = 250` (strength could be a calculated property such as maximum stress).
         """
-        
+
         if self.has_hysteresis:
             self._initialize_hysteresis()
-        
-        # Register all public attributes for serializatiom ( all attributes not starting with _ ) Exclude blacklisted attributes 
+
+        # Register all public attributes for serializatiom ( all attributes not starting with _ ) Exclude blacklisted attributes
         # Reasons for blacklisting: Simple one-time values, Helper classes, and complex data
-        black_list = ["name", "length", "width", "thickness", "mass", "plot_manager", "property_calculator", "data_preprocessor", "serializer"]
+        black_list = [
+            "name",
+            "length",
+            "width",
+            "thickness",
+            "mass",
+            "plot_manager",
+            "property_calculator",
+            "data_preprocessor",
+            "serializer",
+        ]
         self.serializer.register_all_public_attributes(blacklist=black_list)
         self.serializer.register_list(self._exportable_fields)
-        
+
     def _initialize_hysteresis(self):
         """Initialize and register hysteresis-related data."""
-        self.specialized_data['hysteresis_stress'] = pd.Series(dtype="float64", name="hysteresis_stress")
-        self.specialized_data['hysteresis_strain'] = pd.Series(dtype="float64", name="hysteresis_strain")
-        self.specialized_data['hysteresis_force'] = pd.Series(dtype="float64", name="hysteresis_force")
-        self.specialized_data['hysteresis_displacement'] = pd.Series(dtype="float64", name="hysteresis_displacement")
+        self.specialized_data["hysteresis_stress"] = pd.Series(dtype="float64", name="hysteresis_stress")
+        self.specialized_data["hysteresis_strain"] = pd.Series(dtype="float64", name="hysteresis_strain")
+        self.specialized_data["hysteresis_force"] = pd.Series(dtype="float64", name="hysteresis_force")
+        self.specialized_data["hysteresis_displacement"] = pd.Series(dtype="float64", name="hysteresis_displacement")
 
         for key, value in self.specialized_data.items():
-            if 'hysteresis' in key:
+            if "hysteresis" in key:
                 self._raw_data[key] = value
 
         # Update the existing _raw_data field in _exportable_fields
         for field in self._exportable_fields:
-            if field.attribute_name == '_raw_data':
-                field.output_name.extend([
-                    'Hysteresis Stress [MPa]', 'Hysteresis Strain', 'Hysteresis Force [N]', 'Hysteresis Displacement [mm]'
-                ])
+            if field.attribute_name == "_raw_data":
+                field.output_name.extend(
+                    [
+                        "Hysteresis Stress [MPa]",
+                        "Hysteresis Strain",
+                        "Hysteresis Force [N]",
+                        "Hysteresis Displacement [mm]",
+                    ]
+                )
                 break
-        
 
     def _initialize_exportable_fields(self) -> list:
         """
         Initialize the list of exportable fields for serialization.
-        
-        This method manually registers fields and stores their values at the time of initialization. 
-        Once the fields are registered, their values are stored statically and will not update unless 
+
+        This method manually registers fields and stores their values at the time of initialization.
+        Once the fields are registered, their values are stored statically and will not update unless
         the fields are manually re-registered after their values change.
 
-        Use this method for fields that are unlikely to change frequently or for more complex fields 
+        Use this method for fields that are unlikely to change frequently or for more complex fields
         (such as data sets or raw data) that may require custom handling.
 
         Returns:
         --------
         list:
-            A list of AttributeField objects, each representing an attribute or data field to be 
-            serialized. This list is initialized once and should be reinitialized if any attribute 
+            A list of AttributeField objects, each representing an attribute or data field to be
+            serialized. This list is initialized once and should be reinitialized if any attribute
             values need to be updated.
 
         Note:
         -----
         - For attributes, `output_name` defines a display name for serialization.
-        - For data (e.g., `pandas.Series` or `pandas.DataFrame`), `output_name` defines the column 
-        names or series name. The data will be saved as "{property_name}_data.csv", with 
+        - For data (e.g., `pandas.Series` or `pandas.DataFrame`), `output_name` defines the column
+        names or series name. The data will be saved as "{property_name}_data.csv", with
         `output_name` specifying how the data is labeled within the file.
         """
         return [
-            AttributeField(attribute_name='name', value=self.name, unit=None, output_name="Name", category='attributes'),
-            AttributeField(attribute_name='length', value=self.length, unit=self._internal_units.get('length'), output_name="Length", category='attributes'),
-            AttributeField(attribute_name='width', value=self.width, unit=self._internal_units.get('length'), output_name="Width", category='attributes'),
-            AttributeField(attribute_name='thickness', value=self.thickness, unit=self._internal_units.get('length'), output_name="Thickness", category='attributes'),
-            AttributeField(attribute_name='_raw_data', value=self._raw_data, unit=None, output_name=['Force [N]', 'Displacement [mm]', 'Stress [MPa]', 'Strain'], category='data'),
+            AttributeField(
+                attribute_name="name", value=self.name, unit=None, output_name="Name", category="attributes"
+            ),
+            AttributeField(
+                attribute_name="length",
+                value=self.length,
+                unit=self._internal_units.get("length"),
+                output_name="Length",
+                category="attributes",
+            ),
+            AttributeField(
+                attribute_name="width",
+                value=self.width,
+                unit=self._internal_units.get("length"),
+                output_name="Width",
+                category="attributes",
+            ),
+            AttributeField(
+                attribute_name="thickness",
+                value=self.thickness,
+                unit=self._internal_units.get("length"),
+                output_name="Thickness",
+                category="attributes",
+            ),
+            AttributeField(
+                attribute_name="_raw_data",
+                value=self._raw_data,
+                unit=None,
+                output_name=["Force [N]", "Displacement [mm]", "Stress [MPa]", "Strain"],
+                category="data",
+            ),
         ]
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
 
-    def get_raw_data(self) -> pd.DataFrame:
-        # Only return columns in _raw_data that contain actual measurements
-        return self._raw_data.copy().dropna(axis=1, how="all")
-        
+    # Setters & Resetters
+
     def set_target_unit(self, property_name: str, target_unit) -> None:
         """
         Set the target unit for a specific property (e.g., force, displacement, stress).
-        :param property_name: Name of the property (e.g., "force", "displacement").
-        :param target_unit: The target unit to convert the property into (e.g., kN, mm).
         """
         # Normalize target_unit to pint.Unit
         if isinstance(target_unit, str):
@@ -295,11 +338,10 @@ class AnalyzableEntity(ABC):
             raise TypeError("target_unit must be a str, pint.Unit, or pint.Quantity.")
 
         self._target_units[property_name] = target_unit
-    
+
     def reset_target_unit(self, property_name: str) -> Any:
         """
         Resets the target unit for a property to the default internal unit.
-        :param property_name: Name of the property (e.g., "force", "displacement").
         """
         return self._target_units.pop(property_name, None)
 
@@ -308,31 +350,32 @@ class AnalyzableEntity(ABC):
     ) -> bool:
         """Helper method to set the uncertainty for a given property."""
         self._uncertainty[key] = {"value": value, "type": uncertainty_type}
-        return bool( key in self._uncertainty)
+        return bool(key in self._uncertainty)
 
     def set_kpi(self, key: str, value: Value) -> bool:
         """Helper method to set a custom KPI for the entity."""
         # As the Kpis get more complex, will need this function to enforce a uniform interface
         self._kpis[key] = value
         return bool(key in self._kpis)
-        
+
     def set_test_metadata(self, key: str, value: Value) -> bool:
         """Helper method to set test metadata for the entity."""
         self.test_metadata[key] = value
         return bool(key in self.test_metadata)
-        
-    def register_property(self, property_name: str, value: Value, unit: Union[str,pint.Unit, None], output_name: Optional[str] = None) -> None:
+
+    def register_property(
+        self, property_name: str, value: Value, unit: Union[str, pint.Unit, None], output_name: Optional[str] = None
+    ) -> None:
         category = "data" if isinstance(value, (pd.Series, pd.DataFrame)) else "attributes"
         data_field = AttributeField(
-            attribute_name=property_name, 
-            value=value, 
-            unit=unit, 
-            output_name=output_name or property_name.capitalize(), 
-            category=category
+            attribute_name=property_name,
+            value=value,
+            unit=unit,
+            output_name=output_name or property_name.capitalize(),
+            category=category,
         )
         self.serializer.register_field(data_field)
-            
-            
+
     def recalculate_properties(self, property_name: str) -> None:
         """
         Recalculate a specific property and update the internal value.
@@ -344,6 +387,8 @@ class AnalyzableEntity(ABC):
             getattr(self, property_name)
         else:
             raise ValueError(f"Property {property_name} does not exist.")
+
+    # Helper Method
 
     def _convert_units(
         self,
@@ -372,7 +417,12 @@ class AnalyzableEntity(ABC):
         else:
             return None
 
-    def _get_proprety_with_units(self, property_name: str) -> Optional[pint.Quantity]:
+    # Getters
+
+    def get_proprety_with_units(self, property_name: str) -> Optional[pint.Quantity]:
+        """
+        Get the value and internal units for a property.
+        """
         if hasattr(self, f"_{property_name}") or hasattr(self, property_name):
             units = self._internal_units.get(property_name)
             _property = getattr(property_name)
@@ -382,6 +432,36 @@ class AnalyzableEntity(ABC):
                 raise ValueError(
                     f"Cannot get the units for {property_name} as of the types {type(_property)} instead of being a number"
                 )
+
+    def get_property_with_uncertainty(self, property_name: str) -> tuple[Optional[Value], Optional[Value]]:
+        """
+        Get the value and uncertainty for a property.
+        """
+        value = getattr(self, f"_{property_name}", None)
+        if value is None:
+            raise ValueError(f"Property '{property_name}' has no value.")
+
+        uncertainty = self._uncertainty.get(property_name, None)
+        return value, uncertainty
+
+    def get_property_with_units_and_uncertainty(self, property_name: str) -> entity_property:
+        """
+        Get the value, uncertainty, and units for a property.
+        """
+        value, uncertainty = self.get_property_with_uncertainty(property_name)
+        units = self._internal_units.get(property_name)
+        return entity_property(value=value, uncertainty=uncertainty, unit=units)
+
+    # Helper  Getters Methods for plotting
+    def _get_output_units(self, property_name: str) -> pint.Unit:
+        """Get output units for a property."""
+        # 1. try target units 2. internal units 3. raise error
+        return (
+            self._target_units.get(property_name, self._internal_units.get(property_name))
+            or self._internal_units[property_name]
+        )
+
+    # Properties
 
     @exportable_property(output_name="Cross-Sectional Area", unit="mm^2")
     @property
@@ -542,14 +622,9 @@ class AnalyzableEntity(ABC):
 
         _stress = self._convert_units(self._stress, current_unit_key="stress")
         return _stress if isinstance(_stress, pd.Series) and not _stress.empty else None
-    
 
-    # Common Operations        
-    def _get_output_units(self, property_name: str) -> pint.Unit:
-        """Get output units for a property."""
-        # 1. try target units 2. internal units 3. raise error
-        return self._target_units.get(property_name, self._internal_units.get(property_name)) or self._internal_units[property_name] 
-        
+    # Plotting Methods
+
     def plot_stress_strain(self, 
                            plot: Optional["Plot"] = None,
                            plot_name: Optional[str] = None,
@@ -627,7 +702,7 @@ class AnalyzableEntity(ABC):
 
     # Interface - Abstract Methods
 
-    # @abstractmethod
+    @abstractmethod
     def plot(self) -> None:
         """
         Plot key performance indicators (KPI) relevant to the standard being used.

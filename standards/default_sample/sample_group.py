@@ -2,7 +2,7 @@ from typing import Optional
 
 from standards.base.analyzable_entity import AnalyzableEntity
 
-from ..base.base_io_management.base_standard_io_manager import BaseStandardIOManager
+from ..base.base_io_management.ARCHIVE_base_standard_io_manager import BaseStandardIOManager
 from ..base.base_standard_validator import BaseStandardValidator
 from ..base.properties_calculators.group_aggeregation_calculator import GroupAggregationOperator
 

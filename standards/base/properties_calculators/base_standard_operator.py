@@ -121,7 +121,7 @@ class BaseStandardOperator:
                 return unp.uarray(data, uncertainty)
             elif isinstance(uncertainty, (pd.Series, np.ndarray)):
                 # Element-wise uncertainty provided as a Series
-                if index: # Data was a pandas Series
+                if index is not None:  # Data was a pandas Series
                     if isinstance(uncertainty, pd.Series) and uncertainty.index.equals(index):
                         return unp.uarray(data, uncertainty.values)
                     else:
