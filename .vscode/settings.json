@@ -21,6 +21,6 @@
   "python.testing.unittestEnabled": false, // Disables unittest framework
   "python.testing.pytestEnabled": true, // Enables pytest framework
   // Python analysis settings
-  "python.analysis.typeCheckingMode": "off", // Sets the level of type checking to basic
+  "python.analysis.typeCheckingMode": "standard", // Sets the level of type checking to basic
   "python.analysis.autoImportCompletions": false // Enables automatic import completions
 }

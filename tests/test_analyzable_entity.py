@@ -2,18 +2,13 @@ import pandas as pd
 import pint
 import pytest
 
-from data_extraction.mechanical_test_data_preprocessor import ureg
-from standards.base.analyzable_entity import AnalyzableEntity
+from tests.abstract_classes import TestableAnalyzableEntity
 
+test_instance = TestableAnalyzableEntity(name="Sample 1")
+ureg = test_instance.data_preprocessor.unit_registry
 # =============================================================================
 # Fixtures
 # =============================================================================
-
-
-class TestableAnalyzableEntity(AnalyzableEntity):
-    def plot(self) -> None:
-        # Provide a simple implementation for testing, if needed, or pass
-        pass
 
 @pytest.fixture
 def analyzable_entity_with_default_units():

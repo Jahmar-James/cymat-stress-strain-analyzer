@@ -32,7 +32,11 @@ Propagation of uncertainty
 
 """
 
-from uncertainties import ufloat, unumpy
+# turn into a backend class
+# provide calculation uncertainty for area, density
+# display distribution of uncertainty for density
+# refer to Toplevel propperies group  py as an example ( class SamplePropertiesProcessor)
+# maybe just combine the two classes and save as backend sample properties processor
 
 """
 std_dev = np.std(measurements, ddof=1)  # ddof=1 for sample standard deviation
@@ -44,51 +48,3 @@ calibration_uncertainty = 1.0 / 2          # Calibration uncertainty
 # Step 3: Combined uncertainty
 combined_uncertainty = np.sqrt(std_dev**2 + resolution_uncertainty**2 + calibration_uncertainty**2)
 """
-from typing import Optional, Union
-
-import numpy as np
-import pandas as pd
-from uncertainties import ufloat
-from uncertainties import unumpy as unp
-
-
-class BaseStandardOperator:
-    @staticmethod
-    def _convert_to_uncertain_series(data: pd.Series, uncertainty: Optional[Union[float, str]]) -> pd.Series:
-        """
-        Convert a pandas Series to a series of ufloat with uncertainties.
-
-        :param data: The data series.
-        :param uncertainty: The uncertainty for the series.
-                            Can be absolute (float) or relative percentage (str, e.g., '5%').
-        :return: A series of ufloats.
-        """
-        if uncertainty is None:
-            return data
-        if isinstance(uncertainty, str) and uncertainty.endswith("%"):
-            # Relative uncertainty
-            relative_value = float(uncertainty.strip("%")) / 100.0
-            return unp.uarray(data, data * relative_value)
-        else:
-            # Absolute uncertainty
-            return unp.uarray(data, uncertainty)
-
-    @staticmethod
-    def _convert_to_uncertain_scalar(value: float, uncertainty: Optional[Union[float, str]]) -> ufloat:
-        """
-        Convert a scalar value to a ufloat with uncertainty.
-
-        :param value: The scalar value.
-        :param uncertainty: The uncertainty for the value.
-                            Can be absolute (float) or relative percentage (str, e.g., '5%').
-        :return: A ufloat with the specified uncertainty.
-        """
-        if uncertainty is None:
-            return value
-        if isinstance(uncertainty, str) and uncertainty.endswith("%"):
-            # Relative uncertainty
-            relative_value = float(uncertainty.strip("%")) / 100.0
-            return ufloat(value, value * relative_value)
-        else:
-            # Absolute uncertainty
-            return ufloat(value, uncertainty)

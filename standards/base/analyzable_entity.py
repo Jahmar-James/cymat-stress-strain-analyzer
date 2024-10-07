@@ -116,6 +116,7 @@ class AnalyzableEntity(ABC):
         density: Optional[float] = None,
         force: Optional[pd.Series] = pd.Series(dtype="float64", name="force"),
         displacement: Optional[pd.Series] = pd.Series(dtype="float64", name="displacement"),
+        time: Optional[pd.Series] = pd.Series(dtype="float64", name="time"),
         stress: Optional[pd.Series] = pd.Series(dtype="float64", name="stress"),
         strain: Optional[pd.Series] = pd.Series(dtype="float64", name="strain"),
         specialized_data: Optional[dict] = None,
@@ -148,6 +149,8 @@ class AnalyzableEntity(ABC):
         # Create Empty Series if None to ensure data aligns for dataframe eg. raw_data which is used for export
         self._force = force
         self._displacement = displacement
+        index = pd.Series(range(len(self._force)), name="index")
+        self._time = time if (isinstance(time, pd.Series) and not time.empty) else index
 
         # Optional properties that can be calculated from the required properties
         self._area = area
@@ -186,7 +189,6 @@ class AnalyzableEntity(ABC):
         self.property_calculator = property_calculator
         self.data_preprocessor = MechanicalTestDataPreprocessor()
         self.serializer = Serializer(tracked_object=self)
-        self._exportable_fields: list[AttributeField] = self._initialize_exportable_fields()
 
         # Test metadata
         self.test_metadata = test_metadata or {}  # e.g. test conditions, operator, machine, etc.
@@ -217,6 +219,9 @@ class AnalyzableEntity(ABC):
         - Stores custom calculations depending on the applied mechanical test standard.
         - Example: `self._kpis['strength'] = 250` (strength could be a calculated property such as maximum stress).
         """
+
+        # Exportable Fields
+        self._exportable_fields: list[AttributeField] = self._initialize_exportable_fields()
 
         if self.has_hysteresis:
             self._initialize_hysteresis()
@@ -464,7 +469,6 @@ class AnalyzableEntity(ABC):
     # Properties
 
     @exportable_property(output_name="Cross-Sectional Area", unit="mm^2")
-    @property
     def area(self) -> Optional[float]:
         # Inital First time calculation
         if self._area is None:
