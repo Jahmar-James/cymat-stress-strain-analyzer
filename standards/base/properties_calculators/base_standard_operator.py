@@ -26,6 +26,9 @@ class BaseStandardOperator:
     Will provide all the property calculation methods needed by the SampleGeneric class.
     """
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}()"
+
     @staticmethod
     def calculate_cross_sectional_area(
         length: float,

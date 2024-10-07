@@ -32,6 +32,24 @@ if __name__ == "__main__":
     print(f"Entity '{entity.name}' has an area of {entity.area:.2f} mm^2")
     print(f"Entity '{entity.name}' {entity.__class__.area.fget._is_exportable}")
     print(f"Entity '{entity.name}' {entity.__class__.area.fget._export_metadata}")
+    from tkinter import filedialog
 
     output_dir = Path.cwd() / "output"
-    entity.serializer.export(tracked_object=entity, output_dir=output_dir)
+    # path = filedialog.asksaveasfilename()
+    # entity.serializer.export(tracked_object=entity, output_path=output_dir)
+
+    path = None
+    while path is None:
+        path = filedialog.askopenfile()
+
+    from standards.base.base_io_management.flle_io_manager import FileIOManager
+
+    if isinstance(entity.serializer.export_strategy, FileIOManager):
+        new_entity = entity.serializer.export_strategy.import_object_from_file(
+            return_class=TestableAnalyzableEntity, input_file=path.name
+        )
+
+        if isinstance(new_entity, TestableAnalyzableEntity):
+            print(f"NEW Entity '{new_entity.name}' has an area of {new_entity.area:.2f} mm^2")
+        else:
+            print("This is not a in the correct types")

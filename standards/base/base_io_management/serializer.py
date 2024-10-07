@@ -129,28 +129,28 @@ class Serializer:
     def _generate_output_name(name: str, unit: Optional[str]) -> str:
         """Generate a standardized output name, appending unit if provided."""
         return f'{name} ({unit})' if unit else name
-    
-    
-    def export(self,
-               export_strategy: Optional["IOStrategy"] = None,
-               tracked_object= None, 
-               output_dir: Optional[Path] = None,
-               database_uri: Optional[str] = None,
-               ) -> bool:
+
+    def export(
+        self,
+        export_strategy: Optional["IOStrategy"] = None,
+        tracked_object=None,
+        output_path: Optional[Path] = None,
+        database_uri: Optional[str] = None,
+        **kwargs,
+    ) -> bool:
         """Export the registered fields using the selected export strategy."""
         strategy = export_strategy or self.export_strategy
         if strategy is None:
             raise ValueError("No export strategy provided or set during initialization.")
-        
+
         tracked_object = tracked_object or self.tracked_object
         if tracked_object is None:
             raise ValueError("No tracked object provided or set during initialization.")
-        
-        output_dir = output_dir or Path.cwd() / 'exported_data'
+
         self.register_exportable_properties(tracked_object)
 
         # Call the export method of the chosen strategy
-        return strategy.export(tracked_object, self._registry, output_dir=output_dir, database_uri=database_uri)
+        return strategy.export(tracked_object, self._registry, output_path=output_path, database_uri=database_uri)
          
 from abc import ABC, abstractmethod
 
@@ -159,6 +159,11 @@ class IOStrategy(ABC):
     """
     Abstract base class for all export strategies.
     """
+
+    STRATEGY_NAME = "Base"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__} Strategy for {self.STRATEGY_NAME}"
 
     @abstractmethod
     def export(self, tracked_object: object, registry, **kwargs) -> bool:

@@ -326,7 +326,26 @@ class AnalyzableEntity(ABC):
         ]
 
     def __repr__(self) -> str:
+        """Return a debug-centric string representation of the entity."""
+        return f"{self.__class__.__name__}({self.name})V{self.entity_version}_{self.data_state.value}"
+
+    def __str__(self) -> str:
+        """Return a user-friendly string representation of the entity."""
         return f"{self.__class__.__name__}({self.name})"
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, AnalyzableEntity):
+            return False
+
+        return bool(
+            self.name == other.name
+            and self.analysis_standard == other.analysis_standard
+            and self.entity_version == other.entity_version
+        )
+
+    def __hash__(self) -> int:
+        unqiue_id = (self.name, self.analysis_standard, self.entity_version)
+        return hash(unqiue_id)
 
     # Setters & Resetters
 
