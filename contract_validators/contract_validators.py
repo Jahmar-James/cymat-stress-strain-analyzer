@@ -62,6 +62,7 @@ class ContractValidators:
         arg_name: str = "",
         func_name: str = "",
         fatal: bool = True,
+        task: str = "",
     ) -> None:
         """
         Ensure that a variable is of the specified type(s).
@@ -81,14 +82,20 @@ class ContractValidators:
                 [t.__name__ for t in expected_types] if isinstance(expected_types, tuple) else [expected_types.__name__]
             )
             expected_types_str = ", ".join(expected_type_names)
-            message = (
-                f"{func_name}: '{arg_name}' must be of type(s) {expected_types_str}. Received: {type(value).__name__}."
+
+            error_message = ErrorGenerator.generate_type_error(
+                expected_type=expected_types_str,
+                received_type=type(value).__name__,
+                arg_name=arg_name,
+                task=task,
+                func_name=func_name,
+                return_as_str=True,
             )
 
             if fatal:
-                raise ErrorGenerator.generate_value_error(type(value).__name__, arg_name, expected_types_str, func_name)
+                raise TypeError(error_message)
             else:
-                warnings.warn(message)
+                warnings.warn(error_message)
 
     @staticmethod
     def validate_types_in_list(

@@ -6,6 +6,7 @@ from typing import Optional, Union
 
 import pandas as pd
 
+from contract_validators import ContractValidators, ErrorGenerator
 from standards.base.base_io_management.serializer import IOStrategy
 
 
@@ -327,8 +328,12 @@ class FileIOManager(IOStrategy):
                 # Load attributes and data from the extracted files
                 attributes_n_data = FileIOManager._load_attributes_and_data(temp_dir_path, json_file)
 
+                # if attributes_n_data has keys 'class_name' for each attribute,
+                # Then invert the dict key to have the class_name as the key, and  ignore the output_name
+                inverted_attributes_n_data = FileIOManager._invert_attributes_n_data(attributes_n_data)
+
                 # Instantiate and return the object using core attributes and data
-                return IOStrategy.filter_and_instantiate(return_class, attributes_n_data, {})
+                return IOStrategy.filter_and_instantiate(return_class, inverted_attributes_n_data, {})
 
         except Exception as e:
             raise Exception(f"Error occurred while importing object from '{file}': {e}")
@@ -359,7 +364,7 @@ class FileIOManager(IOStrategy):
             raise Exception(f"An unexpected error occurred while unzipping '{zip_file_path}': {e}")
 
     @staticmethod
-    def _load_attributes_and_data(directory: Path, json_file: Path) -> dict:
+    def _load_attributes_and_data(directory: Path, json_file: Path, key_to_class_name: str = "class_name") -> dict:
         """ "
         Reads attributes from a JSON file and associated data from CSV files.
 
@@ -379,6 +384,8 @@ class FileIOManager(IOStrategy):
             with open(json_file, "r") as file:
                 attributes = json.load(file)
 
+            processed_attributes = {}
+
             # Loop through attributes and handle both regular attributes and data files
             for attribute_name, details in attributes.items():
                 # Check if this attribute refers to a data file (CSV)
@@ -386,20 +393,25 @@ class FileIOManager(IOStrategy):
                     csv_file_path = directory / details["value"]
                     if csv_file_path.exists():
                         # Load the CSV and apply correct type
-                        attributes[attribute_name] = pd.read_csv(csv_file_path)
+                        processed_attributes[attribute_name] = pd.read_csv(csv_file_path)
 
                         # Reassign the correct type for the data (usually Series or DataFrame)
-                        attributes[attribute_name] = FileIOManager._reassign_type(
+                        processed_attributes[attribute_name] = FileIOManager._reassign_type(
                             attributes[attribute_name], details["data_type"], attribute_name
                         )
                 else:
-                    # For non-data fields, reassign types if necessary
+                    # For Attributes (non-data fields), reassign types if necessary
                     if "value" in details and "data_type" in details:
-                        attributes[attribute_name]["value"] = FileIOManager._reassign_type(
+                        # Invert the dictionary if key_to_class_name is found and update the attribute name
+                        if key_to_class_name in details:
+                            attribute_name = details.pop(key_to_class_name)
+                            processed_attributes[attribute_name] = details
+
+                        processed_attributes[attribute_name]["value"] = FileIOManager._reassign_type(
                             details["value"], details["data_type"], attribute_name
                         )
 
-            return attributes
+            return processed_attributes
 
         except OSError as e:
             raise IOValidator.generate_os_error(task="load fields from JSON", path=json_file)
@@ -407,7 +419,30 @@ class FileIOManager(IOStrategy):
             raise Exception(f"An unexpected error occurred while loading fields from '{json_file}': {e}")
 
     @staticmethod
-    def _reassign_type(value, data_type: str, attribute_name: str):
+    def _invert_attributes_n_data(attributes_n_data: dict, key: str = "class_name") -> dict:
+        """
+        Inverts the attributes and data dictionary to have the class_name as the key.
+        """
+        # assume the attributes_n_data is correctly formatted to match the return_class
+        already_match = not (all(details.get(key) == attribute for attribute, details in attributes_n_data.items()))
+
+        if already_match:
+            return attributes_n_data
+
+        # Invert the dict key to have the class_name as the
+        inverted_attributes_n_data = {}
+        for attribute_name, details in attributes_n_data.items():
+            # Do not pop pandas Series or DataFrame objects
+            if isinstance(details, (pd.Series, pd.DataFrame)):
+                inverted_attributes_n_data[attribute_name] = details
+                continue
+
+            class_name = details.pop(key, attribute_name)
+            inverted_attributes_n_data[class_name] = details
+        return inverted_attributes_n_data
+
+    @staticmethod
+    def _reassign_type(value, data_type: str, attribute_name: str, allowed_types=None):
         """
         Reassigns the correct type to an attribute or data field based on its original class.
 
@@ -421,15 +456,33 @@ class FileIOManager(IOStrategy):
         - Returns the value with the correct type reassigned (Series, DataFrame, etc.).
         - Raises a ValueError if the data type is unsupported or cannot be reassigned.
         """
+        # if value is none theres is no need to check data typr or cr
+        # create any variables, simply return None for efficiency
+        if value is None:
+            return None
+
+        # If allowed_types is not passed in, set to the default allowed types
+        if allowed_types is None:
+            allowed_types = {
+                "int": int,
+                "float": float,
+                "str": str,
+                "list": list,
+                "dict": dict,
+                "tuple": tuple,
+                "bool": bool,
+                "Series": pd.Series,  # Pandas Series type
+                "DataFrame": pd.DataFrame,  # Pandas DataFrame type
+            }
+
+        # if value is is already in the allowed types, return it
+        if isinstance(value, tuple(allowed_types.values())):
+            return value
+
         try:
-            if hasattr(__builtins__, data_type):
-                return getattr(__builtins__, data_type)(value)
-            elif hasattr(pd, data_type):
-                # If it's a pandas type (e.g., Series or DataFrame)
-                if data_type == "Series":
-                    return pd.Series(value)
-                elif data_type == "DataFrame":
-                    return pd.DataFrame(value)
+            # Safely handle types using the allowed types mapping
+            if data_type in allowed_types:
+                return allowed_types[data_type](value)
             if data_type.endswith("_enum"):
                 return check_enums(value, data_type)
             else:

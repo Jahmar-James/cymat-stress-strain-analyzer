@@ -199,7 +199,7 @@ class IOStrategy(ABC):
         return core_attributes, extra_attributes
 
     @staticmethod
-    def filter_and_instantiate(return_class, attributes, data, allow_dynamic_attributes=False) -> object:
+    def filter_and_instantiate(return_class, attributes, data, allow_dynamic_attributes=True) -> object:
         core_attributes, extra_attributes = IOStrategy.prepare_fields_for_initialization(return_class, attributes, data)
         try:
             # Instantiate the class with core attributes

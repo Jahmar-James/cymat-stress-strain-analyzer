@@ -1,5 +1,5 @@
 import warnings
-from typing import Union
+from typing import Optional, Union
 
 import pandas as pd
 from uncertainties import UFloat
@@ -15,7 +15,12 @@ class CalculationValidator:
 
     @staticmethod
     def validate_positive_number(
-        value: Union[float, int, UFloat], var_name: str = "", func_name: str = "", fatal: bool = True
+        value: Union[float, int, UFloat],
+        var_name: str = "",
+        func_name: str = "",
+        task: str = "",
+        fatal: bool = True,
+        user_friendly: Optional[bool] = None,
     ) -> None:
         """
         Ensure that a value is a positive number.
@@ -24,21 +29,42 @@ class CalculationValidator:
         """
         # Check if value is UFloat and validate its nominal value
         if isinstance(value, UFloat) and value.nominal_value <= 0:
-            message = f"{func_name}: '{var_name}' must have a positive nominal value. Received: {value}"
+            error_message = ErrorGenerator.generate_value_error(
+                value_type="UFloat nominal value",
+                attribute_name=var_name,
+                expected_types="positive number",
+                task=task,
+                func_name=func_name,
+                user_friendly=user_friendly,
+                return_as_str=True,
+            )
             if fatal:
-                raise ValueError(message)
+                raise ValueError(error_message)
             else:
-                warnings.warn(message)
+                warnings.warn(error_message)
         elif isinstance(value, (float, int)) and value <= 0:
-            message = f"{func_name}: '{var_name}' must be a positive number. Received: {value}."
+            error_message = ErrorGenerator.generate_value_error(
+                value_type="number",
+                attribute_name=var_name,
+                expected_types="positive number",
+                task=task,
+                func_name=func_name,
+                user_friendly=user_friendly,
+                return_as_str=True,
+            )
             if fatal:
-                raise ErrorGenerator.generate_value_error("number", var_name, "positive number", func_name)
+                raise ValueError(error_message)
             else:
-                warnings.warn(message)
+                warnings.warn(error_message)
 
     @staticmethod
     def validate_series_list(
-        series_list: list[pd.Series], func_name: str = "", check_index=True, fatal: bool = True
+        series_list: list[pd.Series],
+        func_name: str = "",
+        task: str = "",
+        check_index: bool = True,
+        fatal: bool = True,
+        user_friendly: Optional[bool] = None,
     ) -> None:
         """
         Ensure that a list contains pandas Series with consistent indices.
@@ -51,20 +77,36 @@ class CalculationValidator:
         """
         # Check if all elements are pandas Series
         if not all(isinstance(s, pd.Series) for s in series_list):
-            message = f"{func_name}: All elements in 'series_list' must be pandas Series. Received: {series_list}."
+            error_message = ErrorGenerator.generate_value_error(
+                value_type="list",
+                attribute_name="series_list",
+                expected_types="pandas.Series",
+                task=task,
+                func_name=func_name,
+                user_friendly=user_friendly,
+                return_as_str=True,
+            )
             if fatal:
-                raise ErrorGenerator.generate_value_error("list", "series_list", "pandas.Series", func_name)
+                raise ValueError(error_message)
             else:
-                warnings.warn(message)
+                warnings.warn(error_message)
             return
 
         # Ensure no Series is empty
         if any(s.empty for s in series_list):
-            message = f"{func_name}: All elements in 'series_list' must not be empty. Received: {series_list}."
+            error_message = ErrorGenerator.generate_value_error(
+                value_type="list",
+                attribute_name="series_list",
+                expected_types="non-empty pandas.Series",
+                task=task,
+                func_name=func_name,
+                user_friendly=user_friendly,
+                return_as_str=True,
+            )
             if fatal:
-                raise ErrorGenerator.generate_value_error("list", "series_list", "non-empty pandas.Series", func_name)
+                raise ValueError(error_message)
             else:
-                warnings.warn(message)
+                warnings.warn(error_message)
             return
 
         if check_index:
@@ -80,25 +122,34 @@ class CalculationValidator:
 
     @staticmethod
     def validate_dfs_columns_exist(
-        dataframes: list[pd.DataFrame], required_columns: list[str], func_name: str = "", fatal: bool = True
+        dataframes: list[pd.DataFrame],
+        required_columns: list[str],
+        func_name: str = "",
+        task: str = "",
+        fatal: bool = True,
+        user_friendly: Optional[bool] = None,
     ) -> None:
         """
         Validate that all DataFrames contain the specified required columns.
 
-        Raises a ValueError if any DataFrame is missing required columns.
+        By defualt 'fatal' is True, raises a ValueError if any DataFrame is missing columns.
         """
         missing_info = []
         for i, df in enumerate(dataframes):
             if not isinstance(df, pd.DataFrame):
-                message = (
-                    f"{func_name}: 'DataFrame at index {i}' must be a pandas DataFrame. Received: {type(df).__name__}."
+                error_message = ErrorGenerator.generate_value_error(
+                    value_type=f"DataFrame at index {i}",
+                    attribute_name=f"DataFrame at index {i}",
+                    expected_types="pandas.DataFrame",
+                    task=task,
+                    func_name=func_name,
+                    user_friendly=user_friendly,
+                    return_as_str=True,
                 )
                 if fatal:
-                    raise ErrorGenerator.generate_value_error(
-                        "DataFrame", f"DataFrame at index {i}", "pandas.DataFrame", func_name
-                    )
+                    raise ValueError(error_message)
                 else:
-                    warnings.warn(message)
+                    warnings.warn(error_message)
                 continue
 
             # Check for missing columns

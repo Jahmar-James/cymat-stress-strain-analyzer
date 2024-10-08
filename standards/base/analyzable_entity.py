@@ -293,7 +293,7 @@ class AnalyzableEntity(ABC):
         """
         return [
             AttributeField(
-                attribute_name="name", value=self.name, unit=None, output_name="Name", category="attributes"
+                attribute_name="name", value=self.name, unit=None, output_name="Sample Name", category="attributes"
             ),
             AttributeField(
                 attribute_name="length",
