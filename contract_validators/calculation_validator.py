@@ -30,31 +30,37 @@ class CalculationValidator:
         # Check if value is UFloat and validate its nominal value
         if isinstance(value, UFloat) and value.nominal_value <= 0:
             error_message = ErrorGenerator.generate_value_error(
-                value_type="UFloat nominal value",
+                received_value=value.nominal_value,
                 attribute_name=var_name,
-                expected_types="positive number",
-                task=task,
-                func_name=func_name,
+                expected_value="positive number",
+                action=task,
+                function_name=func_name,
                 user_friendly=user_friendly,
-                return_as_str=True,
-            )
+                return_message_only=True,)
+              
+                
             if fatal:
                 raise ValueError(error_message)
             else:
+                if isinstance(error_message,Exception):
+                    raise ValueError("Set user_friendly to True to get the error message")
                 warnings.warn(error_message)
         elif isinstance(value, (float, int)) and value <= 0:
             error_message = ErrorGenerator.generate_value_error(
-                value_type="number",
+                received_value=value,
                 attribute_name=var_name,
-                expected_types="positive number",
-                task=task,
-                func_name=func_name,
+                expected_value="positive number",
+                action=task,
+                function_name=func_name,
                 user_friendly=user_friendly,
-                return_as_str=True,
+                return_message_only=True
             )
+        
             if fatal:
                 raise ValueError(error_message)
             else:
+                if isinstance(error_message,Exception): 
+                    raise ValueError("Set user_friendly to True to get the error message")
                 warnings.warn(error_message)
 
     @staticmethod
@@ -77,35 +83,39 @@ class CalculationValidator:
         """
         # Check if all elements are pandas Series
         if not all(isinstance(s, pd.Series) for s in series_list):
-            error_message = ErrorGenerator.generate_value_error(
-                value_type="list",
-                attribute_name="series_list",
-                expected_types="pandas.Series",
-                task=task,
-                func_name=func_name,
+            error_message = ErrorGenerator.generate_invalid_list_type_error(
+                parameter_name="series_list",
+                expected_types="pandas Series",
+                received_values=series_list,
+                action=task,
+                function_name=func_name,
                 user_friendly=user_friendly,
-                return_as_str=True,
+                return_message_only=True,
             )
             if fatal:
                 raise ValueError(error_message)
             else:
+                if isinstance(error_message,Exception):
+                    raise ValueError("Set user_friendly to True to get the error message")
                 warnings.warn(error_message)
             return
 
         # Ensure no Series is empty
         if any(s.empty for s in series_list):
             error_message = ErrorGenerator.generate_value_error(
-                value_type="list",
+                received_value=series_list,
                 attribute_name="series_list",
-                expected_types="non-empty pandas.Series",
-                task=task,
-                func_name=func_name,
+                expected_value="non-empty Series",
+                action=task,
+                function_name=func_name,
                 user_friendly=user_friendly,
-                return_as_str=True,
+                return_message_only=True,
             )
             if fatal:
                 raise ValueError(error_message)
             else:
+                if isinstance(error_message,Exception):
+                    raise ValueError("Set user_friendly to True to get the error message")
                 warnings.warn(error_message)
             return
 
@@ -138,17 +148,19 @@ class CalculationValidator:
         for i, df in enumerate(dataframes):
             if not isinstance(df, pd.DataFrame):
                 error_message = ErrorGenerator.generate_value_error(
-                    value_type=f"DataFrame at index {i}",
+                    received_value=df,
                     attribute_name=f"DataFrame at index {i}",
-                    expected_types="pandas.DataFrame",
-                    task=task,
-                    func_name=func_name,
+                    expected_value="pandas DataFrame",
+                    action=task,
+                    function_name=func_name,
                     user_friendly=user_friendly,
-                    return_as_str=True,
+                    return_message_only=True,
                 )
                 if fatal:
                     raise ValueError(error_message)
                 else:
+                    if isinstance(error_message,Exception):
+                        raise ValueError("Set user_friendly to True to get the error message")
                     warnings.warn(error_message)
                 continue
 

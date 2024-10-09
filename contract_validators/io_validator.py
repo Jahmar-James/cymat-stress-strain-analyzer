@@ -27,18 +27,20 @@ class IOValidator:
         """
         if not isinstance(path, Path):
             error_message = ErrorGenerator.generate_value_error(
-                value_type=type(path).__name__,
+                received_value=path,
                 attribute_name=arg_name,
-                expected_types="Path",
-                task=task,
-                func_name=func_name,
+                expected_value="Path object",
+                action=task,
+                function_name=func_name,
                 user_friendly=user_friendly,
-                return_as_str=True,
+                return_message_only=True,
             )
 
             if fatal:
                 raise TypeError(error_message)
             else:
+                if isinstance(error_message, Exception):
+                    raise ValueError("Set user_friendly to True to get the error message")
                 warnings.warn(error_message)
             return False
         return True
@@ -58,17 +60,18 @@ class IOValidator:
 
         if not path.exists():
             error_message = ErrorGenerator.generate_file_not_found_error(
-                task=task,
-                path=path,
-                suggestion="Ensure the file or directory exists.",
-                func_name=func_name,
+                file_path=path,
+                action=task,
+                function_name=func_name,
                 user_friendly=user_friendly,
-                return_as_str=True,
+                return_message_only=True,
             )
 
             if fatal:
                 raise FileNotFoundError(error_message)
             else:
+                if isinstance(error_message, Exception):
+                    raise ValueError("Set user_friendly to True to get the error message")
                 warnings.warn(error_message)
 
     @staticmethod
@@ -91,18 +94,20 @@ class IOValidator:
         if path.suffix not in allowed_extensions:
             allowed_ext_str = ", ".join(allowed_extensions)
             error_message = ErrorGenerator.generate_value_error(
-                value_type="file extension",
+                received_value=path.suffix,
                 attribute_name=arg_name,
-                expected_types=allowed_ext_str,
-                task=task,
-                func_name=func_name,
+                expected_value=f"one of the following extensions: {allowed_ext_str}",
+                action=task,
+                function_name=func_name,
                 user_friendly=user_friendly,
-                return_as_str=True,
+                return_message_only=True,
             )
 
             if fatal:
                 raise ValueError(error_message)
             else:
+                if isinstance(error_message, Exception):
+                    raise ValueError("Set user_friendly to True to get the error message")
                 warnings.warn(error_message)
 
     @staticmethod
@@ -120,16 +125,18 @@ class IOValidator:
 
         if not path.is_dir():
             error_message = ErrorGenerator.generate_value_error(
-                value_type="path type",
+                received_value=path,
                 attribute_name=arg_name,
-                expected_types="directory",
-                task=task,
-                func_name=func_name,
+                expected_value="directory",
+                action=task,
+                function_name=func_name,
                 user_friendly=user_friendly,
-                return_as_str=True,
+                return_message_only=True,
             )
 
             if fatal:
                 raise NotADirectoryError(error_message)
             else:
+                if isinstance(error_message, Exception):
+                    raise ValueError("Set user_friendly to True to get the error message")
                 warnings.warn(error_message)

@@ -59,10 +59,11 @@ class ContractValidators:
     def validate_type(
         value: Any,
         expected_types: Union[type, tuple[type, ...]],
-        arg_name: str = "",
-        func_name: str = "",
+        parameter_name: str = "",
+        function_name: str = "",
         fatal: bool = True,
-        task: str = "",
+        action: str = "",
+        **kwargs,
     ) -> None:
         """
         Ensure that a variable is of the specified type(s).
@@ -70,8 +71,8 @@ class ContractValidators:
         Args:
         - value: The value to check.
         - expected_types: The type(s) that the value is expected to be.
-        - arg_name: Name of the argument being validated (to improve error messages).
-        - func_name: Name of the function where this validation is being applied (for context).
+        - parameter_name: Name of the argument being validated (to improve error messages).
+        - function_name: Name of the function where this validation is being applied (for context).
         - fatal: Whether this error should be fatal (True) or raise a warning (False).
 
         Raises:
@@ -84,26 +85,29 @@ class ContractValidators:
             expected_types_str = ", ".join(expected_type_names)
 
             error_message = ErrorGenerator.generate_type_error(
+                received_value=value,
                 expected_type=expected_types_str,
-                received_type=type(value).__name__,
-                arg_name=arg_name,
-                task=task,
-                func_name=func_name,
-                return_as_str=True,
+                attribute_name=parameter_name,
+                action=action,
+                function_name=function_name,
+                **kwargs,
             )
 
             if fatal:
                 raise TypeError(error_message)
             else:
+                if isinstance(error_message, Exception):
+                    raise ValueError("Set user_friendly to True to get the error message")
                 warnings.warn(error_message)
 
     @staticmethod
     def validate_types_in_list(
         values: list,
         expected_types: Union[type, tuple[type, ...]],
-        arg_name: str = "",
-        func_name: str = "",
+        parameter_name: str = "",
+        function_name: str = "",
         fatal: bool = True,
+        action: str = "",
     ) -> None:
         """
         Ensure that all elements in a list are of the specified type(s).
@@ -111,105 +115,146 @@ class ContractValidators:
         Raises a TypeError (or a warning) if any element is not of the expected type(s).
         """
         # Validate if 'values' is a list
-        ContractValidators.validate_type(values, list, arg_name, func_name, fatal=fatal)
+        ContractValidators.validate_type(values, list, parameter_name, function_name, fatal, action)
 
         # Check if all elements in the list are of the expected types
-        if not all(isinstance(v, expected_types) for v in values):
-            expected_type_names = (
-                [t.__name__ for t in expected_types] if isinstance(expected_types, tuple) else [expected_types.__name__]
+        invalid_values = [v for v in values if not isinstance(v, expected_types)]
+        if invalid_values:
+            expected_types_str = (
+                ", ".join([t.__name__ for t in expected_types])
+                if isinstance(expected_types, tuple)
+                else expected_types.__name__
             )
-            expected_types_str = ", ".join(expected_type_names)
-            message = f"{func_name}: All elements in '{arg_name}' must be of type(s) {expected_types_str}. Received: {values}."
-            if fatal:
-                raise ErrorGenerator.generate_value_error("list", arg_name, expected_types_str, func_name)
-            else:
-                warnings.warn(message)
 
+            error_message = ErrorGenerator.generate_invalid_list_type_error(
+                parameter_name=parameter_name,
+                expected_types=expected_types_str,
+                received_values=invalid_values,
+                action=action,
+                function_name=function_name,
+                return_message_only=True,
+            )
+
+            if fatal:
+                raise TypeError(error_message)
+            else:
+                if isinstance(error_message, Exception):
+                    raise ValueError("Set user_friendly to True to get the error message")
+                warnings.warn(error_message)
+    
     @staticmethod
-    def validate_non_empty_list(values: list, arg_name: str = "", func_name: str = "", fatal: bool = True) -> None:
+    def validate_non_empty_list(
+        values: list,
+        parameter_name: str = "",
+        function_name: str = "",
+        fatal: bool = True,
+        action: str = "",
+    ) -> None:
         """
         Ensure that a list is non-empty.
 
         Raises a ValueError (or a warning) if the list is empty.
         """
-        ContractValidators.validate_type(values, list, arg_name, func_name, fatal=fatal)
+        ContractValidators.validate_type(values, list, parameter_name, function_name, fatal=fatal)
 
         if len(values) == 0:
-            message = f"{func_name}: '{arg_name}' must be a non-empty list. Received: {values}."
+            error_message = ErrorGenerator.generate_empty_list_error(
+                parameter_name=parameter_name,
+                action=action,
+                function_name=function_name,
+                return_message_only=True,
+            )
+
             if fatal:
-                raise ErrorGenerator.generate_value_error("list", arg_name, "non-empty list", func_name)
+                raise ValueError(error_message)
             else:
-                warnings.warn(message)
+                if isinstance(error_message, Exception):
+                    raise ValueError("Set user_friendly to True to get the error message")
+                warnings.warn(error_message)
 
     @staticmethod
-    def validate_required_arg(value: Any, arg_name: str = "", func_name: str = "", fatal: bool = True) -> None:
+    def validate_required_arg(
+        value: Any,
+        parameter_name: str = "",
+        function_name: str = "",
+        fatal: bool = True,
+        action: str = "",
+    ) -> None:
         """
         Ensure that a required argument is not None.
 
         Args:
         - value: The argument to check.
-        - arg_name: Name of the argument being validated (to improve error messages).
-        - func_name: Name of the function where this validation is being applied (for context).
+        - parameter_name: Name of the argument being validated (to improve error messages).
+        - function_name: Name of the function where this validation is being applied (for context).
         - fatal: Whether this error should be fatal (True) or raise a warning (False).
 
         Raises:
         - ValueError if fatal is True, otherwise raises a warning.
         """
         if value is None:
-            message = f"{func_name}: '{arg_name}' is required and cannot be None."
+            error_message = ErrorGenerator.generate_required_arg_error(
+                parameter_name=parameter_name,
+                action=action,
+                function_name=function_name,
+                return_message_only=True,
+            )
+
             if fatal:
-                raise ErrorGenerator.generate_value_error("None", arg_name, "non-None value", func_name)
+                raise ValueError(error_message)
             else:
-                warnings.warn(message)
+                if isinstance(error_message, Exception):
+                    raise ValueError("Set user_friendly to True to get the error message")
+                warnings.warn(error_message)
 
     # IO Validation (delegates to IOValidator)
     @staticmethod
-    def validate_path_exists(path: Any, arg_name="path", func_name="", fatal=True):
+    def validate_path_exists(path: Any, parameter_name="path", function_name="", action = "", fatal=True):
         """Ensure the given path exists"""
-        IOValidator.validate_path_exists(path, arg_name, func_name, fatal)
+        IOValidator.validate_path_exists( path, parameter_name, function_name, action, fatal)
 
     @staticmethod
-    def validate_path_extension(path: Any, allowed_extensions: list[str], arg_name="path", func_name="", fatal=True):
+    def validate_path_extension(path: Any, allowed_extensions: list[str], parameter_name="path", function_name="", action = "", fatal=True):
         """Ensure the file has one of the allowed extensions."""
-        IOValidator.validate_path_extension(path, allowed_extensions, arg_name, func_name, fatal)
+        IOValidator.validate_path_extension(path, allowed_extensions, parameter_name, function_name, action, fatal)
 
     @staticmethod
-    def validate_directory(path: Any, arg_name="path", func_name="", fatal=True):
+    def validate_directory(path: Any, parameter_name="path", function_name="", action="", fatal=True):
         """Ensure the given path is a directory."""
-        IOValidator.validate_directory(path, arg_name, func_name, fatal)
+        IOValidator.validate_directory(path, parameter_name, function_name, action, fatal)
 
     # Calculation Validation (delegates to CalculationValidator)
     @staticmethod
     def validate_positive_number(
-        value: Union[float, int, uncertainties.UFloat], var_name: str = "", func_name: str = "", fatal: bool = True
+        value: Union[float, int, uncertainties.UFloat], var_name: str = "", function_name: str = "", fatal: bool = True, action: str = ""
     ) -> None:
         """
         Ensure that a value is a positive number.
 
         Raises a ValueError if the value is not positive.
         """
-        CalculationValidator.validate_positive_number(value, var_name, func_name, fatal)
+        CalculationValidator.validate_positive_number(value, var_name, function_name, action,fatal)
 
     @staticmethod
     def validate_series_list(
-        series_list: list[pd.Series], func_name: str = "", fatal: bool = True, check_index=True
+        series_list: list[pd.Series], function_name: str = "", fatal: bool = True, check_index=True, action=""
     ) -> None:
         """
         Ensure that a list contains pandas Series with consistent indices.
 
         Delegates to CalculationValidator to check index consistency and Series validity.
         """
-        ContractValidators.validate_non_empty_list(series_list, "series_list", func_name, fatal)
-        CalculationValidator.validate_series_list(series_list, func_name, check_index, fatal)
+        ContractValidators.validate_non_empty_list(series_list, "series_list", function_name, fatal)
+        CalculationValidator.validate_series_list(series_list, function_name, action, check_index, fatal)
 
     @staticmethod
     def validate_dfs_columns_exist(
-        dataframes: list[pd.DataFrame], required_columns: list[str], func_name: str = "", fatal: bool = True
+        dataframes: list[pd.DataFrame], required_columns: list[str], function_name: str = "", fatal: bool = True, action=""
     ) -> None:
         """
         Validate that all DataFrames contain the specified required columns.
 
         Delegates to CalculationValidator to check column existence.
         """
-        ContractValidators.validate_non_empty_list(dataframes, "dataframes", func_name, fatal=fatal)
-        CalculationValidator.validate_dfs_columns_exist(dataframes, required_columns, func_name, fatal)
+        ContractValidators.validate_non_empty_list(dataframes, "dataframes", function_name, fatal=fatal)
+        CalculationValidator.validate_dfs_columns_exist(dataframes, required_columns, function_name,action,  fatal)
