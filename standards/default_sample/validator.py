@@ -1,4 +1,4 @@
-from standards.base.base_standard_validator import BaseStandardValidator
+from standard_base.validation.base_standard_validator import BaseStandardValidator
 
 
 class GeneralPreliminaryValidator(BaseStandardValidator):

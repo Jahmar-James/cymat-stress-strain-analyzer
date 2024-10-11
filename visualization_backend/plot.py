@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import pandas as pd
 
-from visualization.plot_config import PlotConfig
+from visualization_backend.plot_config import PlotConfig
 
 from .plot_data import PlotElement
 from .plot_state import PlotState

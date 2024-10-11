@@ -4,8 +4,8 @@ import pandas as pd
 # from pint import UnitRegistry
 from pydantic import ValidationError
 
-from standards.base.base_standard_validator import MechanicalTestDataTypes, SampleProperties
-from standards.sample_factory import MechanicalTestStandards, standard_registry
+from standard_base.validation.base_standard_validator import MechanicalTestDataTypes, SampleProperties
+from standard_base.sample_factory import MechanicalTestStandards, standard_registry
 
 # from .validators import MechanicalTestDataTypes, MechanicalTestStandards, SampleProperties, validator_registry
 

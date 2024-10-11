@@ -11,7 +11,7 @@ import customtkinter as ctk
 import pandas as pd
 from PIL import Image
 
-from data_extraction import MechanicalTestDataPreprocessor
+from standard_base.data_extraction import MechanicalTestDataPreprocessor
 
 from ..layout_helpers.column_grid_manager import ColumnGridManager
 from ..notifications.classes_customtkinter import CustomTkinterToast, CustomTkinterTooltip

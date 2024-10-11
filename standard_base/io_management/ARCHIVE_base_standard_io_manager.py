@@ -17,13 +17,12 @@ from .sample_dto_ import (
     SampleGroupDTO,
     SampleProcessedData,
     SampleRawData,
-    SampleStandardKPIS,
     SampleTestConditions,
     VisualizationSampleDTO,
 )
 
 if TYPE_CHECKING:
-    from ..analyzable_entity import AnalyzableEntity
+    from ..entities.analyzable_entity import AnalyzableEntity
 
 
 class BaseStandardIOManager:
@@ -176,7 +175,7 @@ class FileOIManager:
     def __init__(self, file_path: Path) -> bool:
         raise NotImplementedError("This class is not implemented yet.")
 
-    def get_sample(self, file_path: Union[list[Path], Path]) -> list[AnalyzableEntity]:
+    def get_sample(self, file_path: Union[list[Path], Path]) -> list["AnalyzableEntity"]:
         if isinstance(Path):
             file_path = list(file_path)
 
@@ -201,7 +200,7 @@ class FileOIManager:
         raise NotImplementedError()
 
     @staticmethod
-    def recreate_sample_dto(sample_data: dict) -> AnalyzableEntity:
+    def recreate_sample_dto(sample_data: dict) -> "AnalyzableEntity":
         raise NotImplementedError()
 
 

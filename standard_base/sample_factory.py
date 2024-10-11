@@ -29,5 +29,5 @@ class MechanicalTestStandards(Enum):
         return None
 
 
-from .cymat_iso_13314_2011.sample_iso13314_cymat import SampleCymat
-from .default_sample.sample import SampleGeneric
+from standards.cymat_iso_13314_2011.sample_iso13314_cymat import SampleCymat
+from standards.default_sample.sample import SampleGeneric

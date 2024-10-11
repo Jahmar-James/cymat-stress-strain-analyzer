@@ -1,4 +1,4 @@
-from standards.base.analyzable_entity import AnalyzableEntity
+from standard_base.entities.analyzable_entity import AnalyzableEntity
 
 
 class TestableAnalyzableEntity(AnalyzableEntity):

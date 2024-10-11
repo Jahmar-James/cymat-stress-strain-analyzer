@@ -1,6 +1,6 @@
 from typing import Optional
 
-from standards.sample_factory import MechanicalTestStandards, register_sample
+from standard_base.sample_factory import MechanicalTestStandards, register_sample
 
 from ..default_sample.sample import SampleGeneric
 from .validator import CymatISO133142011Validator

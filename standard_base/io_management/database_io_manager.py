@@ -5,7 +5,7 @@ from typing import Optional
 
 import pandas as pd
 
-from standards.base.base_io_management.serializer import IOStrategy
+from standard_base.io_management.serializer import IOStrategy
 
 
 class DatabaseIOManager(IOStrategy):

@@ -16,7 +16,7 @@ class Serializer:
         }
         self.tracked_object = tracked_object
         # Import here to avoid circular imports | for now as IOStrategy is here
-        from standards.base.base_io_management.flle_io_manager import FileIOManager
+        from standard_base.io_management.flle_io_manager import FileIOManager
 
         self.export_strategy = export_strategy or FileIOManager()
 

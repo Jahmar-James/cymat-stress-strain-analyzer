@@ -6,9 +6,9 @@ from typing import Optional, Union
 
 import pandas as pd
 
-from contract_validators import ContractValidators, ErrorGenerator
-from standards.base.base_io_management.serializer import IOStrategy
 
+from utlils.contract_validators import ContractValidators, ErrorGenerator
+from standard_base.io_management.serializer import IOStrategy
 
 class FileIOManager(IOStrategy):
     STRATEGY_NAME = "File_IO"
@@ -251,7 +251,7 @@ class FileIOManager(IOStrategy):
         except OSError as e:
             raise IOValidator.generate_os_error(task="create ZIP file", path=zip_file_path)
         except Exception as e:
-            raise Exception(f"An unexpected error occurred while creating the ZIP file: {e}") @ staticmethod
+            raise Exception(f"An unexpected error occurred while creating the ZIP file: {e}") 
 
     @staticmethod
     def generate_file_name(
@@ -410,6 +410,9 @@ class FileIOManager(IOStrategy):
                         processed_attributes[attribute_name]["value"] = FileIOManager._reassign_type(
                             details["value"], details["data_type"], attribute_name
                         )
+                        
+            # Return only the values drop 
+            processed_attributes = {key: value["value"] for key, value in processed_attributes.items()}
 
             return processed_attributes
 

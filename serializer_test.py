@@ -42,7 +42,7 @@ if __name__ == "__main__":
     while path is None:
         path = filedialog.askopenfile()
 
-    from standards.base.base_io_management.flle_io_manager import FileIOManager
+    from standard_base.io_management.flle_io_manager import FileIOManager
 
     if isinstance(entity.serializer.export_strategy, FileIOManager):
         new_entity = entity.serializer.export_strategy.import_object_from_file(
@@ -51,5 +51,6 @@ if __name__ == "__main__":
 
         if isinstance(new_entity, TestableAnalyzableEntity):
             print(f"NEW Entity '{new_entity.name}' has an area of {new_entity.area:.2f} mm^2")
+            print(f"Does the new entity equal the old entity? {entity == new_entity}")
         else:
             print("This is not a in the correct types")

@@ -1,11 +1,12 @@
 from typing import Optional
 
-from standards.sample_factory import MechanicalTestStandards, register_sample
+from standard_base.sample_factory import MechanicalTestStandards, register_sample
 
-from ..base.analyzable_entity import AnalyzableEntity
-from ..base.base_io_management.ARCHIVE_base_standard_io_manager import BaseStandardIOManager
-from ..base.base_standard_validator import BaseStandardValidator
-from ..base.properties_calculators.base_standard_operator import BaseStandardOperator
+from standard_base.entities.analyzable_entity import AnalyzableEntity
+from standard_base.io_management.ARCHIVE_base_standard_io_manager import BaseStandardIOManager
+from standard_base.validation.base_standard_validator import BaseStandardValidator
+from standard_base.properties_calculators.base_standard_operator import BaseStandardOperator
+
 from .validator import GeneralPreliminaryValidator
 
 

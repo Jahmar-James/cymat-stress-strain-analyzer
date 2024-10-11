@@ -7,15 +7,17 @@ import numpy as np
 import pandas as pd
 import pint
 
-from data_extraction import MechanicalTestDataPreprocessor
-from visualization.plot_config import PlotConfig
-from visualization.plot_manager import PlotManager
 
-from .base_io_management.serializer import AttributeField, Serializer
-from .properties_calculators.base_standard_operator import BaseStandardOperator
+from ..data_extraction import MechanicalTestDataPreprocessor
+
+from visualization_backend.plot_config import PlotConfig
+from visualization_backend.plot_manager import PlotManager
+
+from ..io_management.serializer import AttributeField, Serializer
+from ..properties_calculators.base_standard_operator import BaseStandardOperator
 
 if TYPE_CHECKING:
-    from visualization.plot import Plot
+    from visualization_backend.plot import Plot
 
     from ..sample_factory import MechanicalTestStandards
 
@@ -24,7 +26,7 @@ from collections import namedtuple
 
 entity_property = namedtuple("entity_property", ["value", "uncertainty", "unit"])
 
-
+# Decorator for exporting properties 
 def exportable_property(unit=None, output_name=None, category="attributes"):
     """
     A decorator to mark properties for export with optional additional metadata.
