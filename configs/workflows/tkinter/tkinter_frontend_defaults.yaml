@@ -1,0 +1,11 @@
+task: tkinter_frontend
+title: "Tkinter Frontend"
+main_window:
+  size:
+    width: 800
+    height: 600
+  colour_scheme: dark 
+  fonts:
+    body_font: Arial 12
+    header_font: Arial 16 bold
+     

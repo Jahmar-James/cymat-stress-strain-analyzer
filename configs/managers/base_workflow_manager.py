@@ -1,6 +1,7 @@
 from warnings import warn
 
 from configs.managers.base_config_manager import BaseConfigManager
+from utlils.contract_validators import ContractValidators
 
 
 class BaseWorkflowManager(BaseConfigManager):
@@ -37,6 +38,7 @@ class BaseWorkflowManager(BaseConfigManager):
         - The directory will be created if it does not exist.
         """
         super().__init__(config_directory)
+        self.default_config = {}
 
     @staticmethod
     def merge_with_global_settings(workflow_config: dict, global_config: dict) -> dict:
@@ -51,40 +53,27 @@ class BaseWorkflowManager(BaseConfigManager):
         - Returns a dictionary that combines global settings with workflow-specific settings.
         - If a key exists in both configurations, the workflow configuration value will take precedence.
         """
-        ValidationHelper.validate_type(workflow_config, dict, "workflow_config", func_name="merge_with_global_settings")
-        ValidationHelper.validate_type(global_config, dict, "global_config", func_name="merge_with_global_settings")
+
+        # ValidationHelper.validate_type(workflow_config, dict, "workflow_config", func_name="merge_with_global_settings")
+        # ValidationHelper.validate_type(global_config, dict, "global_config", func_name="merge_with_global_settings")
         return {**global_config, **workflow_config}
 
-    def load_workflow_config(self, config_name: str = "default") -> dict:
-        """
-        Load the workflow-specific configuration from a YAML file.
+    def load_task_config(self, task_name: str, config_name: str = "defaults") -> dict:
+        # Try to load the specific user-configured file first
+        user_config = self.load_config(f"{task_name}_{config_name}") if config_name != "defaults" else {}
 
-        Preconditions:
-        - `config_name` must correspond to a valid YAML file in the directory.
+        # If no user-config exists, fallback to the default config for that task
+        default_config = self.load_config(f"{task_name}_defaults") if not user_config else {}
 
-        Postconditions:
-        - Returns a dictionary with workflow-specific configuration data, or an empty dictionary
-          if the file does not exist.
-        """
-        config_file = self._get_config_path(self._config_directory, config_name)
-        config = self._read_from_file(config_file)
-        if not config:
-            warn(f"Warning: Workflow config '{config_name}' not found or invalid.")
-        return config
+        return self.merge_with_global_settings(user_config, default_config)
 
-    def save_workflow_config(self, config: dict, config_name: str = "default") -> None:
-        """
-        Save the workflow-specific configuration to a YAML file.
+    def save_task_config(self, task_name: str, config: dict, config_name: str):
+        if "defaults" in config_name:
+            warn("Cannot save configuration with 'defaults' in the name. As system defaults are read-only.")
+            return False
+        return self.save_config(config, f"{task_name}_{config_name}")
 
-        Preconditions:
-        - `config` must be a dictionary containing valid configuration data.
-
-        Postconditions:
-        - The configuration will be saved to the specified YAML file.
-        """
-        ValidationHelper.validate_type(config, dict, "config", func_name="save_workflow_config")
-        config_file = self._get_config_path(self._config_directory, config_name)
-        self._write_to_file(config, config_file)
-        self._write_to_file(config, config_file)
-        self._write_to_file(config, config_file)
-        self._write_to_file(config, config_file)
+    def list_task_configs(self, task_name: str) -> list:
+        task_dir = Path(self._config_directory)
+        config_files = [f.stem for f in task_dir.glob(f"{task_name}_*.yaml")]
+        return config_files

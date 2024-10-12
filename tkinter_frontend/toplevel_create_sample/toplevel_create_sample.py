@@ -5,6 +5,7 @@ from typing import Callable, Optional
 
 import customtkinter as ctk
 
+# from standard_validator import MechanicalTestStandards
 from standard_base.sample_factory import MechanicalTestStandards
 from tkinter_frontend.core.widget_manager import PlaceholderEntry, PlaceholderEntryWithUnit
 
@@ -15,8 +16,6 @@ from .properties_group import PropertiesGroup
 from .settings_toplevel_create_sample import *
 from .toplevel_validator import ToplevelValidator
 
-# from standard_validator import MechanicalTestStandards
-
 
 class CreateSampleWindow(ctk.CTkToplevel):
     def __init__(
@@ -26,55 +25,90 @@ class CreateSampleWindow(ctk.CTkToplevel):
         geometry=None,
         supported_data_file_types: list[tuple[str, str]] = [],
         supported_image_file_types: list[tuple[str, str]] = [],
+        default_config: Optional[dict] = None,
     ) -> None:
         super().__init__(
             parent,
         )
-        self.title("Create Sample Window")
-        self.configure(fg_color=TOP_LEVEL_DEFAULTS["foreground"])
-        print(f"Top level defaults: {TOP_LEVEL_DEFAULTS} the assigned value is: {self.cget('fg_color')}")
-        self.deiconify()
-        self.recalculate_toggle_var = tk.BooleanVar(
-            value=True
-        )  # When True, will recalclate stress and strain data using force, displacement, area and cross section length (thicknkess)
-        self.visualize_specimen_toggle_var = tk.BooleanVar(
-            value=False
-        )  # When True, will skip dims and weight and pass idenitfer for plot. Still Require name and data with atleast stress and strian
-        self.close_on_submission_toggle_var = tk.BooleanVar(value=False)
+        # Load the default configuration or fallback to static defaults
+        self.config = default_config if default_config is not None else TOP_LEVEL_DEFAULTS
+        main_window_config = self.config.get("main_window", {})
 
-        # File importer
-        self.general_data_is_vaild = tk.BooleanVar(value=False)  # Linked variable to general data file import widget
-        self.hysteresis_data_is_vaild = tk.BooleanVar(
-            value=False
-        )  # Linked variable to hysteresi data file import widget
-        self.image_data_is_vaild = tk.BooleanVar(value=False)  # Linked variable to image data file import widget
-        self.batch_data_is_vaild = tk.BooleanVar(value=False)  # Linked variable to batch data file import widget
+        # Configure window settings (title, colors, size, remove icon)
+        self._configure_window(main_window_config, geometry)
 
-        self.always_on_top_toggle_var = tk.BooleanVar(value=False)
-        self.always_on_top_toggle_var.trace_add("write", self.always_on_top_toggle)
+        # Initialize toggle and validation variables from YAML config or fallback to hardcoded values
+        bool_config = self.config.get("toggles", {})
+        self._init_variables(bool_config)
 
-        self.disable_auto_validation_toggle_var = tk.BooleanVar(
-            value=False
-        )  # When True, will overide the import file widget preprocess and validation methods
         self.filepaths: list[tuple[str, list]] = []
         self.callback = submission_callback
 
-        self.SUPPORTED_DATA_FILE_TYPES = (
-            supported_data_file_types
-            if supported_data_file_types
-            else [("Supported types", "*.dat *.xls *.xlsx *.csv"), ("All files", "*.*")]
-        )
-        self.SUPPORTED_IMAGE_FILE_TYPES = (
-            supported_image_file_types if supported_image_file_types else [("Image Files", "*.png;*.jpg;*.jpeg;*.bmp")]
-        )
+        # Initialize file types
+        self.SUPPORTED_DATA_FILE_TYPES = supported_data_file_types or [
+            ("Supported types", "*.dat *.xls *.xlsx *.csv"),
+            ("All files", "*.*"),
+        ]
+        self.SUPPORTED_IMAGE_FILE_TYPES = supported_image_file_types or [("Image Files", "*.png;*.jpg;*.jpeg;*.bmp")]
 
+        # Initialize the validator (Class to ensure the appropriate data is provided for that sample type)
+        # uses and factory pattern and each sample type has its own validator
         self.validator = ToplevelValidator(self)
-        if geometry is not None:
-            self.geometry(geometry)
-        else:
-            self.geometry(f"{TOP_LEVEL_DEFAULTS['Size'].width}x{TOP_LEVEL_DEFAULTS['Size'].height}")
 
+        # Create widgets for the UI
         self._create_widgets()
+
+    def _configure_window(self, config: dict, geometry: Optional[str]) -> None:
+        """
+        Configure the window title, size, and colors based on the provided configuration.
+        """
+        # Set the title
+        title = config.get("title", "Create Sample Window")
+        self.title(title)
+
+        # Convert the foreground color into a format suitable for Tkinter (tuple expected)
+        foreground_color_light = config.get("foreground_color", {}).get("light", "#EEEEEE")
+        foreground_color_dark = config.get("foreground_color", {}).get("dark", "#000000")
+        self.configure(fg_color=foreground_color_light)  # Assuming light mode for now
+
+        # Combine width and height to create the geometry string if not provided
+        if geometry is None:
+            width = config.get("size", {}).get("width", 800)
+            height = config.get("size", {}).get("height", 600)
+            geometry = f"{width}x{height}"
+
+        self.geometry(geometry)
+        self.deiconify()
+        print(f"Top level config: {self.config}, assigned foreground: {self.cget('fg_color')}")
+
+    def _init_variables(self, bool_config: dict) -> None:
+        """
+        Initialize various Boolean variables for toggles and validation using configuration defaults.
+        """
+        # Load boolean values from the YAML configuration or fallback to defaults
+
+        self.recalculate_toggle_var = tk.BooleanVar(value=bool_config.get("recalculate_toggle", True))
+        # When True, will recalclate stress and strain data using force, displacement, area and cross section length (thicknkess)
+
+        self.visualize_specimen_toggle_var = tk.BooleanVar(value=bool_config.get("visualize_specimen_toggle", False))
+        # When True, will skip dims and weight and pass idenitfer for plot. Still Require name and data with atleast stress and strian
+
+        self.close_on_submission_toggle_var = tk.BooleanVar(value=bool_config.get("close_on_submission_toggle", False))
+        # When True, will skip dims and weight and pass idenitfer for plot. Still Require name and data with atleast stress and strian
+
+        # File importer
+        self.general_data_is_vaild = tk.BooleanVar(value=bool_config.get("general_data_is_valid", False))
+        self.hysteresis_data_is_vaild = tk.BooleanVar(value=bool_config.get("hysteresis_data_is_valid", False))
+        self.image_data_is_vaild = tk.BooleanVar(value=bool_config.get("image_data_is_valid", False))
+        self.batch_data_is_vaild = tk.BooleanVar(value=bool_config.get("batch_data_is_valid", False))
+
+        self.always_on_top_toggle_var = tk.BooleanVar(value=bool_config.get("always_on_top_toggle", False))
+        self.always_on_top_toggle_var.trace_add("write", self.always_on_top_toggle)
+
+        self.disable_auto_validation_toggle_var = tk.BooleanVar(
+            value=bool_config.get("disable_auto_validation_toggle", False)
+        )
+        # When True, will overide the import file widget preprocess and validation methods
 
     def _create_widgets(self) -> None:
         """Create the widgets for the window

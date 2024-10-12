@@ -1,0 +1,24 @@
+task: sample_creation
+main_window:
+  title: "Sample Creation Window"
+  size:
+    width: 900
+    height: 700
+  foreground_color:
+    light: "#EEEEEE" 
+    dark: "#000000"
+  fonts:
+    heading_font: ["Helvetica", 16, "bold"]
+    subheading_font: ["Helvetica", 14, "bold"]
+    normal_font: ["Helvetica", 12]
+
+toggles:
+  recalculate_toggle: true
+  visualize_specimen_toggle: false
+  close_on_submission_toggle: false
+  general_data_is_valid: false
+  hysteresis_data_is_valid: false
+  image_data_is_valid: false
+  batch_data_is_valid: false
+  always_on_top_toggle: false
+  disable_auto_validation_toggle: false

@@ -3,6 +3,8 @@ WHITE = "#EEEEEE"
 
 from collections import namedtuple
 
+TITLE = "Create Sample Window"
+
 WINDOW_SIZE = namedtuple("WINDOW_SIZE", ["width", "height"])
 CTk_COLOR = namedtuple("CTk_COLOR", ["light", "dark"])
 

@@ -4,6 +4,8 @@ from warnings import warn
 
 import yaml
 
+from utlils.contract_validators import ContractValidators
+
 
 class BaseConfigManager(ABC):
     """
@@ -43,7 +45,6 @@ class BaseConfigManager(ABC):
         self._config_directory = Path(config_directory)
         self._config_directory.mkdir(parents=True, exist_ok=True)
 
-    @abstractmethod
     def load_config(self, config_name: str = "default") -> dict:
         """
         Load the configuration from the given file.
@@ -54,10 +55,20 @@ class BaseConfigManager(ABC):
         Postconditions:
         - Returns a dictionary with configuration data or an empty dictionary if the file doesn't exist.
         """
-        pass
+        # Non Fatel Check user defined settings | if incorrect just warn the user
+        ContractValidators.validate_directory(
+            path=self._config_directory,
+            parameter_name="baseworkflow_manger._config_dir",
+            function_name="load_workflow_config",
+        )
+        config_file = self._get_config_path(self._config_directory, config_name)
+        config = self._read_from_file(config_file)
+        if not config:
+            warn(f"Warning: Workflow config '{config_name}' not found or invalid.")
+            return {}
+        return config
 
-    @abstractmethod
-    def save_config(self, config: dict, config_name: str = "default") -> None:
+    def save_config(self, config: dict, config_name: str = "default") -> bool:
         """
         Save the given configuration to the specified file.
 
@@ -67,7 +78,17 @@ class BaseConfigManager(ABC):
         Postconditions:
         - Configuration is saved as a YAML file with the specified `config_name`.
         """
-        pass
+        # Fatal Check | Alert USer and stop execution
+        ContractValidators.validate_type(
+            value=config,
+            expected_types=dict,
+            parameter_name="config",
+            function_name="save_workflow_config",
+        )
+
+        config_file = self._get_config_path(self._config_directory, config_name)
+        self._write_to_file(config, config_file)
+        return bool(config_file.exists())
 
     @staticmethod
     def _get_config_path(config_directory: Path, config_name: str) -> Path:
@@ -94,12 +115,15 @@ class BaseConfigManager(ABC):
         Postconditions:
         - Returns a dictionary with the parsed data or an empty dictionary if the file does not exist or is invalid.
         """
+        current_directory = Path.cwd()
+        config_file = current_directory / config_file
         if config_file.exists():
             try:
                 with config_file.open("r") as file:
                     return yaml.safe_load(file) or {}
             except yaml.YAMLError:
                 warn(f"Error reading YAML file: {config_file}")
+        print(f"The file {config_file} does not exist.")
         return {}
 
     @staticmethod
