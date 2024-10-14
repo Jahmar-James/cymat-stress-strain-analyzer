@@ -1,0 +1,89 @@
+# This is a template YAML file for configuring Tkinter windows.
+# Each window configuration is organized into specific sections.
+
+# 1. Task
+# The 'task' field defines the purpose of the window or the operation it relates to.
+# This helps group or identify different window configurations.
+task: <task_name>  # Example: 'tkinter_frontend' for the main app window or 'sample_creation' for a toplevel window.
+
+# 2. Main Window Configuration
+# The 'main_window' section defines the primary settings for the window, including its size, title, colors, and fonts.
+main_window:
+  # Title: The title of the window that will appear in the window header.
+  title: "<window_title>"  # Example: 'Main Application Window'
+
+  # Size: The dimensions of the window in pixels (width and height).
+  size:
+    width: <int>  # Example: 800
+    height: <int>  # Example: 600
+
+  # Themes: Optional section to define themes such as light and dark modes.
+  # You can specify foreground and background colors for each mode.
+  theme:
+    default: "<theme_mode>"  # Example: 'light'. The default mode that should be applied on startup.
+    theme_name: "<theme_name>"  #  Defualt theme name or path to theme file
+    light:  # Light mode color scheme
+      foreground_color: "<color_hex>"  # Example: '#000000' (black text)
+      background_color: "<color_hex>"  # Example: '#FFFFFF' (white background)
+    dark:  # Dark mode color scheme
+      foreground_color: "<color_hex>"  # Example: '#FFFFFF' (white text)
+      background_color: "<color_hex>"  # Example: '#333333' (dark background)
+
+
+  # Fonts: Define the fonts for various text elements in the window.
+  # Fonts should be defined as 'FontName Size Style'.
+  fonts:
+    body_font: "<font_name> <size>"  # Example: 'Arial 12' (regular text font)
+    header_font: "<font_name> <size> <style>"  # Example: 'Arial 16 bold' (header font with bold style)
+
+  # Color Scheme: This defines which theme mode to activate, 'light' or 'dark'.
+  color_scheme: "<light|dark>"
+
+  # Icon: (optional) The path to the icon file for the window (e.g., .ico file).
+  icon: "<path_to_icon_file>"  # Example: 'path/to/icon.ico' 
+
+  # Resizable: (optional)Define whether the window can be resized by the user.
+  resizable:
+    width: <true|false>  # Example: true
+    height: <true|false>  # Example: true
+
+  # Fullscreen: (optional) Define whether the window should open in fullscreen mode.
+  fullscreen: <true|false>  # Example: false
+
+
+
+# 3. Toggles (Optional for tkiner Variables such as the onees used for Create Sample Top Level Window)
+# This section is used for specific windows that have additional toggles or boolean settings.
+# These toggles control certain behaviors (e.g., recalculating data, visualizing components).
+toggles:
+  # Toggle Example: When True, will recalculate values based on inputs (specific to the window's logic).
+  recalculate_toggle: <true|false>  # Example: true
+  visualize_specimen_toggle: <true|false>  # Example: false
+  close_on_submission_toggle: <true|false>  # Example: false
+  general_data_is_valid: <true|false>  # Example: false
+  hysteresis_data_is_valid: <true|false>  # Example: false
+  image_data_is_valid: <true|false>  # Example: false
+  batch_data_is_valid: <true|false>  # Example: false
+  always_on_top_toggle_var: <true|false>  # Example: false
+  disable_auto_validation_toggle: <true|false>  # Example: false
+
+# 4. Widgets (Optional)
+# This section stores the state of the widgets (buttons, entries, checkboxes, etc.) within the window.
+# The 'widgets' section allows each widget to have an ID, a type (e.g., button, entry), and a state or value.
+widgets:
+  # Widget Example: A button with an ID 'SubmitButton' in a normal state.
+  SubmitButton:
+    type: button
+    state: "<normal|disabled>"  # Example: 'normal'
+
+  # Widget Example: An entry field with an ID 'NameEntry' and a preset value.
+  NameEntry:
+    type: entry
+    value: "<preset_value>"  # Example: 'Sample Name'
+
+# 5. Custom Fields (Optional)
+# You can add any custom fields or settings here that are specific to the window or task.
+# These can be dynamically defined based on the needs of the window.
+custom:
+  # Example: Custom key-value pair for some special behavior.
+  special_behavior: "<true|false>"  # Example: true

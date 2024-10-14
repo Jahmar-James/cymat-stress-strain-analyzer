@@ -1,7 +1,7 @@
 import tkinter as tk
 from functools import cached_property
 from tkinter import ttk
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 import customtkinter as ctk
 
@@ -14,32 +14,36 @@ from ..notifications.classes_customtkinter import CustomTkinterToast, CustomTkin
 from .file_import_frames import BatchSpecimenImportFrame, CompressionDataImportFrame, ImageImportFrame
 from .properties_group import PropertiesGroup
 from .settings_toplevel_create_sample import *
+from .Test import App
 from .toplevel_validator import ToplevelValidator
 
 
 class CreateSampleWindow(ctk.CTkToplevel):
     def __init__(
         self,
-        parent: Optional[tk.Tk] = None,
+        parent: App,
         submission_callback: Optional[Callable] = None,
-        geometry=None,
         supported_data_file_types: list[tuple[str, str]] = [],
         supported_image_file_types: list[tuple[str, str]] = [],
-        default_config: Optional[dict] = None,
     ) -> None:
         super().__init__(
             parent,
         )
-        # Load the default configuration or fallback to static defaults
-        self.config = default_config if default_config is not None else TOP_LEVEL_DEFAULTS
-        main_window_config = self.config.get("main_window", {})
+        self.window_name = "sample_creation"
 
-        # Configure window settings (title, colors, size, remove icon)
-        self._configure_window(main_window_config, geometry)
+        if hasattr(parent, "config_manager"):
+            self.config_manager = parent.config_manager
+            config = self.config_manager.load_and_apply_window_default_config(self.window_name, window=self)
+            if not config:
+                raise ValueError("Config manager failed to restore window state.")
+        else:
+            raise ValueError(f"Parent window '{parent}' does not have a config manager.")
 
-        # Initialize toggle and validation variables from YAML config or fallback to hardcoded values
-        bool_config = self.config.get("toggles", {})
-        self._init_variables(bool_config)
+        bool_config = config.get("toggles", {})
+        print(f"Top level config: {config}, assigned foreground: {self.cget('fg_color')}")
+
+        # Initialize Boolean variables from the bool_config
+        self.initialize_boolean_variables(bool_config)
 
         self.filepaths: list[tuple[str, list]] = []
         self.callback = submission_callback
@@ -58,57 +62,54 @@ class CreateSampleWindow(ctk.CTkToplevel):
         # Create widgets for the UI
         self._create_widgets()
 
-    def _configure_window(self, config: dict, geometry: Optional[str]) -> None:
-        """
-        Configure the window title, size, and colors based on the provided configuration.
-        """
-        # Set the title
-        title = config.get("title", "Create Sample Window")
-        self.title(title)
-
-        # Convert the foreground color into a format suitable for Tkinter (tuple expected)
-        foreground_color_light = config.get("foreground_color", {}).get("light", "#EEEEEE")
-        foreground_color_dark = config.get("foreground_color", {}).get("dark", "#000000")
-        self.configure(fg_color=foreground_color_light)  # Assuming light mode for now
-
-        # Combine width and height to create the geometry string if not provided
-        if geometry is None:
-            width = config.get("size", {}).get("width", 800)
-            height = config.get("size", {}).get("height", 600)
-            geometry = f"{width}x{height}"
-
-        self.geometry(geometry)
-        self.deiconify()
-        print(f"Top level config: {self.config}, assigned foreground: {self.cget('fg_color')}")
-
-    def _init_variables(self, bool_config: dict) -> None:
+    def initialize_boolean_variables(self, bool_config: dict) -> None:
         """
         Initialize various Boolean variables for toggles and validation using configuration defaults.
         """
-        # Load boolean values from the YAML configuration or fallback to defaults
+        # Define each BooleanVar explicitly with type hints and defaults
 
-        self.recalculate_toggle_var = tk.BooleanVar(value=bool_config.get("recalculate_toggle", True))
-        # When True, will recalclate stress and strain data using force, displacement, area and cross section length (thicknkess)
+        # When True, will recalculate stress and strain data using force, displacement, area, and cross-section length (thickness)
+        self.recalculate_toggle_var: tk.BooleanVar = tk.BooleanVar(value=bool_config.get("recalculate_toggle", True))
 
-        self.visualize_specimen_toggle_var = tk.BooleanVar(value=bool_config.get("visualize_specimen_toggle", False))
-        # When True, will skip dims and weight and pass idenitfer for plot. Still Require name and data with atleast stress and strian
+        # When True, will skip dimensions and weight, and pass an identifier for the plot. Still requires name and data with at least stress and strain.
+        self.visualize_specimen_toggle_var: tk.BooleanVar = tk.BooleanVar(
+            value=bool_config.get("visualize_specimen_toggle", False)
+        )
 
-        self.close_on_submission_toggle_var = tk.BooleanVar(value=bool_config.get("close_on_submission_toggle", False))
-        # When True, will skip dims and weight and pass idenitfer for plot. Still Require name and data with atleast stress and strian
+        # When True, the window will close automatically upon submission.
+        self.close_on_submission_toggle_var: tk.BooleanVar = tk.BooleanVar(
+            value=bool_config.get("close_on_submission_toggle", False)
+        )
 
-        # File importer
-        self.general_data_is_vaild = tk.BooleanVar(value=bool_config.get("general_data_is_valid", False))
-        self.hysteresis_data_is_vaild = tk.BooleanVar(value=bool_config.get("hysteresis_data_is_valid", False))
-        self.image_data_is_vaild = tk.BooleanVar(value=bool_config.get("image_data_is_valid", False))
-        self.batch_data_is_vaild = tk.BooleanVar(value=bool_config.get("batch_data_is_valid", False))
+        # Linked to general data file import widget; when True, indicates the data is valid.
+        self.general_data_is_valid_var: tk.BooleanVar = tk.BooleanVar(
+            value=bool_config.get("general_data_is_valid", False)
+        )
 
-        self.always_on_top_toggle_var = tk.BooleanVar(value=bool_config.get("always_on_top_toggle", False))
-        self.always_on_top_toggle_var.trace_add("write", self.always_on_top_toggle)
+        # Linked to hysteresis data file import widget; when True, indicates the hysteresis data is valid.
+        self.hysteresis_data_is_valid_var: tk.BooleanVar = tk.BooleanVar(
+            value=bool_config.get("hysteresis_data_is_valid", False)
+        )
 
-        self.disable_auto_validation_toggle_var = tk.BooleanVar(
+        # Linked to image data file import widget; when True, indicates the image data is valid.
+        self.image_data_is_valid_var: tk.BooleanVar = tk.BooleanVar(value=bool_config.get("image_data_is_valid", False))
+
+        # Linked to batch data file import widget; when True, indicates the batch data is valid.
+        self.batch_data_is_valid_var: tk.BooleanVar = tk.BooleanVar(value=bool_config.get("batch_data_is_valid", False))
+
+        # When True, the window will always stay on top of other windows.
+        self.always_on_top_toggle_var: tk.BooleanVar = tk.BooleanVar(
+            value=bool_config.get("always_on_top_toggle_var", False)
+        )
+
+        # When True, will override the import file widget's preprocess and validation methods.
+        self.disable_auto_validation_toggle_var: tk.BooleanVar = tk.BooleanVar(
             value=bool_config.get("disable_auto_validation_toggle", False)
         )
-        # When True, will overide the import file widget preprocess and validation methods
+
+        # Special handling for the always_on_top_toggle_var
+        self.always_on_top_toggle_var.trace_add("write", self.always_on_top_toggle)
+
 
     def _create_widgets(self) -> None:
         """Create the widgets for the window
@@ -321,8 +322,8 @@ class MiddleFrame_FileGroup(ttk.Frame):
         self.minsize_col = minsize_col
         self.grid_manager = ColumnGridManager(self)
         self.toplevel_window = toplevel_window
-        self.general_data_is_vaild = toplevel_window.general_data_is_vaild
-        self.hysteresis_data_is_valid = toplevel_window.hysteresis_data_is_vaild
+        self.general_data_is_valid = toplevel_window.general_data_is_valid_var
+        self.hysteresis_data_is_valid = toplevel_window.hysteresis_data_is_valid_var
         self.supported_data_file_types = toplevel_window.SUPPORTED_DATA_FILE_TYPES
         self.stanadrds = [standard.value for standard in MechanicalTestStandards]
 
@@ -330,7 +331,7 @@ class MiddleFrame_FileGroup(ttk.Frame):
         self.general_data_frame = CompressionDataImportFrame(
             self,
             data_label="Select General Data File",
-            valid_file_flag=self.general_data_is_vaild,
+            valid_file_flag=self.general_data_is_valid,
             supported_types=self.supported_data_file_types,
         )
         self.general_data_frame.create_widgets()
@@ -448,14 +449,14 @@ class RightFrame_CalculationGroup(ttk.Frame):
             self,
             data_label="Select Images",
             supported_types=self.toplevel_window.SUPPORTED_IMAGE_FILE_TYPES,
-            valid_file_flag=self.toplevel_window.image_data_is_vaild,
+            valid_file_flag=self.toplevel_window.image_data_is_valid_var,
         )
         self.image_import_frame.create_widgets()
 
         self.batch_specimen_import_frame = BatchSpecimenImportFrame(
             self,
             callback=self.toplevel_window.update_entries,
-            valid_file_flag=self.toplevel_window.batch_data_is_vaild,
+            valid_file_flag=self.toplevel_window.batch_data_is_valid_var,
         )
         self.batch_specimen_import_frame.create_widgets()
 
@@ -504,7 +505,4 @@ class CommentBoxGroup(ttk.Frame):
     @comment.setter
     def comment(self, value):
         self.comment_box.delete("0.0", "end")
-        self.comment_box.insert("0.0", value)
-        self.comment_box.insert("0.0", value)
-        self.comment_box.insert("0.0", value)
         self.comment_box.insert("0.0", value)

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 from warnings import warn
 
 import yaml
@@ -118,6 +119,8 @@ class BaseConfigManager:
         Postconditions:
         - Returns the full path to the YAML configuration file.
         """
+        if config_name.endswith(".yaml"):
+            config_name = config_name.replace(".yaml", "")
         return config_directory / f"{config_name}.yaml"
 
     @staticmethod
@@ -154,10 +157,11 @@ class BaseConfigManager:
         """
         with config_file.open("w") as file:
             yaml.dump(config, file)
+        # make a bool return type
 
     # Task-specific (Workflow) methods
 
-    def load_task_config(self, task_name: str, config_name: str = "defaults") -> dict:
+    def load_task_config(self, task_name: str, config_name: str) -> dict:
         # Try to load the specific user-configured file first
         user_config = self.load_config(f"{task_name}_{config_name}") if config_name != "defaults" else {}
 

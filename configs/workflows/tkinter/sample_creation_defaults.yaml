@@ -1,12 +1,26 @@
 task: sample_creation
 main_window:
   title: "Sample Creation Window"
+  object_type: ctk.toplevel # Top level window for task of creating samples
   size:
     width: 900
     height: 700
-  foreground_color:
-    light: "#EEEEEE" 
-    dark: "#000000"
+    x_offset: 100
+    y_offset: 100
+  theme:
+    default: "light"  # Default theme (can be 'light' or 'dark')
+    light:
+      foreground_color: "#000000"  # Black text for light theme
+      background_color: "#FFFFFF"  # White background for light theme
+    dark:
+      foreground_color: "#FFFFFF"  # White text for dark theme
+      background_color: "#333333"  # Dark background for dark theme
+  color_scheme: "dark"  # Use dark theme (can be 'light' or 'dark')
+  icon: Null #"path/to/icon.ico"
+  resizable:
+    width: true
+    height: true
+  fullscreen: false
   fonts:
     heading_font: ["Helvetica", 16, "bold"]
     subheading_font: ["Helvetica", 14, "bold"]
@@ -20,5 +34,5 @@ toggles:
   hysteresis_data_is_valid: false
   image_data_is_valid: false
   batch_data_is_valid: false
-  always_on_top_toggle: false
+  always_on_top_toggle_var: false
   disable_auto_validation_toggle: false
