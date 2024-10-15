@@ -411,6 +411,39 @@ class BaseStandardOperator:
         return CalculationResult(value=strain_values, uncertainty=strain_uncertainties)
 
     @staticmethod
+    def interpolate_series_if_needed(
+        x_values: Union[np.ndarray, pd.Series],
+        y_values: Union[np.ndarray, pd.Series],
+    ) -> np.ndarray:
+        """
+        Linearly interpolate the y_values to match the x_values if the lengths are different.
+
+        Preconditions:
+        - `x_values` and `y_values` must be numpy arrays or pandas Series.
+
+        Postconditions:
+        - Returns the interpolated y_values as a numpy array.
+        """
+        # Preconditions: Validate inputs
+        ValidationHelper.validate_type(x_values, (pd.Series, np.ndarray), "x_values", "interpolate_series_if_needed")
+        ValidationHelper.validate_type(y_values, (pd.Series, np.ndarray), "y_values", "interpolate_series_if_needed")
+
+        y_values = y_values.copy()  # Avoid modifying the original array
+        if len(x_values) != len(y_values):
+            # Convert to numpy arrays for interpolation
+            if isinstance(x_values, pd.Series):
+                x_values = x_values.index.to_numpy()
+
+            if isinstance(y_values, pd.Series):
+                y_values = y_values.to_numpy()
+
+            # Interpolate y_values to match the x_values
+            y_values = np.interp(x_values, np.arange(len(y_values)), y_values)
+
+        # If lengths are the same, no interpolation is needed
+        return y_values.to_numpy() if isinstance(y_values, pd.Series) else y_values
+
+    @staticmethod
     def interpolate_dataframes(
         df_list: list[pd.DataFrame],
         interp_column: str,

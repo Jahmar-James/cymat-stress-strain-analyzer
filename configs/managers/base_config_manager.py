@@ -12,7 +12,6 @@ class BaseConfigManager:
     BaseConfigManager is responsible for managing configuration files in YAML format.
      It provides core functionality for loading, saving, and managing configuration files,
      as well as merging workflow-specific settings with global settings.
-
      **Responsibilities**:
      - Load configuration files from a specified directory.
      - Save configuration files to a specified directory.
