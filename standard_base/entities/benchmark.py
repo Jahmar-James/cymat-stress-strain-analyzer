@@ -74,6 +74,7 @@ class Tolerance:
         data = np.array(data) if not isinstance(data, (np.ndarray, pd.Series)) else data
         if isinstance(data, pd.Series):
             data = data.to_numpy()
+
         return bool(np.all((data >= self.lower_bounds) & (data <= self.upper_bounds)))
 
 
@@ -199,7 +200,7 @@ class BenchmarkSample(AnalyzableEntity):
         y_property: str,
         x_tolerance: Union[str, Tolerance, None] = None,
         y_tolerance: Union[str, Tolerance, None] = None,
-        curve_type: str = "stress_strain",
+        curve_type: str = "",
         inplace: bool = True,
     ):
         """
@@ -209,6 +210,7 @@ class BenchmarkSample(AnalyzableEntity):
         # Get x and y values from the sample using the property names
         x_values = getattr(self, x_property, None)
         y_values = getattr(self, y_property, None)
+        curve_type = curve_type if curve_type else f"{y_property}_{x_property}"
 
         if x_values is None or y_values is None:
             raise ValueError(f"Missing x or y property values: {x_property}, {y_property}")
@@ -280,14 +282,6 @@ class Benchmark:
     ) -> Optional[dict[str, Any]]:
         """
         Main comparison method that compares each sample's properties to the benchmark.
-
-        Parameters:
-        - benchmark_sample: A BenchmarkSample to compare against.
-        - samples: A list of AnalyzableEntity samples to be compared.
-
-        Returns:
-        - dict[str, Any]: A dictionary of failed samples and the properties that failed the comparison.
-        Returns None if all samples pass the comparison.
         """
         if benchmark_sample:
             self.current_benchmark_sample = benchmark_sample
@@ -303,7 +297,6 @@ class Benchmark:
             sample_results = self._compare_sample_to_benchmark(
                 sample, self.current_benchmark_sample.properties_tolerances
             )
-
             # If any property failed the comparison, store the result in failed_samples
             if sample_results:
                 failed_samples[sample.name] = sample_results
@@ -372,14 +365,6 @@ class Benchmark:
         2. If the lengths of the sample and benchmark x-values are different, interpolate the sample's y-values
            to match the benchmark's x-values.
         3. Compare the aligned y-values to the benchmark's tolerance bounds.
-
-        Parameters:
-        - sample_value: Y-values from the sample (e.g., stress or force values).
-        - tolerance: A `Tolerance` object containing the benchmark's true values and tolerance bounds.
-        - property_calculator: An instance of `samples's  `BaseStandardOperator`` to handle interpolation.
-
-        Returns:
-        - bool: True if all values fall within bounds, False otherwise.
         """
         if isinstance(sample_value, pd.Series):
             sample_value = sample_value.copy().to_numpy()
@@ -440,15 +425,6 @@ class Benchmark:
         """
         Compare curve-like properties by finding intersections or interpolating to match x-values
         and checking against tolerance bounds.
-
-        Parameters:
-        - x_values: X-values from the sample (e.g., strain, displacement).
-        - y_values: Y-values from the sample (e.g., stress, force).
-        - tolerance: A `Tolerance` object containing the benchmark's true values and tolerance bounds.
-        - property_calculator: Instance of  samples's  `BaseStandardOperator` to handle interpolation and finding intersections.
-
-        Returns:
-        - bool: True if all values fall within bounds, False otherwise.
         """
         x_tolerance = tolerance.x
         y_tolerance = tolerance.y

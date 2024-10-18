@@ -255,13 +255,23 @@ RawDataConfig = namedtuple(
 
 # Enum to store standard configurations
 class CoercerFormats(Enum):
-    DEFAULT = RawDataConfig(
-        headers_of_interest=["Time", "Force", "Displacement"],
-        header_row_offset=1,
-        unit_row_offset=2,
-        data_start_offset=3,
-        marker="Data Acquisition",
-        invalid_data=["Data Acquisition"],
+    DEFAULT = (
+        RawDataConfig(
+            headers_of_interest=["Time", "Force", "Displacement"],
+            header_row_offset=1,
+            unit_row_offset=2,
+            data_start_offset=3,
+            marker="Data Acquisition",
+            invalid_data=["Data Acquisition"],
+        ),
+    )
+    ELEMENT = RawDataConfig(
+        headers_of_interest=["Time", "Compressive extension", "Compressive load"],
+        header_row_offset=0,
+        unit_row_offset=1,
+        data_start_offset=2,
+        marker=None,
+        invalid_data=[],
     )
 
 
