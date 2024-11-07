@@ -962,12 +962,10 @@ class DataHandler:
 
         return common_strain
 
-    def get_interpolated_stresses(self, selected_specimens, common_strain):
-        interpolated_stresses = [
-            np.interp(common_strain, specimen.shifted_strain, specimen.stress) for specimen in selected_specimens
-        ]
-        return interpolated_stresses
-
+    def get_interpolated_stresses(self, selected_specimens, common_strain, mode="default"):
+        return SpecimenInterpolator.interpolate_stresses(
+            selected_specimens=selected_specimens, common_strain=common_strain, mode=mode
+        )
     def get_common_displacement(self, selected_specimens):
         max_displacement = max(specimen.shifted_displacement.max() for specimen in selected_specimens)
         max_num_points = max(len(specimen.shifted_displacement) for specimen in selected_specimens)
@@ -1541,3 +1539,142 @@ class SpecimenDataEncoder(json.JSONEncoder):
             else:
                 encoded_dict[attr] = value
         return encoded_dict
+
+
+from scipy.interpolate import CubicSpline
+
+
+class SpecimenInterpolator:
+    @staticmethod
+    def interpolate_stresses(selected_specimens, common_strain, mode="default"):
+        """
+        Interpolates stress values for a list of specimens based on the specified mode.
+
+        Parameters:
+        - selected_specimens: List of specimen objects containing shifted_strain and stress attributes.
+        - common_strain: Array of strain values to interpolate stresses at.
+        - mode: Interpolation mode - "default", "ignore", "linear", or "spline".
+
+        Returns:
+        - List of interpolated stress arrays, one for each specimen.
+        """
+        if mode == "default":
+            return SpecimenInterpolator._default_interpolation(selected_specimens, common_strain)
+        elif mode == "ignore":
+            return SpecimenInterpolator._ignore_outside_range(selected_specimens, common_strain)
+        elif mode == "linear":
+            return SpecimenInterpolator._linear_extrapolation(selected_specimens, common_strain)
+        elif mode == "spline":
+            return SpecimenInterpolator._spline_interpolation(selected_specimens, common_strain)
+        else:
+            raise ValueError(f"Invalid mode: {mode}")
+
+    @staticmethod
+    def _default_interpolation(selected_specimens, common_strain):
+        # Interpolates using default settings with no extrapolation.
+        return [np.interp(common_strain, specimen.shifted_strain, specimen.stress) for specimen in selected_specimens]
+
+    @staticmethod
+    def _ignore_outside_range(selected_specimens, common_strain):
+        # Interpolates with NaN for values outside the strain range.
+        return [
+            np.interp(common_strain, specimen.shifted_strain, specimen.stress, left=np.nan, right=np.nan)
+            for specimen in selected_specimens
+        ]
+
+    @staticmethod
+    def _linear_extrapolation(selected_specimens, common_strain):
+        # Performs linear extrapolation beyond known data range.
+        interpolated_stresses = []
+        for specimen in selected_specimens:
+            strain = specimen.shifted_strain
+            stress = specimen.stress
+
+            if isinstance(strain, pd.Series):
+                strain = strain.to_numpy()
+            if isinstance(stress, pd.Series):
+                stress = stress.to_numpy()
+
+            if len(strain) < 2 or len(stress) < 2:
+                print("Insufficient data for linear extrapolation. Filling with NaN.")
+                interpolated_stresses.append(np.full_like(common_strain, np.nan))
+                continue
+
+            # Interpolate within range
+            max_stain = strain.max()
+            interp_values = np.interp(common_strain, strain, stress, left=0)
+            # By default, right extrapolation is not performed but extended wit last value ( horizontal line)
+
+            # Calculate the slope only for right extrapolation
+            try:
+                slope_right = SpecimenInterpolator._calculate_slope_with_fallback(stress, strain)
+            except Exception as e:
+                print(f"Error calculating right slope: {e}")
+                slope_right = np.nan
+
+            # Right extrapolation using calculated slope
+            right_extrapolation = stress[-1] + slope_right * (common_strain[common_strain > strain[-1]] - strain[-1])
+
+            # Replace the right horizontal line with the extrapolated values
+            interp_values[common_strain > strain[-1]] = right_extrapolation
+
+            interpolated_stresses.append(interp_values)
+
+        return interpolated_stresses
+
+    @staticmethod
+    def _calculate_slope_with_fallback(
+        stress: np.ndarray,
+        strain: np.ndarray,
+    ):
+        for i in range(len(stress) - 1, 0, -1):
+            if (stress[i] != stress[i - 1]) and (strain[i] != strain[i - 1]):
+                try:
+                    slope = (stress[i] - stress[i - 1]) / (strain[i] - strain[i - 1])
+                    if not np.isinf(slope) and not np.isnan(slope):
+                        return slope
+                    else:
+                        print("Invalid slope value (inf or NaN). Returning slope of 0.")
+                        return 0
+                except ZeroDivisionError:
+                    print("ZeroDivisionError in slope calculation. Returning slope of 0.")
+                    return 0
+        print("No valid non-zero differences found for right slope. Returning slope of 0.")
+        return 0
+
+    @staticmethod
+    def _spline_interpolation(selected_specimens, common_strain):
+        # Uses cubic spline interpolation, with fallback to linear if strains are not strictly increasing.
+        interpolated_stresses = []
+        for specimen in selected_specimens:
+            # Remove duplicates and ensure strictly increasing order
+
+            strain_stress_df = pd.DataFrame({"strain": specimen.shifted_strain, "stress": specimen.stress})
+            strain_stress_df = strain_stress_df.drop_duplicates(subset="strain")
+
+            # Extract cleaned, strictly increasing strain and stress values
+            sorted_strain = strain_stress_df["strain"].values
+            sorted_stress = strain_stress_df["stress"].values
+
+            if len(sorted_strain) < 2:
+                print("Insufficient unique data points for spline interpolation. Filling with NaN.")
+                interpolated_stresses.append(np.full_like(common_strain, np.nan))
+                continue
+
+            # Append interpolated values using cubic spline
+            interpolated_stresses.append(
+                SpecimenInterpolator._cubic_spline_interpolation(sorted_stress, sorted_strain, common_strain)
+            )
+
+        return interpolated_stresses
+
+    @staticmethod
+    def _calculate_slope(y_values, x_values, index1, index2):
+        # Helper to calculate slope between two points.
+        return (y_values[index2] - y_values[index1]) / (x_values[index2] - x_values[index1])
+
+    @staticmethod
+    def _cubic_spline_interpolation(y_values, x_values, common_x):
+        # Initialize the cubic spline with extrapolation enabled
+        spline = CubicSpline(x_values, y_values, extrapolate=True)
+        return spline(common_x)

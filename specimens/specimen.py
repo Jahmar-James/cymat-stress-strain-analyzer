@@ -112,11 +112,15 @@ class Specimen:
 
     @property
     def force(self):
-        return self.data_manager.formatted_data["force"] * -1
+        if self.data_manager.formatted_data["force"].mean() < 0:
+            return self.data_manager.formatted_data["force"] * -1
+        return self.data_manager.formatted_data["force"]
 
     @property
     def displacement(self):
-        return self.data_manager.formatted_data["displacement"] * -1
+        if self.data_manager.formatted_data["displacement"].mean() < 0:
+            return self.data_manager.formatted_data["displacement"] * -1
+        return self.data_manager.formatted_data["displacement"]
 
     @property
     def shifted_strain(self):
@@ -858,6 +862,18 @@ class SpecimenDataManager:
 
         modulus_by_force = (peak_pt_by_force[1] - end_pt_by_force[1]) / (peak_pt_by_force[0] - end_pt_by_force[0])
         modulus_by_stress = (peak_pt_by_stress[1] - end_pt_by_stress[1]) / (peak_pt_by_stress[0] - end_pt_by_stress[0])
+
+        # Add assertion to check if the modulus is the same for both methods
+        # assert np.isclose(
+        #     modulus_by_force, modulus_by_stress, rtol=1e-2
+        # ), "The modulus calculated by force and stress are not the same"
+
+        # Knowing that the peak point is the 70% point, we should check if the end point is the 20% point
+        # if was not the case, the data was not cuts off corrsectly
+        # (peak_pt_by_force / 0.7) * 0.2 ~ end_pt_by_force
+        # (peak_pt_by_stress / 0.7) * 0.2 ~ end_pt_by_stress
+        # assert np.isclose((peak_pt_by_force[1] / 0.7) * 0.2, end_pt_by_force[1], rtol=1e-2), "Ensure hyseresis data is cut off correctly"
+        # assert np.isclose((peak_pt_by_stress[1] / 0.7) * 0.2, end_pt_by_stress[1], rtol=1e-2), "Ensure hyseresis data is cut off correctly"
 
         self.modulus = modulus_by_stress
         self.shift_data()

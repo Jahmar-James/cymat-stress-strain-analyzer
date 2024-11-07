@@ -2,16 +2,17 @@
 import tkinter as tk
 from tkinter import ttk
 
+import pandas as pd
 import ttkbootstrap as tb
 
 from core.button_actions import ButtonActions
 from core.data_handler import DataHandler
 from core.plot_manager import PlotManager
 from core.widget_manager import WidgetManager
-import pandas as pd
 
 # To Do
-# add cymat icon 
+# add cymat icon
+
 
 # Main App
 class StressStrainApp:
@@ -22,7 +23,7 @@ class StressStrainApp:
 
         # Initialize instances
         self.data_handler = DataHandler(self)
-        self.widget_manager = WidgetManager(self) 
+        self.widget_manager = WidgetManager(self)
         self.button_actions = ButtonActions(self, self.data_handler)
         self.plot_manager = PlotManager(self.widget_manager.notebook, self)
 
@@ -46,7 +47,7 @@ class AppConfiguration:
         self.master.geometry("1200x600")
         self.master.minsize(850, 600)
         self.style = ttk.Style()
-        self.style.theme_use('clam')
+        self.style.theme_use("clam")
 
 
 # app_variables.py
@@ -69,7 +70,6 @@ class AppVariables:
         self.DIN_Mode = True
         self.ISO_Mode = False
 
-
     def add_specimen(self, tab_id, specimen):
         self.specimens.append(specimen)
         # Initialize with no slider manager
@@ -87,6 +87,7 @@ class AppVariables:
 
 # Run Application
 if __name__ == "__main__":
-    root = tb.Window( themename= 'darkly')
+    # root = tb.Window( themename= 'darkly')
+    root = tk.Tk()
     app = StressStrainApp(root)
     root.mainloop()
