@@ -46,8 +46,8 @@ class AppConfiguration:
         self.master.title("Cymat Stress-Strain Analyzer")
         self.master.geometry("1200x600")
         self.master.minsize(850, 600)
-        self.style = ttk.Style()
-        self.style.theme_use("clam")
+        # self.style = ttk.Style()
+        # self.style.theme_use("clam")
 
 
 # app_variables.py

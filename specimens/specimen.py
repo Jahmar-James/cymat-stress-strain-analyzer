@@ -33,6 +33,9 @@ class Specimen:
         self.manual_strain_shift = 0
         self.qc_manager = SpecimenQCManager(self)
 
+    def __repr__(self):
+        return f"<{self.__class__.__name__} {self.name}> {self.length}x{self.width}x{self.thickness}mm density: {self.density:.4f}g/cc"
+
     def calculate_quality_control_KPIs(self, standard_name: str):
         self.qc_manager.update_standards(standard_name)
         self.qc_manager.calculate_KPIs()
@@ -190,6 +193,9 @@ class SpecimenGraphManager:
         self.strain_offset = None
         self.offset_line = None
         self.compressive_proof_strength = None, None
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} {self.specimen.name}>"
 
     # Determine the plastic region
     def find_first_significant_increase(
@@ -668,6 +674,9 @@ class SpecimenDataManager:
             else:
                 self.hysteresis_data = raw_data[0]
                 self.raw_data = raw_data[1]
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} {self.specimen.name}>"
 
     def clean_data(self, condition=None):
         self.import_condition = condition

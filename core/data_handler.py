@@ -1136,7 +1136,10 @@ class DataHandler:
         # Get hysteresis data manager properties
         for prop in self.hysteresis_data_manager_properties:
             if specimen.processed_hysteresis_data is not None and not specimen.processed_hysteresis_data.empty:
-                properties[prop] = getattr(specimen.data_manager, prop)
+                try:
+                    properties[prop] = getattr(specimen.data_manager, prop)
+                except AttributeError:
+                    print(f"Error: {prop} not found in data_manager for specimen: {specimen}")
 
         return properties
 

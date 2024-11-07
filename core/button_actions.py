@@ -18,6 +18,7 @@ class ButtonActions:
         self.data_handler = data_handler
         # Bind the shortcut using <Control-r> notation
         app.master.bind("<Control-r>", lambda event: self.rename_current_notebook_tab())
+        app.master.bind("<Control-R>", lambda event: self.rename_all_notebook_tabs())
 
     def set_widget_manager(self, widget_manager: Any) -> None:
         self.widget_manager = widget_manager
@@ -45,6 +46,21 @@ class ButtonActions:
                 print("Rename canceled or no name provided.")
         else:
             print("Error: Unable to retrieve the current tab ID.")
+
+    def rename_all_notebook_tabs(self) -> None:
+        print("Renaming all tabs in sequence...")
+
+        # Get a reference to the notebook widget
+        notebook = self.app.widget_manager.notebook
+        tab_count = notebook.index("end")  # Get the total number of tabs
+
+        # Iterate through each tab and rename it sequentially
+        for i in range(tab_count):
+            tab_id = notebook.tabs()[i]  # Get the tab ID
+            new_name = f"s{i+1}"  # Create the new name (s1, s2, s3, ...)
+            notebook.tab(tab_id, text=new_name)  # Set the new name for the tab
+
+        print("All tabs have been renamed.")
 
     @property
     def specimens(self):
@@ -135,7 +151,6 @@ class ButtonActions:
     def import_data(self) -> None:
         DAT_FILE_TYPE = (("Data files", "*.zip"), ("All files", "*.*"))
         file_path = filedialog.askopenfilenames(title="Select a data file", filetypes=(DAT_FILE_TYPE))
-
         if file_path:
             for path in file_path:
                 filename = Path(path).name
