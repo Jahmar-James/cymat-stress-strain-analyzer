@@ -1,15 +1,16 @@
 # button_actions.py
+import os
 import tkinter as tk
+from pathlib import Path
+from tkinter import filedialog
 from typing import Any
 
-import tkinter as tk
-from tkinter import filedialog
-from pathlib import Path
-import os
-from .plot_manager import draw_error_band_xy, draw_error_band_y, draw_error_band_y_modified
-from tabulate import tabulate
 import matplotlib.pyplot as plt
 import numpy as np
+from tabulate import tabulate
+
+from .plot_manager import draw_error_band_xy, draw_error_band_y, draw_error_band_y_modified
+
 
 class ButtonActions:
     def __init__(self, app: Any, data_handler: Any) -> None:
@@ -65,6 +66,7 @@ class ButtonActions:
 
         try:
             self.data_handler.export_average_to_excel(selected_indices, file_path)
+            self.app.variables.export_in_progress = False
         except Exception as e:
             self.app.variables.export_in_progress = False
             tk.messagebox.showerror("Export Error", f"Failed to export data to {file_path}\n\nError: {e}")

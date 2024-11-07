@@ -146,5 +146,6 @@ class ToplevelValidator:
         pass
 
     def _submit_sample(self):
+        # ensuring your validated sample is properly submitted after passing all checks.
         if self.submission_callback:
             self.submission_callback(self.valid_data, self.valid_properties)
