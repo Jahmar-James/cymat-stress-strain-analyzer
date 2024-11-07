@@ -13,6 +13,6 @@ echo Installing requirements...
 pip install -r requirements.txt
 
 echo Creating an executable version of the stress_strain_app...
-pyinstaller --onefile stress_strain_app.py
+pyinstaller --onefile main.py
 echo Executable created successfully!
 pause
