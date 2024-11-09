@@ -13,6 +13,7 @@ class Serializer:
         self._registry = {
             "attributes": {},  # For storing attributes to be serialized into JSON
             "data": {},  # For storing data to be serialized into CSV
+            "children": {},  # For storing child objects to be serialized into separate JSON files
         }
         self.tracked_object = tracked_object
         # Import here to avoid circular imports | for now as IOStrategy is here
@@ -46,7 +47,7 @@ class Serializer:
             field = AttributeField(*field)
         else:
             raise TypeError(
-                f"Expected 'AttributeField' or tuple of length 5, but got {type(field).__name__} with length {len(field)}. "
+                f"Expected 'AttributeField' or tuple of length 5, but got {type(field).__name__} with length {len(field)}."
                 "Make sure you're passing a namedtuple 'AttributeField' or a valid tuple."
             )
 

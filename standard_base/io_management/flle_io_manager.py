@@ -6,9 +6,9 @@ from typing import Optional, Union
 
 import pandas as pd
 
-
-from utlils.contract_validators import ContractValidators, ErrorGenerator
 from standard_base.io_management.serializer import IOStrategy
+from utlils.contract_validators import ContractValidators, ErrorGenerator
+
 
 class FileIOManager(IOStrategy):
     STRATEGY_NAME = "File_IO"
@@ -111,7 +111,7 @@ class FileIOManager(IOStrategy):
     # Export Helpers Methods
 
     @staticmethod
-    def export_to_file(registry: dict, output_path: Path) -> bool:
+    def export_to_file(registry: dict, output_path: Path, inculde_children=True) -> bool:
         """
         Exports registered fields to JSON and CSV files, and then compresses them into a zip file.
 
@@ -136,6 +136,14 @@ class FileIOManager(IOStrategy):
                 # Export data to CSV
                 FileIOManager._export_data_to_csv(temp_path, registry["data"])
 
+                if inculde_children and "children" in registry:
+                    for child_key, child_objects in registry["children"].items():
+                        if isinstance(child_objects["value"], list):
+                            for idx, child_object in enumerate(child_objects["value"]):
+                                FileIOManager.export_to_subfolder(
+                                    child_object, temp_path, subfolder_name=f"{child_key}_{idx}"
+                                )
+
                 # Zip the exported files
                 zip_file_path = FileIOManager._zip_folder(temp_path, output_path)
 
@@ -152,6 +160,28 @@ class FileIOManager(IOStrategy):
             raise IOValidator.generate_os_error(task="export data", path=output_path)
         except Exception as e:
             raise Exception(f"An unexpected error occurred during file export: {e}")
+
+    @staticmethod
+    def export_to_subfolder(tracked_object, parent_dir: Path, subfolder_name: str) -> bool:
+        # Lazy import to avoid circular imports
+        from standard_base.io_management.serializer import Serializer
+
+        if not hasattr(tracked_object, "serializer") and isinstance(tracked_object.serializer, Serializer):
+            raise ValueError(
+                "Tracked object must have a 'serializer' attribute to export to a subfolder.",
+                f"Received: {tracked_object} | Expected: Serializer object",
+            )
+
+        # Taking Data from the serializer Thus even if the serializer is not a FileIOManager it will still work
+        if hasattr(tracked_object, "name"):
+            subfolder_name = f"{tracked_object.name}"
+
+        registry = tracked_object.serializer._registry
+        output_dir = parent_dir / subfolder_name
+        output_dir.mkdir(parents=True, exist_ok=True)
+        FileIOManager._export_attributes_to_json(output_dir, registry["attributes"])
+        FileIOManager._export_data_to_csv(output_dir, registry["data"])
+        return True
 
     @staticmethod
     def _export_attributes_to_json(temp_path: Path, attributes: dict) -> Path:
@@ -268,6 +298,10 @@ class FileIOManager(IOStrategy):
 
         # 2. Get the standard or fallback to 'general'
         standard = getattr(tracked_object, "standard", standard)
+
+        # if standard is a enum, the value is too long, so we get the name or value
+        if hasattr(standard, "name"):
+            standard = getattr(standard, "name")
 
         # 3. Get the Version or fallback to 'v1'
         version = getattr(tracked_object, "version", "v1")

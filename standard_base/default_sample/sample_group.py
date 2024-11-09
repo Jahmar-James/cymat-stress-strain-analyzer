@@ -1,10 +1,10 @@
 from typing import Optional
 
-from standard_base.entities.analyzable_entity import AnalyzableEntity
-
-from standard_base.io_management.ARCHIVE_base_standard_io_manager import BaseStandardIOManager
-from standard_base.validation.base_standard_validator import BaseStandardValidator
+from standard_base import MechanicalTestStandards
+from standard_base.entities.analyzable_entity import AnalyzableEntity, exportable_property
 from standard_base.properties_calculators.group_aggeregation_calculator import GroupAggregationOperator
+from standard_base.validation.base_standard_validator import BaseStandardValidator
+
 
 class SampleGenericGroup(AnalyzableEntity):
     """
@@ -17,19 +17,18 @@ class SampleGenericGroup(AnalyzableEntity):
 
     def __init__(
         self,
-        standard: str,
+        standard: MechanicalTestStandards = MechanicalTestStandards.GENERAL_PRELIMINARY,
         samples: Optional[list[AnalyzableEntity]] = None,
         aggregation_strategy: Optional[dict] = None,
         validator: Optional["BaseStandardValidator"] = None,
-        io_manager: Optional["BaseStandardIOManager"] = None,
         property_calculator: Optional["GroupAggregationOperator"] = None,
     ):
-        # Validator to ensure that all samples have the necessary properties to form a group.
-        # For example, checks might ensure that samples can be averaged together.
+        super().__init__(name="TestSampleGroup")
+
         self.validator = validator  # TODO GeneralPreliminaryValidator()
-        self.io_manger = io_manager  # or BaseStandardIOManager() not implemented yet
         self.standard = standard
-        self.samples = []
+        self._samples = []
+        self.is_sample_group = True
         self.aggregation_strategy = aggregation_strategy or {}
         self.property_calculator = property_calculator or GroupAggregationOperator()
 
@@ -37,25 +36,30 @@ class SampleGenericGroup(AnalyzableEntity):
             for sample in samples:
                 self.add_sample(sample)
 
-        # Aggregate sample properties and data using GroupAggregationOperator.
-        aggregated_properties = self._aggregate_properties()
-        aggregated_data = self._aggregate_data()
+        # # Aggregate sample properties and data using GroupAggregationOperator.
+        # aggregated_properties = self._aggregate_properties()
+        # aggregated_data = self._aggregate_data()
 
-        # Initialize the base class with the aggregated values.
-        super().__init__(
-            name="SampleGroup",
-            length=aggregated_properties.get("length"),
-            width=aggregated_properties.get("width"),
-            thickness=aggregated_properties.get("thickness"),
-            mass=aggregated_properties.get("mass"),
-            area=aggregated_properties.get("area"),
-            volume=aggregated_properties.get("volume"),
-            density=aggregated_properties.get("density"),
-            force=aggregated_data.get("force"),
-            displacement=aggregated_data.get("displacement"),
-            stress=aggregated_data.get("stress"),
-            strain=aggregated_data.get("strain"),
-        )
+        # # Initialize the base class with the aggregated values.
+        # super().__init__(
+        #     name="SampleGroup",
+        #     length=aggregated_properties.get("length"),
+        #     width=aggregated_properties.get("width"),
+        #     thickness=aggregated_properties.get("thickness"),
+        #     mass=aggregated_properties.get("mass"),
+        #     area=aggregated_properties.get("area"),
+        #     volume=aggregated_properties.get("volume"),
+        #     density=aggregated_properties.get("density"),
+        #     force=aggregated_data.get("force"),
+        #     displacement=aggregated_data.get("displacement"),
+        #     stress=aggregated_data.get("stress"),
+        #     strain=aggregated_data.get("strain"),
+        # )
+
+    @exportable_property(output_name="Samples", category="children")
+    def samples(self) -> list[AnalyzableEntity]:
+        # List of associated sample entities
+        return self._samples
 
     def create_entity(self) -> "SampleGenericGroup":
         """
@@ -78,10 +82,10 @@ class SampleGenericGroup(AnalyzableEntity):
             raise ValueError(f"Sample '{sample.name}' does not conform to the group standard '{self.standard}'.")
 
         # Convert units of the sample if needed before adding
-        self._standardize_sample_units(sample)
+        # self._standardize_sample_units(sample)
 
-        self.samples.append(sample)
-        self._update_aggregated_properties()
+        self._samples.append(sample)
+        # self._update_aggregated_properties()
 
     def _standardize_sample_units(self, sample: AnalyzableEntity) -> None:
         """
@@ -121,3 +125,16 @@ class SampleGenericGroup(AnalyzableEntity):
             self._update_aggregated_properties()
         else:
             raise ValueError(f"Property {property_name} does not exist.")
+
+    def _aggregate_properties(self) -> dict:
+        raise NotImplementedError("Not implemented yet.")
+
+    def _aggregate_data(self) -> dict:
+        raise NotImplementedError("Not implemented yet.")
+
+    def plot(self) -> None:
+        """
+        Plot key performance indicators (KPI) relevant to the standard being used.
+        This method must be implemented by subclasses to provide standard-specific views.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")

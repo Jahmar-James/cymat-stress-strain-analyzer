@@ -1,8 +1,8 @@
 from typing import Optional
 
+from standard_base.default_sample.sample import SampleGeneric
 from standard_base.sample_factory import MechanicalTestStandards, register_sample
 
-from ..default_sample.sample import SampleGeneric
 from .validator import CymatISO133142011Validator
 
 
@@ -15,13 +15,16 @@ class SampleCymat(SampleGeneric):
     Responsibilities:
     - Validate that all samples in the group have compatible properties (e.g., so that average properties can be calculated).
     """
-
     def __init__(
         self,
+        name: str,
         validator: Optional[CymatISO133142011Validator] = None,
     ):
-        super().__init__(validator)
+        super().__init__(name=name)
         self.validator = validator or CymatISO133142011Validator()
+
+    def __repr__(self) -> str:
+        return super().__repr__()
 
     def create_entity(self) -> "SampleCymat":
         """

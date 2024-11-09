@@ -7,12 +7,10 @@ import numpy as np
 import pandas as pd
 import pint
 
-
-from ..data_extraction import MechanicalTestDataPreprocessor
-
 from visualization_backend.plot_config import PlotConfig
 from visualization_backend.plot_manager import PlotManager
 
+from ..data_extraction import MechanicalTestDataPreprocessor
 from ..io_management.serializer import AttributeField, Serializer
 from ..properties_calculators.base_standard_operator import BaseStandardOperator
 
@@ -171,7 +169,10 @@ class AnalyzableEntity(ABC):
         )
 
         # Entity determination
-        self.analysis_standard: Optional["MechanicalTestStandards"] = None  # Associated analysis standard
+        self.analysis_standard: Optional[MechanicalTestStandards] = None  # Associated analysis standard
+        self._mechanical_test_procudure = (
+            None  # Compression or tensile (from analysis_standard or Compressive if end stress is maxium)
+        )
         self.software_version: str = "1.0"  # Software version used to generate the entity
         self.entity_version: str = "1.0"  # Entity version revision management for entity standard implementation
         self.database_id: Optional[int] = None  # Database identifier (if applicable)
@@ -183,7 +184,7 @@ class AnalyzableEntity(ABC):
         self.has_hysteresis: bool = has_hysteresis  # True if the sample has hysteresis data
         self.is_visualization_only: bool = False  # True if entity is for visualization purposes only
         self.is_sample_group: bool = False  # True if the entity represents a collection of samples
-        self.samples: list[AnalyzableEntity] = []  # List of associated sample entities
+        self._samples: list[AnalyzableEntity] = []  # List of associated sample entities
         self.tags = []  # Tags associated with the entity
 
         # Dependency inversion class helpers
@@ -488,11 +489,17 @@ class AnalyzableEntity(ABC):
         )
 
     # Properties
-
     @exportable_property(output_name="Cross-Sectional Area", unit="mm^2")
     def area(self) -> Optional[float]:
         # Inital First time calculation
         if self._area is None:
+            if self.is_sample_group:
+                try:
+                    values = [sample.area for sample in self._samples if sample.area is not None]
+                    return self.property_calculator.aggregate_scalar_properties(values=values, method="mean")
+                except ValueError as e:
+                    raise ValueError(f"Cannot calculate area for entity '{self.name}': {str(e)}")
+
             # Convert width to the same unit as length using a local variable
             length_unit = self._internal_units.get("length")
             width_converted = self._convert_units(value=self.width, current_unit_key="width", target_unit=length_unit)
