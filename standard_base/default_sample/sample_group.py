@@ -26,7 +26,7 @@ class SampleGenericGroup(AnalyzableEntity):
         super().__init__(name="TestSampleGroup")
 
         self.validator = validator  # TODO GeneralPreliminaryValidator()
-        self.standard = standard
+        self.analysis_standard = standard
         self._samples = []
         self.is_sample_group = True
         self.aggregation_strategy = aggregation_strategy or {}
@@ -56,6 +56,8 @@ class SampleGenericGroup(AnalyzableEntity):
         #     strain=aggregated_data.get("strain"),
         # )
 
+        self.update_seralized_attributes()
+
     @exportable_property(output_name="Samples", category="children")
     def samples(self) -> list[AnalyzableEntity]:
         # List of associated sample entities
@@ -78,7 +80,7 @@ class SampleGenericGroup(AnalyzableEntity):
         Raises:
         - ValueError if the sample does not conform to the group's standard.
         """
-        if sample.analysis_standard != self.standard:
+        if sample.analysis_standard != self.analysis_standard:
             raise ValueError(f"Sample '{sample.name}' does not conform to the group standard '{self.standard}'.")
 
         # Convert units of the sample if needed before adding

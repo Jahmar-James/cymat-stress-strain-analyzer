@@ -231,7 +231,7 @@ class AnalyzableEntity(ABC):
 
         # Register all public attributes for serializatiom ( all attributes not starting with _ ) Exclude blacklisted attributes
         # Reasons for blacklisting: Simple one-time values, Helper classes, and complex data
-        black_list = [
+        self._public_registry_black_list = [
             "name",
             "length",
             "width",
@@ -242,7 +242,7 @@ class AnalyzableEntity(ABC):
             "data_preprocessor",
             "serializer",
         ]
-        self.serializer.register_all_public_attributes(blacklist=black_list)
+        self.serializer.register_all_public_attributes(blacklist=self._public_registry_black_list)
         self.serializer.register_list(self._exportable_fields)
 
     def _initialize_hysteresis(self):
@@ -327,6 +327,14 @@ class AnalyzableEntity(ABC):
                 category="data",
             ),
         ]
+
+    def update_seralized_attributes(self, additional_attributes: Optional[list[str]] = None) -> None:
+        black_list = self._public_registry_black_list
+
+        if additional_attributes:
+            black_list += additional_attributes
+
+        self.serializer.register_all_public_attributes(black_list)
 
     def __repr__(self) -> str:
         """Return a debug-centric string representation of the entity."""

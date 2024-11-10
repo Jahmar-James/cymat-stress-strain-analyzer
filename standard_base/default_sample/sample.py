@@ -36,8 +36,13 @@ class SampleGeneric(AnalyzableEntity):
         self.validator = validator or GeneralPreliminaryValidator()
         self.analysis_standard = MechanicalTestStandards.GENERAL_PRELIMINARY
 
+        # update public attributes to be serialized
+        black_list = ["validator"]
+        self.update_seralized_attributes(additional_attributes=black_list)
+
     def __repr__(self) -> str:
         return super().__repr__()
+
 
     def create_entity(self):
         """

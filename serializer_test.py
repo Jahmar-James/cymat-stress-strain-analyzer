@@ -97,7 +97,6 @@ def demo_export_generic_sample_group():
 if __name__ == "__main__":
     entity = analyzably_entity_init()
 
-    demo_export_generic_sample_group()
     print(f"The TestableAnalyzableEntity object is: {entity} was created successfully")
     # print(f"The TestableAnalyzableEntity object has the following properties: {entity.__dict__}")
     print(f"The TestableAnalyzableEntity serialized object is: {entity.serializer}")
@@ -105,11 +104,13 @@ if __name__ == "__main__":
     # Begin testing the serialization of the TestableAnalyzableEntity object
 
     # export propertie Area
-
     print(f"Entity '{entity.name}' has an area of {entity.area:.2f} mm^2")
     print(f"Entity '{entity.name}' {entity.__class__.area.fget._is_exportable}")
     print(f"Entity '{entity.name}' {entity.__class__.area.fget._export_metadata}")
 
     # demo_export_single_entity()
+    # demo_export_generic_sample_group()
 
     demo_import_single_entity()
+
+    print("Done")

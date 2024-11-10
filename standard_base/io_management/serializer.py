@@ -60,35 +60,12 @@ class Serializer:
 
         output_name = field.output_name or self._generate_output_name(field.attribute_name, field.unit)
 
-        # If the field is in the 'data' category, store the file path
-        if field.category == "data":
-            data_path = f"{field.attribute_name}_data.csv"
-            # Register the file path in the 'attributes' registry
-            self._registry["attributes"][f"{field.attribute_name}_file_path"] = {
-                "value": data_path,
-                "unit": None,  # File paths don't have a unit
-                "output_name": f"{output_name} File Path",
-                "data_type": type(field.value).__name__,
-            }
-
-        value = field.value
-        data_type = type(value).__name__
-
-        #  TODO: Move conversion to a separate method
-        value, data_type, unit, output_name = convert_attribute_field_to_serializable(
-            value=value,
-            data_type=data_type,
-            unit=field.unit,
-            output_name=output_name,
-        )
-
-        # Store the field in the correct category in the registry
         self._registry[field.category][field.attribute_name] = {
-            "value": value,
-            "unit": unit,
+            "value": field.value,
+            "unit": field.unit,
             "output_name": output_name,
-            "data_type": data_type,
         }
+
         return bool(field.attribute_name in self._registry.get(field.category, {}))
         
     def register_exportable_properties(self, tracked_object: Optional[object] = None) -> None:
@@ -150,8 +127,9 @@ class Serializer:
 
         self.register_exportable_properties(tracked_object)
 
-        # Call the export method of the chosen strategy
-        return strategy.export(tracked_object, self._registry, output_path=output_path, database_uri=database_uri)
+        registry = strategy.format_registry_to_strategy(self._registry, strategy)
+
+        return strategy.export(tracked_object, registry, output_path=output_path, database_uri=database_uri)
          
 from abc import ABC, abstractmethod
 
@@ -181,6 +159,48 @@ class IOStrategy(ABC):
         pass
 
     @staticmethod
+    def format_registry_to_strategy(registry, io_stratgey: "IOStrategy") -> dict:
+        """
+        Format the registry for the given field.
+        """
+        registry = registry.copy()
+        for category, fields in registry.items():
+            # Category are attributes, data, children
+            for attribute_name, field_details in fields.items():
+                registry = io_stratgey.format_registry_field(category, attribute_name, field_details, registry)
+
+                value = field_details.get("value")
+                data_type = type(value).__name__
+
+                #  TODO: Move conversion to a separate method
+                value, data_type, unit, output_name = convert_attribute_field_to_serializable(
+                    value=value,
+                    data_type=data_type,
+                    unit=field_details.get("unit", None),
+                    output_name=field_details.get("output_name", None),
+                )
+
+                # Store the field in the correct category in the registry
+                registry[category][attribute_name].update(
+                    {
+                        "value": value,
+                        "unit": unit,
+                        "output_name": output_name,
+                        "data_type": data_type,
+                    },
+                )
+
+        return registry
+
+    @staticmethod
+    @abstractmethod
+    def format_registry_field(category, attribute_name, field_details, registry) -> dict:
+        """
+        Format the registry for the given field.
+        """
+        pass
+
+    @staticmethod
     def prepare_fields_for_initialization(cls, attributes, data) -> tuple[dict, dict]:
         import inspect
 
@@ -200,8 +220,67 @@ class IOStrategy(ABC):
         return core_attributes, extra_attributes
 
     @staticmethod
-    def filter_and_instantiate(return_class, attributes, data, allow_dynamic_attributes=True) -> object:
+    def get_mechanical_test_standard(return_class, extra_attributes) -> object:
+        if "analysis_standard" in extra_attributes and extra_attributes["analysis_standard"] is not None:
+            # Impotant property but not required for initialization - to simplify class initialization
+            # use the standard if not none to determine the class to be initialized
+            from standard_base import MechanicalTestStandards
+            from standard_base.sample_factory import standard_registry
+
+            sample_standard = standard_registry.get(MechanicalTestStandards(extra_attributes["analysis_standard"]))
+            if sample_standard is not None:
+                return_class = sample_standard
+            else:
+                print(
+                    f"Warning: Standard not found in the registry for {extra_attributes['analysis_standard']}",
+                    "Using the provided class for initialization.",
+                )
+        return return_class
+
+    @staticmethod
+    def filter_and_instantiate(
+        return_class,
+        attributes,
+        data,
+        allow_dynamic_attributes=True,
+        ignore_class_standard=False,
+        ignore_class_validation=False,
+        ignore_children=False,
+    ) -> object:
         core_attributes, extra_attributes = IOStrategy.prepare_fields_for_initialization(return_class, attributes, data)
+
+        if ignore_class_standard is False:
+            return_class = IOStrategy.get_mechanical_test_standard(return_class, extra_attributes)
+
+        if ignore_children is False and "children" in extra_attributes:
+            # Check for children and instantiate them
+            children = extra_attributes.pop("children")
+            # Find the attribute name for the children
+            attr_containing_children_names = [
+                attr_name
+                for attr_name, attr_value in extra_attributes.items()
+                if isinstance(attr_value, list) and attr_name.endswith("_children")
+            ]
+
+            # For each attribute containing children, instantiate the all the children for that attribute
+            for attr_name in attr_containing_children_names:
+                extra_attributes[attr_name] = []  # Clear the list
+                attr_name = attr_name.replace("_children", "")
+                for child_name, child_data in children.items():
+                    if child_name.endswith(attr_name):
+                        # assume the same return class  as the parent class
+                        core_child_attributes, extra_child_attributes = IOStrategy.prepare_fields_for_initialization(
+                            return_class, child_data, {}
+                        )
+                        child_class = IOStrategy.get_mechanical_test_standard(return_class, extra_child_attributes)
+                        child_instance = IOStrategy.filter_and_instantiate(
+                            return_class=child_class,
+                            attributes=core_child_attributes,
+                            data={},
+                            allow_dynamic_attributes=allow_dynamic_attributes,
+                            ignore_children=True,
+                        )
+                        extra_attributes[attr_name].append(child_instance)
         try:
             # Instantiate the class with core attributes
             instance = return_class(**core_attributes)

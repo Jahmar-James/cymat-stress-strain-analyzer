@@ -12,6 +12,36 @@ from utlils.contract_validators import ContractValidators, ErrorGenerator
 
 class FileIOManager(IOStrategy):
     STRATEGY_NAME = "File_IO"
+
+    @staticmethod
+    def format_registry_field(category, attribute_name, field_details, registry=None) -> dict:
+        file_registry = registry or {}
+        # If the field is in the 'data' category, store the file path
+        if category == "data":
+            data_path = f"{attribute_name}_data.csv"
+            output_name = field_details.get("output_name", attribute_name)
+            value = field_details["value"]
+
+            # Register the file path in the 'attributes' registry
+            file_registry["attributes"][f"{attribute_name}_file_path"] = {
+                "value": data_path,
+                "unit": None,  # File paths don't have a unit
+                "output_name": f"{output_name} File Path",
+                "data_type": type(value).__name__,
+            }
+        elif category == "children":
+            # create and attribute  containing the names of the children
+            # So that the children can be loaded from the file to the correct attribute
+            output_name = field_details.get("output_name", f"{attribute_name}_children")
+            file_registry["attributes"][f"{attribute_name}_children"] = {
+                "value": [f"{str(child)}_{output_name}" for child in field_details["value"]],
+                "unit": None,  # File paths don't have a unit
+                "output_name": output_name,
+                "data_type": "list",
+            }
+
+        return file_registry
+
     # Main Methods Export and Import
     def export(self, tracked_object: object, registry: dict, **kwargs) -> bool:
         """
@@ -141,7 +171,10 @@ class FileIOManager(IOStrategy):
                         if isinstance(child_objects["value"], list):
                             for idx, child_object in enumerate(child_objects["value"]):
                                 FileIOManager.export_to_subfolder(
-                                    child_object, temp_path, subfolder_name=f"{child_key}_{idx}"
+                                    child_object,
+                                    temp_path,
+                                    subfolder_name=f"{child_key}_{idx}",
+                                    associated_attr=child_key,
                                 )
 
                 # Zip the exported files
@@ -162,7 +195,7 @@ class FileIOManager(IOStrategy):
             raise Exception(f"An unexpected error occurred during file export: {e}")
 
     @staticmethod
-    def export_to_subfolder(tracked_object, parent_dir: Path, subfolder_name: str) -> bool:
+    def export_to_subfolder(tracked_object, parent_dir: Path, subfolder_name: str, associated_attr) -> bool:
         # Lazy import to avoid circular imports
         from standard_base.io_management.serializer import Serializer
 
@@ -177,7 +210,8 @@ class FileIOManager(IOStrategy):
             subfolder_name = f"{tracked_object.name}"
 
         registry = tracked_object.serializer._registry
-        output_dir = parent_dir / subfolder_name
+        registry = FileIOManager.format_registry_to_strategy(registry, io_stratgey=FileIOManager())
+        output_dir = parent_dir / f"{subfolder_name}_{associated_attr}"
         output_dir.mkdir(parents=True, exist_ok=True)
         FileIOManager._export_attributes_to_json(output_dir, registry["attributes"])
         FileIOManager._export_data_to_csv(output_dir, registry["data"])
@@ -444,9 +478,18 @@ class FileIOManager(IOStrategy):
                         processed_attributes[attribute_name]["value"] = FileIOManager._reassign_type(
                             details["value"], details["data_type"], attribute_name
                         )
-                        
-            # Return only the values drop 
+
+            # Check if child objects are present and recursively load them
+            child_attributes: dict[str, dict] = {}
+            for directory_item in directory.iterdir():
+                if directory_item.is_dir():
+                    child_attributes[directory_item.name] = FileIOManager._load_attributes_and_data(
+                        directory_item, json_file
+                    )
+
+            # Return only the values drop
             processed_attributes = {key: value["value"] for key, value in processed_attributes.items()}
+            processed_attributes["children"] = child_attributes
 
             return processed_attributes
 
@@ -537,7 +580,7 @@ def check_enums(value, data_type: str):
     data_type = data_type.replace("_enum", "")
 
     # Import here to avoid circular imports for all enums
-    from standards.base.analyzable_entity import DataState
+    from standard_base.entities.analyzable_entity import DataState
 
     if data_type == "DataState":
         return DataState(value)
