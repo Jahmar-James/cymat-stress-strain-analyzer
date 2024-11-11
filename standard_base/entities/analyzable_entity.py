@@ -7,12 +7,14 @@ import numpy as np
 import pandas as pd
 import pint
 
+from utlils.contract_validators import ContractValidators
 from visualization_backend.plot_config import PlotConfig
 from visualization_backend.plot_manager import PlotManager
 
 from ..data_extraction import MechanicalTestDataPreprocessor
 from ..io_management.serializer import AttributeField, Serializer
 from ..properties_calculators.base_standard_operator import BaseStandardOperator
+from ..properties_calculators.group_aggeregation_calculator import GroupAggregationOperator
 
 if TYPE_CHECKING:
     from visualization_backend.plot import Plot
@@ -159,16 +161,42 @@ class AnalyzableEntity(ABC):
         self._stress = stress
         self._strain = strain
 
+        # Shift applied to data for zeroing ( in internal units )
+        self._shift_appiled_to_force = 0
+        self._shift_appiled_to_displacement = 0
+        self._shift_appiled_to_stress = 0
+        self._shift_appiled_to_strain = 0
+        self.apply_zero_shift = False
+
         # Hysteresis data | Specialized data
         self.specialized_data = specialized_data or {}
+        """
+        Specialized Data:
+        Flexible storage for additional data that may be specific to the sample standard or test.
+        """
 
         # TODO: Add a method to update raw data names with units and for exporting
         # dataframe columns will always be lowercase to ensure consistency
+        order_column = "time" if (isinstance(time, pd.Series) and not time.empty) else "index"
         self._raw_data = pd.DataFrame(
-            {"force": self._force, "displacement": self._displacement, "stress": self._stress, "strain": self._strain}
+            {
+                order_column: self._time,
+                "force": self._force,
+                "displacement": self._displacement,
+                "stress": self._stress,
+                "strain": self._strain,
+            }
         )
 
-        # Entity determination
+        # Sample Group Management
+        self.is_sample_group: bool = False  # True if the entity represents a collection of samples
+        self._samples: list[AnalyzableEntity] = []  # List of associated sample entities
+        # Common axis independent axis to interopltae on
+        self._strain_common_to_stress: Optional[pd.Series] = None
+        self._displacement_common_to_force: Optional[pd.Series] = None
+        self._time_common_to_any: Optional[pd.Series] = None  # Not sure yet, just concept
+
+        # General Entity determination
         self.analysis_standard: Optional[MechanicalTestStandards] = None  # Associated analysis standard
         self._mechanical_test_procudure = (
             None  # Compression or tensile (from analysis_standard or Compressive if end stress is maxium)
@@ -183,8 +211,6 @@ class AnalyzableEntity(ABC):
         self.is_saved: bool = False  # Indicates if the entity has been saved
         self.has_hysteresis: bool = has_hysteresis  # True if the sample has hysteresis data
         self.is_visualization_only: bool = False  # True if entity is for visualization purposes only
-        self.is_sample_group: bool = False  # True if the entity represents a collection of samples
-        self._samples: list[AnalyzableEntity] = []  # List of associated sample entities
         self.tags = []  # Tags associated with the entity
 
         # Dependency inversion class helpers
@@ -247,6 +273,7 @@ class AnalyzableEntity(ABC):
 
     def _initialize_hysteresis(self):
         """Initialize and register hysteresis-related data."""
+        self.specialized_data["hysteresis_time"] = pd.Series(dtype="float64", name="hysteresis_time")
         self.specialized_data["hysteresis_stress"] = pd.Series(dtype="float64", name="hysteresis_stress")
         self.specialized_data["hysteresis_strain"] = pd.Series(dtype="float64", name="hysteresis_strain")
         self.specialized_data["hysteresis_force"] = pd.Series(dtype="float64", name="hysteresis_force")
@@ -261,6 +288,7 @@ class AnalyzableEntity(ABC):
             if field.attribute_name == "_raw_data":
                 field.output_name.extend(
                     [
+                        "Hysteresis Time [s]",
                         "Hysteresis Stress [MPa]",
                         "Hysteresis Strain",
                         "Hysteresis Force [N]",
@@ -323,7 +351,7 @@ class AnalyzableEntity(ABC):
                 attribute_name="_raw_data",
                 value=self._raw_data,
                 unit=None,
-                output_name=["Force [N]", "Displacement [mm]", "Stress [MPa]", "Strain"],
+                output_name=["Time [s]", "Force [N]", "Displacement [mm]", "Stress [MPa]", "Strain"],
                 category="data",
             ),
         ]
@@ -496,100 +524,160 @@ class AnalyzableEntity(ABC):
             or self._internal_units[property_name]
         )
 
+    def _get_sample_group_property(self, property_name: str, method, used_static_class=False) -> Optional[float]:
+        ContractValidators.validate_non_empty_list(
+            self._samples, "samples", function_name=f"_get_sample_group_property({property_name})"
+        )
+        samples = self._samples
+        # Not Removing None, as it should be handled or raise an error (Fail Loudly)
+        values = [getattr(sample, property_name) for sample in samples]
+
+        try:
+            if used_static_class:
+                return GroupAggregationOperator.aggregate_scalar_properties(values, method)
+            elif isinstance(self.property_calculator, GroupAggregationOperator):
+                return self.property_calculator.aggregate_scalar_properties(values, method)
+            else:
+                raise ValueError("Property calculator is not a GroupAggregationOperator")
+        except ValueError as e:
+            raise ValueError(f"Cannot calculate {property_name} for entity '{self.name}': {str(e)}")
+
+    def _get_sample_group_series(self, property_name: str, method, used_static_class=False) -> Optional[pd.Series]:
+        ContractValidators.validate_non_empty_list(
+            self._samples, "samples", function_name=f"_get_sample_group_series({property_name})"
+        )
+        samples = self._samples
+
+        # values: pd.Series = [getattr(sample, property_name) for sample in samples]
+        values: pd.DataFrame = [sample.processed_data for sample in samples]
+
+        intep_column, data_column = self._get_columns_for_aggregation(property_name)
+
+        try:
+            if used_static_class:
+                return GroupAggregationOperator.aggregate_series(values, data_column, intep_column, method)
+            elif isinstance(self.property_calculator, GroupAggregationOperator):
+                return self.property_calculator.aggregate_series(
+                    values,
+                    data_column,
+                    intep_column,
+                    method,
+                )
+            else:
+                raise ValueError("Property calculator is not a GroupAggregationOperator")
+
+        except ValueError as e:
+            raise ValueError(f"Cannot calculate {property_name} for entity '{self.name}': {str(e)}")
+
+    def _get_columns_for_aggregation(self, property_name: str) -> tuple[str, str]:
+        mapping = {
+            "force": ("time", "force"),
+            "displacement": ("time", "displacement"),
+            "stress": ("strain", "stress"),
+        }
+        return mapping.get(property_name, (None, None))
+
     # Properties
     @exportable_property(output_name="Cross-Sectional Area", unit="mm^2")
     def area(self) -> Optional[float]:
+        """Calculates and returns the cross-sectional area in the target unit."""
         # Inital First time calculation
         if self._area is None:
             if self.is_sample_group:
-                try:
-                    values = [sample.area for sample in self._samples if sample.area is not None]
-                    return self.property_calculator.aggregate_scalar_properties(values=values, method="mean")
-                except ValueError as e:
-                    raise ValueError(f"Cannot calculate area for entity '{self.name}': {str(e)}")
+                return self._get_sample_group_property("area", "mean")
 
-            # Convert width to the same unit as length using a local variable
-            length_unit = self._internal_units.get("length")
-            width_converted = self._convert_units(value=self.width, current_unit_key="width", target_unit=length_unit)
-
-            # Calculate area
+            # Convert width to length unit and calculate area
+            # Ensure calculation is done in the correct units
             try:
-                self._area, area_uncertainty = self.property_calculator.calculate_cross_sectional_area(
-                    self.length, width_converted
+                width_converted = self._convert_units(
+                    value=self.width, current_unit_key="width", target_unit=self._internal_units.get("length")
                 )
+
+                self._area, area_uncertainty = self.property_calculator.calculate_cross_sectional_area(
+                    length=self.length, width=width_converted
+                )
+                # Store area uncertainty if significant
                 if area_uncertainty and area_uncertainty > 0:
-                    # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
                     self._uncertainty.setdefault("area", area_uncertainty)
+
+                # Define internal area unit if not already set
+                self._internal_units.setdefault("area", self._internal_units["length"] ** 2)
+
             except ValueError as e:
                 raise ValueError(f"Cannnot calculate area for entity '{self.name}': {str(e)}")
-
-            # Set internal unit for area if not already set
-            self._internal_units.setdefault("area", self._internal_units["length"] ** 2)
 
         # Convert area to target unit if needed
         _area = self._convert_units(self._area, current_unit_key="area")
         return _area if isinstance(_area, (float, int)) else None
 
-    @property
+    @exportable_property(output_name="Volume", unit="mm^3")
     def volume(self) -> Optional[float]:
-        if self.area is not None and self.thickness is not None:
+        """Calculates and returns the volume in the target unit."""
+        if self._volume is None:
+            if self.is_sample_group:
+                return self._get_sample_group_property("volume", "mean")
+
             length_unit = self._internal_units.get("length")
-            thickness_converted = self._convert_units(
-                self.thickness, current_unit_key="thickness", target_unit=length_unit
-            )
 
-            # Calculate volume
-            self._volume, volumne_uncertainty = self.property_calculator.calculate_volume(
-                area=self.area, thickness=thickness_converted
-            )
+            if self.area is not None and self.thickness is not None:
+                # Convert thickness to length unit and calculate volume
+                thickness_converted = self._convert_units(
+                    self.thickness, current_unit_key="thickness", target_unit=length_unit
+                )
+                self._volume, volume_uncertainty = self.property_calculator.calculate_volume(
+                    self.area, thickness_converted
+                )
 
-            # Set internal unit for volume if not already set
-            self._internal_units.setdefault("volume", self._internal_units["area"] * self._internal_units["length"])
+                # Set units and uncertainties for volume if calculated
+                self._internal_units.setdefault("volume", self._internal_units["area"] * self._internal_units["length"])
+                if volume_uncertainty and volume_uncertainty > 0:
+                    self._uncertainty.setdefault("volume", volume_uncertainty)
 
-            if volumne_uncertainty and volumne_uncertainty > 0:
-                # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
-                self._uncertainty.setdefault("volume", volumne_uncertainty)
+            elif all(attr is not None for attr in (self.length, self.width, self.thickness)):
+                # Convert width and thickness to length unit and calculate volume directly
+                width_converted = self._convert_units(self.width, current_unit_key="width", target_unit=length_unit)
+                thickness_converted = self._convert_units(
+                    self.thickness, current_unit_key="thickness", target_unit=length_unit
+                )
+                self._volume, volume_uncertainty = self.property_calculator.calculate_volume_direct(
+                    self.length, width_converted, thickness_converted
+                )
 
-        elif self.length is not None and self.width is not None and self.thickness is not None:
-            # Convert width and thickness to the same unit as length
-            length_unit = self._internal_units.get("length")
-            width_converted = self._convert_units(self.width, current_unit_key="width", target_unit=length_unit)
-            thickness_converted = self._convert_units(
-                self.thickness, current_unit_key="thickness", target_unit_key="length"
-            )
-            # Calculate volume directly
-            self._volume, volumne_uncertainty = self.property_calculator.calculate_volume_direct(
-                length=self.length, width=width_converted, thickness=thickness_converted
-            )
-            # Set internal unit for volume if not already set
-            self._internal_units.setdefault("volume", self._internal_units["length"] ** 3)
-
-            if volumne_uncertainty and volumne_uncertainty > 0:
-                # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
-                self._uncertainty.setdefault("volume", volumne_uncertainty)
-        else:
-            raise ValueError("Insufficient data to calculate volume.")
+                # Set units and uncertainties for volume if calculated
+                self._internal_units.setdefault("volume", self._internal_units["length"] ** 3)
+                if volume_uncertainty and volume_uncertainty > 0:
+                    self._uncertainty.setdefault("volume", volume_uncertainty)
+            else:
+                raise ValueError("Insufficient data to calculate volume.")
 
         # Convert volume to target unit if needed
         _volume = self._convert_units(self._volume, current_unit_key="volume")
         return _volume if isinstance(_volume, (float, int)) else None
 
-    @property
+    @exportable_property(output_name="Density", unit="g/cm^3")
     def density(self) -> Optional[float]:
+        """Calculates and returns the density in the target unit."""
+
         if self._density is None and self.mass is not None:
-            # Calculate density
+            # Calculate density if mass and volume are available
+            if self.is_sample_group:
+                return self._get_sample_group_property("density", "mean")
+
             try:
                 self._density, density_uncertainty = self.property_calculator.calculate_density(
                     mass=self.mass, volume=self.volume
                 )
+
+                # Store uncertainty if significant
                 if density_uncertainty and density_uncertainty > 0:
-                    # only store the uncertainty if it should be treated as non exact to save on memory and futher computations
                     self._uncertainty.setdefault("density", density_uncertainty)
+
+                # Define internal unit for density if not already set
+                self._internal_units.setdefault(
+                    "density", self._internal_units["mass"] / self._internal_units["volume"]
+                )
             except ValueError as e:
                 raise ValueError(f"Cannot calculate density for entity '{self.name}': {str(e)}")
-
-            # Set internal unit for density if not already set
-            self._internal_units.setdefault("density", self._internal_units["mass"] / self._internal_units["volume"])
 
         # Convert density to target unit if needed
         _density = self._convert_units(self._density, current_unit_key="density")
@@ -614,6 +702,16 @@ class AnalyzableEntity(ABC):
         """
         if self._strain is None or (isinstance(self._strain, pd.Series) and self._strain.empty):
             # Calculate strain using the property calculator
+
+            if self.is_sample_group:
+                if not hasattr(self, "_strain_common_to_stress") or self._strain_common_to_stress is None:
+                    # calculate the strain from the stress data
+                    self.stress
+                    if isinstance(self._strain_common_to_stress, pd.Series) and not self._strain_common_to_stress.empty:
+                        return self._strain_common_to_stress
+                    else:
+                        return None
+
             try:
                 self._strain, strain_uncertainty = self.property_calculator.calculate_strain(
                     displacement_series=self.displacement, initial_length=self.length
@@ -642,6 +740,23 @@ class AnalyzableEntity(ABC):
         :return: Stress data as a Pandas Series, optionally converted to the target unit.
         """
         if self._stress is None or (isinstance(self._stress, pd.Series) and self._stress.empty):
+            if self.is_sample_group:
+                # Return the average stress for a sample group along with interplted column for non equal data
+                avg_stress_df = self._get_sample_group_series("stress", "mean")
+                if avg_stress_df is not None and (isinstance(avg_stress_df, pd.DataFrame) and not avg_stress_df.empty):
+                    stress_data_interp_from_strain = avg_stress_df["avg_stress"]
+                    strain_data_selected_axis = avg_stress_df["strain"]
+
+                    if isinstance(stress_data_interp_from_strain, pd.Series):
+                        setattr(self, "_stress", avg_stress_df["avg_stress"].rename("stress"))
+
+                    if isinstance(strain_data_selected_axis, pd.Series):
+                        setattr(self, "_strain_common_to_stress", avg_stress_df["strain"].rename("strain"))
+
+                    return self._stress if isinstance(self._stress, pd.Series) and not self._stress.empty else None
+
+                return None
+
             # Calculate stress using the property calculator
             try:
                 self._stress, stress_uncertainty = self.property_calculator.calculate_stress(
@@ -662,6 +777,94 @@ class AnalyzableEntity(ABC):
 
         _stress = self._convert_units(self._stress, current_unit_key="stress")
         return _stress if isinstance(_stress, pd.Series) and not _stress.empty else None
+
+    @property
+    def time(self) -> Optional[pd.Series]:
+        return self._time
+
+    @exportable_property(unit="N", output_name="Force_Shift")
+    def shift_appiled_to_force(self) -> float:
+        return self._shift_appiled_to_force
+
+    @shift_appiled_to_force.setter
+    def shift_appiled_to_force(self, value: float) -> None:
+        self._shift_appiled_to_force = value
+
+    @exportable_property(unit="mm", output_name="Displacement_Shift")
+    def shift_appiled_to_displacement(self) -> float:
+        return self._shift_appiled_to_displacement
+
+    @shift_appiled_to_displacement.setter
+    def shift_appiled_to_displacement(self, value: float) -> None:
+        self._shift_appiled_to_displacement = value
+
+    @exportable_property(unit="MPa", output_name="Stress_Shift")
+    def shift_appiled_to_stress(self) -> float:
+        return self._shift_appiled_to_stress
+
+    @shift_appiled_to_stress.setter
+    def shift_appiled_to_stress(self, value: float) -> None:
+        self._shift_appiled_to_stress = value
+
+    @exportable_property(unit="mm", output_name="Strain_Shift")
+    def shift_appiled_to_strain(self) -> float:
+        return self._shift_appiled_to_strain
+
+    @shift_appiled_to_strain.setter
+    def shift_appiled_to_strain(self, value: float) -> None:
+        self._shift_appiled_to_strain = value
+
+    @exportable_property(
+        output_name=["Force [N]", "Displacement [mm]", "Stress [MPa]", "Strain"],
+        unit=None,
+        category="data",
+    )
+    def processed_data(self) -> pd.DataFrame:
+        time = self.time
+        force = self.force
+        displacement = self.displacement
+        stress = self.stress
+        strain = self.strain
+
+        if self.apply_zero_shift:
+            force += self.shift_appiled_to_force
+            displacement += self.shift_appiled_to_displacement
+            stress += self.shift_appiled_to_stress
+            strain += self.shift_appiled_to_strain
+
+        # interal standard names (lowercase, no spaces, no units)
+        data_dict = {
+            "time": time,
+            "force": force,
+            "displacement": displacement,
+            "stress": stress,
+            "strain": strain,
+        }
+        return pd.DataFrame(data_dict)
+
+    @exportable_property(
+        output_name=[
+            "Hysteresis Time [s]",
+            "Hysteresis Force [N]",
+            "Hysteresis Displacement [mm]",
+            "Hysteresis Stress [MPa]",
+            "Hysteresis Strain",
+        ],
+        unit=None,
+        category="data",
+    )
+    def processed_data_hysteresis(self) -> pd.DataFrame:
+        data_dict = {
+            "hysteresis_time": self.specialized_data.get("processed_hysteresis_time", None),
+            "hysteresis_force": self.specialized_data.get("processed_hysteresis_force", None),
+            "hysteresis_displacement": self.specialized_data.get("processed_hysteresis_displacement", None),
+            "hysteresis_stress": self.specialized_data.get("processed_hysteresis_stress", None),
+            "hysteresis_strain": self.specialized_data.get("processed_hysteresis_strain", None),
+        }
+        # If using all scalar values, you must pass an index
+        if all(data is None for data in data_dict.values()):
+            return pd.DataFrame(data_dict, index=[0])
+        return pd.DataFrame(data_dict)
 
     # Plotting Methods
 

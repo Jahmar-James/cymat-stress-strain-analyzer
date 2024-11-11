@@ -84,7 +84,7 @@ def generic_sample_2_init():
 
 def generic_sample_group_init():
     samples = [generic_sample_1_init(), generic_sample_2_init()]
-    return SampleGenericGroup(samples=samples)
+    return SampleGenericGroup(samples=samples, name="Generic_Sample_Group")
 
 
 def demo_export_generic_sample_group():

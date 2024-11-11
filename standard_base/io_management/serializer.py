@@ -264,8 +264,9 @@ class IOStrategy(ABC):
 
             # For each attribute containing children, instantiate the all the children for that attribute
             for attr_name in attr_containing_children_names:
-                extra_attributes[attr_name] = []  # Clear the list
+                del extra_attributes[attr_name]
                 attr_name = attr_name.replace("_children", "")
+                extra_attributes[attr_name] = []  # Clear the list
                 for child_name, child_data in children.items():
                     if child_name.endswith(attr_name):
                         # assume the same return class  as the parent class
@@ -289,7 +290,13 @@ class IOStrategy(ABC):
 
         if allow_dynamic_attributes:
             for attr_name, attr_value in extra_attributes.items():
-                setattr(instance, attr_name, attr_value)
+                try:
+                    setattr(instance, attr_name, attr_value)
+                except AttributeError:
+                    # Maybe the attribute is a property
+                    print(f"Warning: Attribute {attr_name} could not be set on {instance.__class__.__name__}")
+                    setattr(instance, f"_{attr_name}", attr_value)
+
         else:
             if extra_attributes:
                 print(f"Warning: Ignored extra attributes {extra_attributes}")

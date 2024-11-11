@@ -31,8 +31,8 @@ class BaseStandardOperator:
 
     @staticmethod
     def calculate_cross_sectional_area(
-        length: float,
-        width: float,
+        length: Optional[float],
+        width: Optional[float],
         conversion_factor: float = 1.0,
         length_uncertainty: Optional[Union[float, str]] = None,
         width_uncertainty: Optional[Union[float, str]] = None,

@@ -398,10 +398,10 @@ class FileIOManager(IOStrategy):
 
                 # if attributes_n_data has keys 'class_name' for each attribute,
                 # Then invert the dict key to have the class_name as the key, and  ignore the output_name
-                inverted_attributes_n_data = FileIOManager._invert_attributes_n_data(attributes_n_data)
+                # inverted_attributes_n_data = FileIOManager._invert_attributes_n_data(attributes_n_data)
 
                 # Instantiate and return the object using core attributes and data
-                return IOStrategy.filter_and_instantiate(return_class, inverted_attributes_n_data, {})
+                return IOStrategy.filter_and_instantiate(return_class, attributes_n_data, {})
 
         except Exception as e:
             raise Exception(f"Error occurred while importing object from '{file}': {e}")
@@ -489,7 +489,9 @@ class FileIOManager(IOStrategy):
 
             # Return only the values drop
             processed_attributes = {key: value["value"] for key, value in processed_attributes.items()}
-            processed_attributes["children"] = child_attributes
+
+            if child_attributes:
+                processed_attributes["children"] = child_attributes
 
             return processed_attributes
 
