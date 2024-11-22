@@ -1,7 +1,8 @@
 import datetime
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional, TypeAlias, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypeAlias, Union
 
 import numpy as np
 import pandas as pd
@@ -25,6 +26,23 @@ Value: TypeAlias = Union[float, int, pd.Series, pd.DataFrame, np.ndarray]
 from collections import namedtuple
 
 entity_property = namedtuple("entity_property", ["value", "uncertainty", "unit"])
+
+@dataclass
+class SampleProperty:
+    name: str
+    value: Optional[Union[float, pd.Series]] = None
+    unit: Optional[pint.Unit] = None
+    uncertainty: Optional[Union[float, str, pd.Series]] = None
+    _calculator: Optional[Callable[[], Union[float, pd.Series]]] = None
+
+    def compute(self):
+        """
+        Compute the value using the private calculator if it is defined.
+        """
+        if self._calculator and self.value is None:
+            print(f"Computing value for '{self.name}'...")
+            self.value = self._calculator()
+
 
 # Decorator for exporting properties 
 def exportable_property(unit=None, output_name=None, category="attributes"):
