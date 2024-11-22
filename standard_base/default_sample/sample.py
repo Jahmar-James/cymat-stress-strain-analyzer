@@ -2,7 +2,6 @@ from typing import Optional
 
 from standard_base import MechanicalTestStandards
 from standard_base.entities.analyzable_entity import AnalyzableEntity
-
 # from standard_base.io_management.ARCHIVE_base_standard_io_manager import BaseStandardIOManager
 # from standard_base.properties_calculators.base_standard_operator import BaseStandardOperator
 from standard_base.validation.base_standard_validator import BaseStandardValidator
@@ -51,9 +50,35 @@ class SampleGeneric(AnalyzableEntity):
         """
         raise NotImplementedError("Gemeric Sample to be implemented.")
 
-    def plot(self) -> None:
+    def plot(self, plot=None, plot_name="") -> None:
         """
         Plot key performance indicators (KPI) relevant to the standard being used.
         This method must be implemented by subclasses to provide standard-specific views.
         """
-        raise NotImplementedError("Subclasses must implement this method.")
+        if self.plot_manager is None:
+            raise AttributeError(
+                f"Cannot create plot: {self} is missing the subclass 'plot_manger'",
+                "Asign an 'plot manger or use datat directly",
+            )
+
+        if (self.stress is None) or (self.strain is None):
+            raise ValueError(
+                f"Cannot create plot: {self}'s Stress or Strain is None.",
+                f"Thus Standard Plot Method for {self.analysis_standard.value} is unavailable",
+            )
+
+        if isinstance(plot_name, str) and plot_name == "":
+            plot_name = f"Stress Strain - {self.name}"
+
+        plot = self.plot_manager.add_entity_to_plot(
+            self,
+            plot_name,
+            x_data_key="strain",
+            y_data_key="stress",
+            plot_type="line",
+            element_label="stress vs strain",
+        )
+        from visualization_backend.plot_config import PlotConfig
+
+        return plot
+        return plot

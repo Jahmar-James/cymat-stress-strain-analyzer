@@ -171,7 +171,7 @@ class SampleGenericGroup(AnalyzableEntity):
         combined_df = pd.concat(table_values.values(), axis=1)
         return combined_df
 
-    def plot(self) -> None:
+    def plot(self, plot=None, plot_name="") -> None:
         """
         Plot key performance indicators (KPI) relevant to the standard being used.
         This method must be implemented by subclasses to provide standard-specific views.

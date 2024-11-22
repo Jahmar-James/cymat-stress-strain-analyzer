@@ -39,6 +39,9 @@ class Plot:
         self.axes = axes
         self.style = style
 
+    def __repr__(self) -> str:
+        f"{self.__class__.__name__}({self.name})"
+
     def show(self, block: bool = True) -> None:
         """Show the plot and keep it open depending on the 'block' parameter."""
         if self.fig is None or self.axes is None:

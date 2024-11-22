@@ -952,6 +952,3 @@ class AnalyzableEntity(ABC):
         This method must be implemented by subclasses to provide standard-specific views.
         """
         pass
-
-
-

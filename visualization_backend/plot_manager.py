@@ -134,6 +134,8 @@ class PlotManager:
         elif plot_name not in self.plots and plot_name:
             plot = Plot(plot_name, plot_type, plot_config)
             self.plots[plot_name] = plot
+        elif plot_name == "":
+            raise ValueError("Cannot create plot the plot name is empty")
         else:
             plot = self.plots["default_plot"]
         return plot

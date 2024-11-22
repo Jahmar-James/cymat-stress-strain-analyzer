@@ -23,7 +23,7 @@ def analyzably_entity_init():
     )
 
 
-def demo_import_single_entity():
+def demo_import_single_entity(return_class=TestableAnalyzableEntity):
     path = None
     while path is None:
         path = filedialog.askopenfile()
@@ -32,20 +32,23 @@ def demo_import_single_entity():
 
     if isinstance(entity.serializer.export_strategy, FileIOManager):
         new_entity = entity.serializer.export_strategy.import_object_from_file(
-            return_class=TestableAnalyzableEntity, input_file=path.name
+            return_class=return_class, input_file=path.name
         )
 
-        if isinstance(new_entity, TestableAnalyzableEntity):
+        if isinstance(new_entity, return_class):
             print(f"NEW Entity '{new_entity.name}' has an area of {new_entity.area:.2f} mm^2")
             print(f"Does the new entity equal the old entity? {entity == new_entity}")
         else:
             print("This is not a in the correct types")
+
+        return new_entity
 
 
 def demo_export_single_entity():
     output_dir = Path.cwd() / "output"
     # path = filedialog.asksaveasfilename()
     entity.serializer.export(tracked_object=entity, output_path=output_dir)
+    return entity
 
 
 def generic_sample_1_init():
@@ -93,6 +96,42 @@ def demo_export_generic_sample_group():
     print(f"Entity '{sample_group.name}'")
     sample_group.serializer.export(tracked_object=sample_group, output_path=output_dir)
 
+def demo_plot_imported_samples():
+    importted_entity = demo_import_single_entity(return_class=SampleGeneric)
+
+    print(f"Stress: {importted_entity.stress}")
+    print(f"Strain: {importted_entity.strain}")
+
+    import matplotlib.pyplot as plt
+
+    from visualization_backend.plot_manager import PlotManager
+
+    plot_manager = PlotManager()
+    plot_name = input("Enter plot name for plot: ")
+    plot = plot_manager.add_entity_to_plot(
+        importted_entity,
+        plot_name,
+        x_data_key="strain",
+        y_data_key="stress",
+        plot_type="line",
+        element_label="stress vs strain",
+    )
+
+    plt.show()
+
+
+def export_demo_classes():
+    base_sample = analyzably_entity_init()
+    sample_1 = generic_sample_1_init()
+    sample_2 = generic_sample_2_init()
+    samples = [sample_1, sample_2]
+    sample_group = SampleGenericGroup(samples=samples, name="Generic_Sample_Group")
+
+    demo_output_direct = Path(r"C:\Users\JahmarJames\Downloads")
+
+    for entity in [base_sample, sample_1, sample_2, sample_group]:
+        entity.serializer.export(tracked_object=entity, output_path=demo_output_direct)
+
 
 if __name__ == "__main__":
     entity = analyzably_entity_init()
@@ -111,6 +150,10 @@ if __name__ == "__main__":
     # demo_export_single_entity()
     # demo_export_generic_sample_group()
 
-    demo_import_single_entity()
+    demo_sample = demo_import_single_entity()
 
-    print("Done")
+    plot = demo_sample.plot()
+    print(plot)
+    # print(f"Demo Sample {demo_sample}")
+    # demo_plot_imported_samples()
+    # print("Done")

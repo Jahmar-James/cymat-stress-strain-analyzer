@@ -266,7 +266,8 @@ class FileIOManager(IOStrategy):
                     if isinstance(column_name, list) and all(isinstance(name, str) for name in column_name):
                         value = value.copy()
                         value.rename(columns=dict(zip(value.columns, column_name)), inplace=True)
-                    value.to_csv(file_name, header=True, index=True)
+                        value.reset_index(inplace=True)
+                    value.to_csv(file_name, header=True, index=False)
                 else:
                     raise IOValidator.generate_value_error(
                         value_type=type(value).__name__,
@@ -432,7 +433,9 @@ class FileIOManager(IOStrategy):
             raise Exception(f"An unexpected error occurred while unzipping '{zip_file_path}': {e}")
 
     @staticmethod
-    def _load_attributes_and_data(directory: Path, json_file: Path, key_to_class_name: str = "class_name") -> dict:
+    def _load_attributes_and_data(
+        directory: Path, json_file: Path, key_to_class_name: str = "class_name", get_attr_from_df=True
+    ) -> dict:
         """ "
         Reads attributes from a JSON file and associated data from CSV files.
 
@@ -461,21 +464,31 @@ class FileIOManager(IOStrategy):
                     csv_file_path = directory / details["value"]
                     if csv_file_path.exists():
                         # Load the CSV and apply correct type
-                        processed_attributes[attribute_name] = pd.read_csv(csv_file_path)
+                        csv_data = pd.read_csv(csv_file_path)
+                        data_name = details["value"].replace("_data.csv", "")
+                        processed_attributes[data_name] = csv_data
 
-                        # Reassign the correct type for the data (usually Series or DataFrame)
-                        processed_attributes[attribute_name] = FileIOManager._reassign_type(
-                            attributes[attribute_name], details["data_type"], attribute_name
-                        )
+                        # Flatten DataFrame columns into `processed_attributes` if enabled
+                        # Stored the seires into a dataframe to save on io operations
+                        # and decreate  data size and number of files
+                        if get_attr_from_df and isinstance(csv_data, pd.DataFrame):
+                            for column in csv_data.columns:
+                                column_name = FileIOManager._clean_column_name(column)
+                                processed_attributes[f"_{column_name}"] = csv_data[column]
+
+                        # Ensure the attribute has the correct data type as specified in JSON
+                        if details["data_type"] != type(csv_data).__name__:
+                            processed_attributes[data_name] = FileIOManager._reassign_type(
+                                csv_data, details["data_type"], data_name
+                            )
                 else:
                     # For Attributes (non-data fields), reassign types if necessary
                     if "value" in details and "data_type" in details:
                         # Invert the dictionary if key_to_class_name is found and update the attribute name
                         if key_to_class_name in details:
                             attribute_name = details.pop(key_to_class_name)
-                            processed_attributes[attribute_name] = details
 
-                        processed_attributes[attribute_name]["value"] = FileIOManager._reassign_type(
+                        processed_attributes[attribute_name] = FileIOManager._reassign_type(
                             details["value"], details["data_type"], attribute_name
                         )
 
@@ -487,9 +500,6 @@ class FileIOManager(IOStrategy):
                         directory_item, json_file
                     )
 
-            # Return only the values drop
-            processed_attributes = {key: value["value"] for key, value in processed_attributes.items()}
-
             if child_attributes:
                 processed_attributes["children"] = child_attributes
 
@@ -499,6 +509,23 @@ class FileIOManager(IOStrategy):
             raise IOValidator.generate_os_error(task="load fields from JSON", path=json_file)
         except Exception as e:
             raise Exception(f"An unexpected error occurred while loading fields from '{json_file}': {e}")
+
+    @staticmethod
+    def _clean_column_name(column_name: str) -> str:
+        """
+        Cleans a column name by removing special characters, units, and extra spaces.
+        Converts to lowercase and replaces spaces with underscores.
+
+        Example transformations:
+        - "Time [s]" -> "time"
+        - "Force [N]" -> "force"
+        """
+        # Remove everything within brackets (units) and strip whitespace
+        column_name = column_name.split("[")[0].strip()
+        # Keep only alphanumeric characters and underscores, convert to lowercase
+        cleaned_name = "".join(e for e in column_name if e.isalnum() or e == " ").lower()
+        # Replace spaces with underscores
+        return cleaned_name.replace(" ", "_")
 
     @staticmethod
     def _invert_attributes_n_data(attributes_n_data: dict, key: str = "class_name") -> dict:
