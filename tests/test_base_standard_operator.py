@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 from uncertainties import ufloat
 
-from standards.base.properties_calculators.base_standard_operator import BaseStandardOperator
+from standard_base.properties_calculators.base_standard_operator import BaseStandardOperator
 
 # Round-off error comes from the approximation of real numbers. eg. 1/3 = 0.3333333333333333 (infinite decimal places)
 # the acuracy is dependent on the anount of memory (bits) allocated to store the number.

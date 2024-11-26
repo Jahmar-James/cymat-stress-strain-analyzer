@@ -2,7 +2,11 @@ import pandas as pd
 import pytest
 from pint import UnitRegistry
 
-from standards.base.base_standard_validator import BaseStandardValidator, MechanicalTestDataTypes, SampleProperties
+from standard_base.validation.base_standard_validator import (
+    BaseStandardValidator,
+    MechanicalTestDataTypes,
+    SampleProperties,
+)
 from standards.cymat_iso_13314_2011.validator import CymatISO133142011Validator
 
 

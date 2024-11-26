@@ -1,6 +1,14 @@
+import pathlib
+import sys
+
 import pandas as pd
 import pint
 import pytest
+
+# Add the directory containing the module to the Python path (wants to be in the root directory)
+
+sys.path.append(str(pathlib.Path(__file__).parent.parent))
+print(f"sys.path: {sys.path}")
 
 from tests.abstract_classes import TestableAnalyzableEntity
 
@@ -51,7 +59,7 @@ def test_get_force_conversion(analyzable_entity_with_default_units, target_unit,
     """
     # Act
     # converted_force = analyzable_entity_with_default_units.get_force(target_unit)
-    analyzable_entity_with_default_units.set_target_unit("force", target_unit)
+    analyzable_entity_with_default_units.property_manager.set_target_unit("force", target_unit)
     converted_force = analyzable_entity_with_default_units.force
 
     # Assert
@@ -61,7 +69,7 @@ def test_get_force_conversion(analyzable_entity_with_default_units, target_unit,
     ), f"Expected force in {target_unit}: {expected_force}, but got: {converted_force.tolist()}"
 
     # Verify that the internal _force attribute remains unchanged in newtons
-    internal_force = analyzable_entity_with_default_units._force
+    internal_force = analyzable_entity_with_default_units.property_manager._properties["force"].value
     assert internal_force.equals(
         pd.Series([100, 200, 300])
     ), f"Internal _force should remain unchanged in newtons, but got: {internal_force.tolist()}"
@@ -83,11 +91,11 @@ def test_area_calculation_with_unit_conversion():
         width=0.5,  # Width in centimeters, but stored in internal_units as mm
         thickness=2.0,  # Thickness in millimeters (not relevant for this test)
     )
-    # Volume and area already | I am not how - Maybe because they are @property
+    # Volume and area already | I am sure not how - Maybe because they are @property
 
     # Width in centimeters, will be converted to millimeters
-    entity._internal_units["width"] = ureg.centimeter
-    entity.recalculate_properties("area")  # Recalculate area with the new width unit
+    entity.internal_units["width"] = ureg.centimeter
+    entity.property_manager.recalculate_property("area")
 
     # Act
     calculated_area = entity.area  # Should convert and calculate the area in mm^2
@@ -98,8 +106,8 @@ def test_area_calculation_with_unit_conversion():
         expected_area, rel=1e-3
     ), f"Expected area: {expected_area} mm^2, but got: {calculated_area} mm^2"
     assert (
-        str(entity._internal_units["area"]) == "millimeter ** 2"
-    ), f"Expected area units: 'millimeter ** 2', but got: {entity._internal_units['area']}"
+        str(entity.internal_units["area"]) == "millimeter ** 2"
+    ), f"Expected area units: 'millimeter ** 2', but got: {entity.internal_units['area']}"
 
 
 def test_reset_target_unit(analyzable_entity_with_default_units):
@@ -110,7 +118,7 @@ def test_reset_target_unit(analyzable_entity_with_default_units):
     - Reset the target unit and verify the force is returned in its internal unit (N).
     """
     # Act
-    analyzable_entity_with_default_units.set_target_unit("force", "kilonewton")
+    analyzable_entity_with_default_units.property_manager.set_target_unit("force", "kilonewton")
 
     # Verify that force is now in kilonewtons
     force_in_kilonewtons = analyzable_entity_with_default_units.force
@@ -118,17 +126,15 @@ def test_reset_target_unit(analyzable_entity_with_default_units):
         pd.Series([0.1, 0.2, 0.3])
     ), f"Force should be in kilonewtons: [0.1, 0.2, 0.3], but got: {force_in_kilonewtons.tolist()}"
 
-    analyzable_entity_with_default_units.reset_target_unit("force")
+    analyzable_entity_with_default_units.property_manager.reset_target_unit("force")
 
     # Verify that force is now back to its default unit (newton)
     assert (
-        "force" not in analyzable_entity_with_default_units._target_units
+        analyzable_entity_with_default_units.property_manager.get_property("force").unit == ureg.newton
     ), "Expected 'force' to have been reset to its internal unit."
 
     # Check that accessing force now returns in newtons
-    force_in_newtons = analyzable_entity_with_default_units._convert_units(
-        analyzable_entity_with_default_units._force, "force"
-    )
+    force_in_newtons = analyzable_entity_with_default_units.force
     assert force_in_newtons.equals(
         pd.Series([100, 200, 300])
     ), f"Force should be back in newtons: [100, 200, 300], but got: {force_in_newtons.tolist()}"
@@ -177,16 +183,21 @@ def test_strain_calculation(analyzable_entity_with_default_units):
 # Data Validation and Error Handling Tests
 # =============================================================================
 
+# TODO update to as new error from refactoring analyzable_entity for better scalablility and readablility
 
 def test_missing_length_for_area(analyzable_entity_with_default_units):
     """
     Test that accessing the `area` property raises an error when `length` is not set.
     """
     # Arrange
-    analyzable_entity_with_default_units.length = None  # Remove the length attribute
-    analyzable_entity_with_default_units._area = None  # Reset the cached area value
+    # analyzable_entity_with_default_units.length = None  # Remove the length attribute
+    # analyzable_entity_with_default_units._area = None  # Reset the cached area value
+    analyzable_entity_with_default_units.property_manager._properties["length"].value = None
+    analyzable_entity_with_default_units.property_manager.invalidate_cache("area")
 
     # Expected error: Cannot calculate area for entity 'Sample 1': Length must be a positive float or int.
+
+    # UPDATEDCannot calculate area for entity 'Sample 1': Property 'length' is missing or has no value.
 
     # Act & Assert
     with pytest.raises(ValueError, match=r".*Length must be a positive float or int.*"):
@@ -223,10 +234,13 @@ def test_accessing_stress_before_area(analyzable_entity_with_default_units):
     - With `width = None`, accessing `stress` should raise a `ValueError` indicating that `area` is required.
     """
     # Remove width, set _area to None to ensure that cached value is not used
-    analyzable_entity_with_default_units.width = None
-    analyzable_entity_with_default_units._area = None
+    analyzable_entity_with_default_units.property_manager._properties["width"].value = None
+    analyzable_entity_with_default_units.property_manager.invalidate_cache("area")
 
     # Expected error: Cannot calculate stress for entity 'Sample 1': Cannnot calculate area for entity 'Sample 1': Func [calculate_cross_sectional_area] | Width must be a positive float or int
+
+    # Updated: Cannot calculate area for entity 'Sample 1': Width must be a positive float or int in function [calculate_cross_sectional_area]. Received: 0.0
+
     with pytest.raises(ValueError, match=r".*Width must be a positive float or int.*"):
         _ = analyzable_entity_with_default_units.stress
 
@@ -243,7 +257,9 @@ def test_accessing_strain_without_length(analyzable_entity_with_default_units):
     - With `length = None`, accessing `strain` should raise a `ValueError` indicating that `length` is required.
     """
     # Remove length
-    analyzable_entity_with_default_units.length = None
+    analyzable_entity_with_default_units.property_manager._properties["length"] = None
+
+    # updated "Cannot calculate 'strain' data for entity 'Sample 1', was not assigned, or depends other invalid properties."
 
     # Expected error: Cannot calculate strain for entity 'Sample 1': Initial Length must be a positive float or int in function [calculate_strain]. Received: None
     with pytest.raises(ValueError, match=r".*Initial Length must be a positive float or int.*"):

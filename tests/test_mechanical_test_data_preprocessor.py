@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from ..data_extraction.mechanical_test_data_preprocessor import MechanicalTestDataPreprocessor, ureg
+from standard_base.data_extraction.mechanical_test_data_preprocessor import MechanicalTestDataPreprocessor, ureg
 
 
 def test_MechanicalTestDataPreprocessor_init_default():

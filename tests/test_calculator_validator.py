@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from standards.base.properties_calculators.calculation_validation_helper import ValidationHelper
+from standard_base.properties_calculators.calculation_validation_helper import ValidationHelper
 
 # Move test from BaseStandardOperatorTest to ValidationHelper
 # As Valiation has moved to a separate class, we need to update the test to reflect this change.
