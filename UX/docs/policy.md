@@ -92,6 +92,12 @@ As the project evolves, these policies will be updated to reflect new requiremen
 - Follow a standardized naming scheme for events:
   - **Action**: For trigger a behavior.
   - **State**: For updates stauts of a componet or actions.
+  - **Backend Event Handling**:  
+  - Event handlers for backend components must reside in the backend manager or equivalent centralized class. Backend components themselves (e.g., `PlotManager`) must avoid direct dependency on the event system.  
+  - The centralized handler will:
+    - **Unpack Payloads**: Event payloads will be extracted and passed to backend components in their expected format.
+    - **Pre/Post Hooks**: Support pre- and post-hooks for event processing to allow for additional logic (e.g., logging, preprocessing).  
+    - **Dispatch Results**: If required, the centralized handler will dispatch results or status updates back to the frontend via the event system.
 
 ### **2. Communication Between Layers**
 - **Direct Communication**: Components in the same layer (e.g., frontend to frontend) must communicate directly, avoiding the Event Handler.
